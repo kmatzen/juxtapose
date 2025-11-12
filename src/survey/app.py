@@ -220,6 +220,15 @@ def submit_demographics():
             (session['session_id'],)
         ).fetchone()
         
+        # Check if they're retaking the survey
+        is_retaking = False
+        if participant:
+            response_count = db.execute(
+                'SELECT COUNT(*) as count FROM survey_responses WHERE participant_id = ?',
+                (participant['id'],)
+            ).fetchone()
+            is_retaking = response_count and response_count['count'] > 0
+        
         if not participant:
             # Extract device info
             device_info = data.get('device_info', {})
@@ -266,7 +275,11 @@ def submit_demographics():
         ))
         
         db.commit()
-        return jsonify({'success': True, 'participant_id': participant_id})
+        return jsonify({
+            'success': True, 
+            'participant_id': participant_id,
+            'is_retaking': is_retaking
+        })
     except Exception as e:
         db.rollback()
         return jsonify({'error': str(e)}), 500
@@ -319,28 +332,52 @@ def submit_survey():
         ).fetchone()
         
         if existing:
-            return jsonify({'error': 'Image pair already submitted'}), 400
-        
-        # Store survey response
-        db.execute('''
-            INSERT INTO survey_responses 
-            (participant_id, image_pair_id, prompt, image_a_url, image_b_url,
-             better_image, image_confidence, better_prompt_match, prompt_confidence, was_randomized)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            participant['id'],
-            data.get('image_pair_id'),
-            data.get('prompt'),
-            data.get('image_a_url'),
-            data.get('image_b_url'),
-            data.get('better_image'),
-            data.get('image_confidence'),
-            data.get('better_prompt_match'),
-            data.get('prompt_confidence'),
-            1 if data.get('was_randomized') else 0
-        ))
+            # Update existing response (allow retaking)
+            db.execute('''
+                UPDATE survey_responses 
+                SET prompt = ?, 
+                    image_a_url = ?, 
+                    image_b_url = ?,
+                    better_image = ?, 
+                    image_confidence = ?, 
+                    better_prompt_match = ?, 
+                    prompt_confidence = ?, 
+                    was_randomized = ?,
+                    created_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (
+                data.get('prompt'),
+                data.get('image_a_url'),
+                data.get('image_b_url'),
+                data.get('better_image'),
+                data.get('image_confidence'),
+                data.get('better_prompt_match'),
+                data.get('prompt_confidence'),
+                1 if data.get('was_randomized') else 0,
+                existing['id']
+            ))
+        else:
+            # Insert new response
+            db.execute('''
+                INSERT INTO survey_responses 
+                (participant_id, image_pair_id, prompt, image_a_url, image_b_url,
+                 better_image, image_confidence, better_prompt_match, prompt_confidence, was_randomized)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                participant['id'],
+                data.get('image_pair_id'),
+                data.get('prompt'),
+                data.get('image_a_url'),
+                data.get('image_b_url'),
+                data.get('better_image'),
+                data.get('image_confidence'),
+                data.get('better_prompt_match'),
+                data.get('prompt_confidence'),
+                1 if data.get('was_randomized') else 0
+            ))
         
         # Check if they've completed all image pairs
+        required_count = 3 if DEV_MODE else 30
         response_count = db.execute(
             'SELECT COUNT(*) as count FROM survey_responses WHERE participant_id = ?',
             (participant['id'],)
@@ -348,7 +385,7 @@ def submit_survey():
         
         db.commit()
         
-        completed = response_count['count'] >= 30
+        completed = response_count['count'] >= required_count
         return jsonify({'success': True, 'completed': completed})
     except Exception as e:
         db.rollback()
