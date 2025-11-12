@@ -3,11 +3,62 @@ let demographicsData = null;
 let currentImageIndex = 0;
 let currentImageData = null;
 let totalImagePairs = 30;
+let deviceInfo = {};
 
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
+    collectDeviceInfo();
     setupEventListeners();
 });
+
+function collectDeviceInfo() {
+    // Detect browser
+    const ua = navigator.userAgent;
+    let browser = 'Unknown';
+    let browserVersion = '';
+    
+    if (ua.indexOf('Firefox') > -1) {
+        browser = 'Firefox';
+        browserVersion = ua.match(/Firefox\/(\d+\.\d+)/)?.[1] || '';
+    } else if (ua.indexOf('Chrome') > -1) {
+        browser = 'Chrome';
+        browserVersion = ua.match(/Chrome\/(\d+\.\d+)/)?.[1] || '';
+    } else if (ua.indexOf('Safari') > -1) {
+        browser = 'Safari';
+        browserVersion = ua.match(/Version\/(\d+\.\d+)/)?.[1] || '';
+    } else if (ua.indexOf('Edge') > -1 || ua.indexOf('Edg') > -1) {
+        browser = 'Edge';
+        browserVersion = ua.match(/Edg\/(\d+\.\d+)/)?.[1] || '';
+    }
+    
+    // Detect OS
+    let os = 'Unknown';
+    if (ua.indexOf('Win') > -1) os = 'Windows';
+    else if (ua.indexOf('Mac') > -1) os = 'macOS';
+    else if (ua.indexOf('Linux') > -1) os = 'Linux';
+    else if (ua.indexOf('Android') > -1) os = 'Android';
+    else if (ua.indexOf('iOS') > -1 || ua.indexOf('iPhone') > -1 || ua.indexOf('iPad') > -1) os = 'iOS';
+    
+    // Collect device info
+    deviceInfo = {
+        browser: browser,
+        browser_version: browserVersion,
+        os: os,
+        screen_width: screen.width,
+        screen_height: screen.height,
+        pixel_ratio: window.devicePixelRatio || 1,
+        color_depth: screen.colorDepth,
+        viewport_width: window.innerWidth,
+        viewport_height: window.innerHeight
+    };
+    
+    // Display info to user
+    document.getElementById('user-browser').textContent = `${browser} ${browserVersion}`;
+    document.getElementById('user-os').textContent = os;
+    document.getElementById('user-screen').textContent = `${screen.width} × ${screen.height}px`;
+    document.getElementById('user-pixel-ratio').textContent = `${window.devicePixelRatio || 1}x`;
+    document.getElementById('user-color').textContent = screen.colorDepth;
+}
 
 function setupEventListeners() {
     // Demographics form submission
@@ -49,6 +100,9 @@ async function handleDemographicsSubmit(event) {
     } else if (!demographicsData.image_gen_tools) {
         demographicsData.image_gen_tools = 'none';
     }
+    
+    // Add device info to submission
+    demographicsData.device_info = deviceInfo;
     
     try {
         const response = await fetch('/api/submit_demographics', {
