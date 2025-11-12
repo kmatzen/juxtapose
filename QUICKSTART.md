@@ -2,11 +2,7 @@
 
 ## Get Running in 3 Steps
 
-### Step 1: Add Your Questions
-
-Edit `src/survey/app.py` around line 17 and replace the `QUESTION_PAIRS` list with your 30 actual question pairs. See `sample_questions.py` for the format.
-
-### Step 2: Install uv (Fast Python Package Manager)
+### Step 1: Install uv (Fast Python Package Manager)
 
 ```bash
 # macOS/Linux
@@ -16,27 +12,62 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 brew install uv
 ```
 
-### Step 3: Start the Server
+### Step 2: Start the Server (Dev Mode)
 
 ```bash
 ./start.sh
 ```
 
+This will start the app in **DEV MODE** which:
+- 🔧 Auto-fills all form fields with test data
+- 🚀 Uses only 3 image pairs instead of 30
+- ⚡ Makes testing super fast!
+
 Or manually:
 ```bash
-uv sync           # Install dependencies (super fast!)
-uv run python app.py
+uv sync                    # Install dependencies
+export DEV_MODE=true       # Enable dev mode
+uv run python run.py
 ```
 
-### Step 4: Make it Public with ngrok
+### Step 3: Add Your Actual Images
 
-1. Download ngrok: https://ngrok.com/download
-2. Run: `ngrok http 5000`
-3. Share the URL it gives you (e.g., `https://abc123.ngrok.io`)
+When ready for production, edit `src/survey/app.py` around line 17 and replace the `IMAGE_PAIRS` list with your 30 actual images. See `sample_questions.py` for the format.
+
+### Step 4: Deploy for Production
+
+**Turn off dev mode** and deploy:
+```bash
+# Don't set DEV_MODE (or set it to false)
+uv run python run.py
+```
+
+See "Deployment Options" in README.md for cloud hosting.
+
+## Dev Mode vs Production Mode
+
+| Feature | Dev Mode | Production Mode |
+|---------|----------|----------------|
+| Image Pairs | 3 | 30 |
+| Form Auto-fill | ✅ Yes | ❌ No |
+| Visual Indicator | 🔧 Red badge | None |
+| Purpose | Fast testing | Real survey |
+
+**Enable Dev Mode:**
+```bash
+export DEV_MODE=true
+```
+
+**Disable Dev Mode (Production):**
+```bash
+unset DEV_MODE
+# or set it explicitly to false
+export DEV_MODE=false
+```
 
 ## Access Points
 
-- **Survey**: `http://localhost:5000` (or your ngrok URL)
+- **Survey**: `http://localhost:5000`
 - **Admin**: `http://localhost:5000/admin/login`
   - Default password: `admin123` (change via `export ADMIN_PASSWORD="newpass"`)
 
