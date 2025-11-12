@@ -7,8 +7,8 @@ let deviceInfo = {};
 let devMode = false;
 
 // Initialize
-document.addEventListener('DOMContentLoaded', function() {
-    checkDevMode();
+document.addEventListener('DOMContentLoaded', async function() {
+    await checkDevMode();
     collectDeviceInfo();
     setupEventListeners();
 });
