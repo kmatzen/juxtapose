@@ -181,6 +181,21 @@ async function handleDemographicsSubmit(event) {
         const result = await response.json();
         
         if (response.ok && result.success) {
+            // Warn if retaking the survey
+            if (result.is_retaking && !devMode) {
+                const confirmRetake = confirm(
+                    'It looks like you have already taken this survey.\n\n' +
+                    'If you continue, your previous responses will be overwritten.\n\n' +
+                    'Do you want to continue and retake the survey?'
+                );
+                
+                if (!confirmRetake) {
+                    // Reload page to go back
+                    window.location.reload();
+                    return;
+                }
+            }
+            
             // Move to survey section
             document.getElementById('demographics-section').classList.remove('active');
             document.getElementById('survey-section').classList.add('active');
@@ -293,11 +308,7 @@ async function handleSurveySubmit(event) {
                 window.scrollTo(0, 0);
             }
         } else {
-            if (result.error && result.error.includes('already submitted')) {
-                showError('You have already evaluated this image pair.');
-            } else {
-                showError('Failed to submit response. Please try again.');
-            }
+            showError('Failed to submit response. Please try again.');
             console.error('Error:', result.error);
         }
     } catch (error) {
