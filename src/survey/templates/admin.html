@@ -66,15 +66,15 @@
             </div>
             <div class="stat-card">
                 <div class="stat-number" id="a-preferred">0</div>
-                <div class="stat-label">Prefer Question A</div>
+                <div class="stat-label">Prefer Image A</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number" id="b-preferred">0</div>
-                <div class="stat-label">Prefer Question B</div>
+                <div class="stat-label">Prefer Image B</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number" id="avg-confidence">0</div>
-                <div class="stat-label">Avg Confidence</div>
+                <div class="stat-number" id="avg-confidence" style="font-size: 1.5em;">0 / 0</div>
+                <div class="stat-label">Avg Confidence (Image / Prompt)</div>
             </div>
         </div>
 
@@ -111,15 +111,18 @@
                 const uniqueParticipants = new Set(data.map(r => r.email)).size;
                 document.getElementById('total-responses').textContent = uniqueParticipants;
                 
-                const aCount = data.filter(r => r.better_choice === 'A').length;
-                const bCount = data.filter(r => r.better_choice === 'B').length;
-                const avgConf = data.length > 0 
-                    ? (data.reduce((sum, r) => sum + (r.confidence || 0), 0) / data.length).toFixed(1)
+                const aCount = data.filter(r => r.better_image === 'A').length;
+                const bCount = data.filter(r => r.better_image === 'B').length;
+                const avgImageConf = data.length > 0 
+                    ? (data.reduce((sum, r) => sum + (r.image_confidence || 0), 0) / data.length).toFixed(1)
+                    : 0;
+                const avgPromptConf = data.length > 0 
+                    ? (data.reduce((sum, r) => sum + (r.prompt_confidence || 0), 0) / data.length).toFixed(1)
                     : 0;
                 
                 document.getElementById('a-preferred').textContent = aCount;
                 document.getElementById('b-preferred').textContent = bCount;
-                document.getElementById('avg-confidence').textContent = avgConf;
+                document.getElementById('avg-confidence').textContent = avgImageConf + ' / ' + avgPromptConf;
                 
                 // Render current view
                 renderTable();
@@ -203,10 +206,11 @@
                     <tr>
                         <th>Date</th>
                         <th>Email</th>
-                        <th>Q#</th>
-                        <th>Better</th>
-                        <th>Conf</th>
-                        <th>Adheres</th>
+                        <th>Pair#</th>
+                        <th>Better Image</th>
+                        <th>Img Conf</th>
+                        <th>Better Match</th>
+                        <th>Prompt Conf</th>
                         <th>Randomized</th>
                     </tr>
                 `;
@@ -215,10 +219,11 @@
                     <tr>
                         <td>${new Date(row.response_created).toLocaleDateString()}</td>
                         <td>${row.email || '-'}</td>
-                        <td>${row.question_pair_id || '-'}</td>
-                        <td>${row.better_choice || '-'}</td>
-                        <td>${row.confidence || '-'}</td>
-                        <td>${row.prompt_adherence || '-'}</td>
+                        <td>${row.image_pair_id || '-'}</td>
+                        <td>${row.better_image || '-'}</td>
+                        <td>${row.image_confidence || '-'}</td>
+                        <td>${row.better_prompt_match || '-'}</td>
+                        <td>${row.prompt_confidence || '-'}</td>
                         <td>${row.was_randomized ? 'Yes' : 'No'}</td>
                     </tr>
                 `).join('');

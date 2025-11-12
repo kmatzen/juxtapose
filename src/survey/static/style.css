@@ -155,8 +155,8 @@ p {
     font-size: 18px;
 }
 
-/* Questions Container */
-.questions-container {
+/* Images Container */
+.images-container {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 20px;
@@ -164,35 +164,56 @@ p {
 }
 
 @media (max-width: 768px) {
-    .questions-container {
+    .images-container {
         grid-template-columns: 1fr;
     }
 }
 
-.question-box {
+.image-box {
     background: #fff;
     border: 2px solid #e0e0e0;
     border-radius: 8px;
-    padding: 20px;
+    padding: 15px;
     transition: all 0.3s ease;
 }
 
-.question-box:hover {
+.image-box:hover {
     border-color: #4A90E2;
     box-shadow: 0 4px 12px rgba(74, 144, 226, 0.15);
 }
 
-.question-box h3 {
+.image-box h3 {
     color: #4A90E2;
     margin-bottom: 15px;
     font-size: 18px;
+    text-align: center;
 }
 
-.question-box p {
-    color: #333;
-    font-size: 16px;
-    line-height: 1.6;
-    margin: 0;
+.survey-image {
+    width: 100%;
+    height: auto;
+    border-radius: 4px;
+    display: block;
+    max-height: 500px;
+    object-fit: contain;
+    background: #f8f9fa;
+}
+
+/* Evaluation Sections */
+.evaluation-section {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 25px;
+    margin-bottom: 25px;
+    border-left: 4px solid #4A90E2;
+}
+
+.section-title {
+    color: #2c3e50;
+    font-size: 20px;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e0e0e0;
 }
 
 /* Form Elements */

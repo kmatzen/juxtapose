@@ -149,90 +149,124 @@
 
         <!-- Survey Section -->
         <section id="survey-section" class="section">
-            <h1>Question Comparison</h1>
-            <p class="instruction">Please evaluate the following two questions based on the given prompt. You will see 30 question pairs in total.</p>
+            <h1>Image Comparison</h1>
+            <p class="instruction">Please evaluate the following two images based on the given prompt. You will see 30 image pairs in total.</p>
             
             <div class="prompt-box">
-                <h3>Prompt</h3>
+                <h3>Text Prompt</h3>
                 <p id="prompt-text">Loading...</p>
             </div>
 
             <form id="survey-form">
-                <div class="questions-container">
-                    <div class="question-box">
-                        <h3>Question A</h3>
-                        <p id="question-a">Loading...</p>
+                <div class="images-container">
+                    <div class="image-box">
+                        <h3>Image A</h3>
+                        <img id="image-a" src="" alt="Image A" class="survey-image">
                     </div>
 
-                    <div class="question-box">
-                        <h3>Question B</h3>
-                        <p id="question-b">Loading...</p>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>Which question is better overall?</label>
-                    <div class="radio-group">
-                        <label class="radio-label">
-                            <input type="radio" name="better_choice" value="A" required>
-                            Question A
-                        </label>
-                        <label class="radio-label">
-                            <input type="radio" name="better_choice" value="B">
-                            Question B
-                        </label>
-                        <label class="radio-label">
-                            <input type="radio" name="better_choice" value="equal">
-                            About Equal
-                        </label>
+                    <div class="image-box">
+                        <h3>Image B</h3>
+                        <img id="image-b" src="" alt="Image B" class="survey-image">
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label>How confident are you in your choice?</label>
-                    <div class="likert-scale">
-                        <label class="likert-label">
-                            <input type="radio" name="confidence" value="1" required>
-                            <span>1<br><small>Not at all</small></span>
-                        </label>
-                        <label class="likert-label">
-                            <input type="radio" name="confidence" value="2">
-                            <span>2</span>
-                        </label>
-                        <label class="likert-label">
-                            <input type="radio" name="confidence" value="3">
-                            <span>3<br><small>Somewhat</small></span>
-                        </label>
-                        <label class="likert-label">
-                            <input type="radio" name="confidence" value="4">
-                            <span>4</span>
-                        </label>
-                        <label class="likert-label">
-                            <input type="radio" name="confidence" value="5">
-                            <span>5<br><small>Very confident</small></span>
-                        </label>
+                <div class="evaluation-section">
+                    <h3 class="section-title">Image Quality</h3>
+                    
+                    <div class="form-group">
+                        <label>Which image looks better overall (quality, aesthetics, coherence)?</label>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" name="better_image" value="A" required>
+                                Image A
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="better_image" value="B">
+                                Image B
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="better_image" value="equal">
+                                About Equal
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>How confident are you in this assessment?</label>
+                        <div class="likert-scale">
+                            <label class="likert-label">
+                                <input type="radio" name="image_confidence" value="1" required>
+                                <span>1<br><small>Not at all</small></span>
+                            </label>
+                            <label class="likert-label">
+                                <input type="radio" name="image_confidence" value="2">
+                                <span>2</span>
+                            </label>
+                            <label class="likert-label">
+                                <input type="radio" name="image_confidence" value="3">
+                                <span>3<br><small>Somewhat</small></span>
+                            </label>
+                            <label class="likert-label">
+                                <input type="radio" name="image_confidence" value="4">
+                                <span>4</span>
+                            </label>
+                            <label class="likert-label">
+                                <input type="radio" name="image_confidence" value="5">
+                                <span>5<br><small>Very confident</small></span>
+                            </label>
+                        </div>
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label>Which question better adheres to the prompt?</label>
-                    <div class="radio-group">
-                        <label class="radio-label">
-                            <input type="radio" name="prompt_adherence" value="A" required>
-                            Question A
-                        </label>
-                        <label class="radio-label">
-                            <input type="radio" name="prompt_adherence" value="B">
-                            Question B
-                        </label>
-                        <label class="radio-label">
-                            <input type="radio" name="prompt_adherence" value="equal">
-                            About Equal
-                        </label>
+                <div class="evaluation-section">
+                    <h3 class="section-title">Prompt Adherence</h3>
+                    
+                    <div class="form-group">
+                        <label>Which image better matches the text prompt?</label>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" name="better_prompt_match" value="A" required>
+                                Image A
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="better_prompt_match" value="B">
+                                Image B
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="better_prompt_match" value="equal">
+                                About Equal
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>How confident are you in this assessment?</label>
+                        <div class="likert-scale">
+                            <label class="likert-label">
+                                <input type="radio" name="prompt_confidence" value="1" required>
+                                <span>1<br><small>Not at all</small></span>
+                            </label>
+                            <label class="likert-label">
+                                <input type="radio" name="prompt_confidence" value="2">
+                                <span>2</span>
+                            </label>
+                            <label class="likert-label">
+                                <input type="radio" name="prompt_confidence" value="3">
+                                <span>3<br><small>Somewhat</small></span>
+                            </label>
+                            <label class="likert-label">
+                                <input type="radio" name="prompt_confidence" value="4">
+                                <span>4</span>
+                            </label>
+                            <label class="likert-label">
+                                <input type="radio" name="prompt_confidence" value="5">
+                                <span>5<br><small>Very confident</small></span>
+                            </label>
+                        </div>
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary" id="submit-btn">Next Question</button>
+                <button type="submit" class="btn btn-primary" id="submit-btn">Next Image Pair</button>
             </form>
         </section>
     </div>
