@@ -50,6 +50,7 @@ See "Deployment Options" in README.md for cloud hosting.
 |---------|----------|----------------|
 | Image Pairs | 3 | 30 |
 | Form Auto-fill | ✅ Yes | ❌ No |
+| Completion Check | ⚠️ Disabled | ✅ Enabled |
 | Visual Indicator | 🔧 Red badge | None |
 | Purpose | Fast testing | Real survey |
 
@@ -64,6 +65,14 @@ unset DEV_MODE
 # or set it explicitly to false
 export DEV_MODE=false
 ```
+
+**Dev Mode Benefits:**
+- No completion check - reload page anytime to restart
+- Fast iteration with only 3 pairs
+- All forms pre-filled
+
+**Shared Computers (Production):**
+Users can visit `/reset_session` to clear their session cookie and allow another person to take the survey. This doesn't delete their data, just clears the browser session.
 
 ## Access Points
 
