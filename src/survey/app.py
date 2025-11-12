@@ -219,20 +219,33 @@ def submit_demographics():
     db = get_db()
     
     try:
-        # Create or get participant
+        # Check if this email has been used before (detect retakes by email, not session)
+        email = data.get('email')
+        is_retaking = False
+        
+        if email:
+            # Look for previous submissions with this email
+            previous_participant = db.execute('''
+                SELECT p.id 
+                FROM participants p
+                JOIN demographics d ON p.id = d.participant_id
+                WHERE d.email = ?
+                LIMIT 1
+            ''', (email,)).fetchone()
+            
+            if previous_participant:
+                # Check if they have any survey responses
+                response_count = db.execute(
+                    'SELECT COUNT(*) as count FROM survey_responses WHERE participant_id = ?',
+                    (previous_participant['id'],)
+                ).fetchone()
+                is_retaking = response_count and response_count['count'] > 0
+        
+        # Create or get participant for current session
         participant = db.execute(
             'SELECT id FROM participants WHERE session_id = ?',
             (session['session_id'],)
         ).fetchone()
-        
-        # Check if they're retaking the survey
-        is_retaking = False
-        if participant:
-            response_count = db.execute(
-                'SELECT COUNT(*) as count FROM survey_responses WHERE participant_id = ?',
-                (participant['id'],)
-            ).fetchone()
-            is_retaking = response_count and response_count['count'] > 0
         
         if not participant:
             # Extract device info
