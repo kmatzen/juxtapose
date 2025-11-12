@@ -183,22 +183,16 @@ async function handleDemographicsSubmit(event) {
         if (response.ok && result.success) {
             // Warn if retaking the survey
             if (result.is_retaking) {
-                if (devMode) {
-                    // In dev mode, just log it and continue
-                    console.log('⚠️ RETAKE DETECTED: This email has been used before. (Warning suppressed in dev mode)');
-                } else {
-                    // In production, show confirmation dialog
-                    const confirmRetake = confirm(
-                        'It looks like you have already taken this survey.\n\n' +
-                        'If you continue, your previous responses will be overwritten.\n\n' +
-                        'Do you want to continue and retake the survey?'
-                    );
-                    
-                    if (!confirmRetake) {
-                        // Reload page to go back
-                        window.location.reload();
-                        return;
-                    }
+                const confirmRetake = confirm(
+                    'It looks like you have already taken this survey.\n\n' +
+                    'If you continue, your previous responses will be overwritten.\n\n' +
+                    'Do you want to continue and retake the survey?'
+                );
+                
+                if (!confirmRetake) {
+                    // Reload page to go back
+                    window.location.reload();
+                    return;
                 }
             }
             
