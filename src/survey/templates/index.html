@@ -24,8 +24,8 @@
 
         <!-- Demographics Section -->
         <section id="demographics-section" class="section active">
-            <h1>Welcome to Our Research Survey</h1>
-            <p>Thank you for participating! Please provide some basic information about yourself.</p>
+            <h1>Welcome to Our GenAI Image Evaluation Study</h1>
+            <p>Thank you for participating! Please provide some information about your background and experience with AI systems.</p>
             
             <form id="demographics-form">
                 <div class="form-group">
@@ -34,45 +34,113 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="age">Age Range</label>
-                    <select id="age" name="age_range" required>
+                    <label for="occupation">Occupation/Role</label>
+                    <select id="occupation" name="occupation" required>
                         <option value="">Select...</option>
-                        <option value="18-24">18-24</option>
-                        <option value="25-34">25-34</option>
-                        <option value="35-44">35-44</option>
-                        <option value="45-54">45-54</option>
-                        <option value="55-64">55-64</option>
-                        <option value="65+">65+</option>
+                        <option value="researcher">Researcher</option>
+                        <option value="software-engineer">Software Engineer</option>
+                        <option value="student">Student</option>
+                        <option value="designer">Designer/Artist</option>
+                        <option value="product-manager">Product Manager</option>
+                        <option value="data-scientist">Data Scientist/ML Engineer</option>
+                        <option value="other-tech">Other (Technical)</option>
+                        <option value="other-non-tech">Other (Non-Technical)</option>
                     </select>
                 </div>
 
                 <div class="form-group">
-                    <label for="gender">Gender</label>
-                    <select id="gender" name="gender" required>
+                    <label for="technical-background">Technical Background Level</label>
+                    <select id="technical-background" name="technical_background" required>
                         <option value="">Select...</option>
-                        <option value="male">Male</option>
-                        <option value="female">Female</option>
-                        <option value="non-binary">Non-binary</option>
-                        <option value="prefer-not-to-say">Prefer not to say</option>
+                        <option value="none">No technical background</option>
+                        <option value="basic">Basic (some programming/tech exposure)</option>
+                        <option value="intermediate">Intermediate (regular programming/tech work)</option>
+                        <option value="advanced">Advanced (expert in technical field)</option>
                     </select>
                 </div>
 
                 <div class="form-group">
-                    <label for="education">Education Level</label>
-                    <select id="education" name="education" required>
+                    <label for="has-used-image-gen">Have you used AI image generation systems?</label>
+                    <select id="has-used-image-gen" name="has_used_image_gen" required>
                         <option value="">Select...</option>
-                        <option value="high-school">High School</option>
-                        <option value="some-college">Some College</option>
-                        <option value="bachelors">Bachelor's Degree</option>
-                        <option value="masters">Master's Degree</option>
-                        <option value="doctorate">Doctorate</option>
-                        <option value="other">Other</option>
+                        <option value="never">Never</option>
+                        <option value="once-or-twice">Once or twice</option>
+                        <option value="occasionally">Occasionally (a few times)</option>
+                        <option value="regularly">Regularly (weekly or more)</option>
+                        <option value="extensively">Extensively (daily/professional use)</option>
                     </select>
                 </div>
 
                 <div class="form-group">
-                    <label for="country">Country</label>
-                    <input type="text" id="country" name="country" placeholder="e.g., United States" required>
+                    <label for="image-gen-tools">Which AI image generation tools have you used? (Select all that apply or leave blank)</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="image_gen_tools[]" value="dalle">
+                            DALL-E
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="image_gen_tools[]" value="midjourney">
+                            Midjourney
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="image_gen_tools[]" value="stable-diffusion">
+                            Stable Diffusion
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="image_gen_tools[]" value="firefly">
+                            Adobe Firefly
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="image_gen_tools[]" value="other">
+                            Other
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="works-on-ai">Do you work on the development of AI systems?</label>
+                    <select id="works-on-ai" name="works_on_ai_development" required>
+                        <option value="">Select...</option>
+                        <option value="no">No</option>
+                        <option value="tangentially">Tangentially (use AI tools in work)</option>
+                        <option value="yes-research">Yes (research/academic)</option>
+                        <option value="yes-industry">Yes (industry/production)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="ai-usage">How often do you use AI tools (ChatGPT, etc.)?</label>
+                    <select id="ai-usage" name="ai_usage_frequency" required>
+                        <option value="">Select...</option>
+                        <option value="never">Never</option>
+                        <option value="rarely">Rarely (once a month or less)</option>
+                        <option value="sometimes">Sometimes (weekly)</option>
+                        <option value="often">Often (daily)</option>
+                        <option value="very-often">Very often (multiple times per day)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="works-with-graphics">Do you work regularly with computer graphics?</label>
+                    <select id="works-with-graphics" name="works_with_graphics" required>
+                        <option value="">Select...</option>
+                        <option value="no">No</option>
+                        <option value="hobbyist">Yes (hobbyist/personal projects)</option>
+                        <option value="professional">Yes (professional/work)</option>
+                        <option value="researcher">Yes (research/academic)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="ai-familiarity">How would you rate your familiarity with AI/ML concepts?</label>
+                    <select id="ai-familiarity" name="ai_familiarity" required>
+                        <option value="">Select...</option>
+                        <option value="none">No familiarity</option>
+                        <option value="basic">Basic (know what AI is)</option>
+                        <option value="intermediate">Intermediate (understand how AI works)</option>
+                        <option value="advanced">Advanced (can explain ML algorithms)</option>
+                        <option value="expert">Expert (work with/develop AI systems)</option>
+                    </select>
                 </div>
 
                 <button type="submit" class="btn btn-primary">Continue to Survey</button>
