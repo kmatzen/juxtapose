@@ -27,7 +27,28 @@ async function handleDemographicsSubmit(event) {
     event.preventDefault();
     
     const formData = new FormData(event.target);
-    demographicsData = Object.fromEntries(formData.entries());
+    demographicsData = {};
+    
+    // Handle regular form fields
+    for (const [key, value] of formData.entries()) {
+        // Handle checkbox arrays
+        if (key.endsWith('[]')) {
+            const cleanKey = key.replace('[]', '');
+            if (!demographicsData[cleanKey]) {
+                demographicsData[cleanKey] = [];
+            }
+            demographicsData[cleanKey].push(value);
+        } else {
+            demographicsData[key] = value;
+        }
+    }
+    
+    // Convert checkbox arrays to comma-separated strings
+    if (Array.isArray(demographicsData.image_gen_tools)) {
+        demographicsData.image_gen_tools = demographicsData.image_gen_tools.join(', ');
+    } else if (!demographicsData.image_gen_tools) {
+        demographicsData.image_gen_tools = 'none';
+    }
     
     try {
         const response = await fetch('/api/submit_demographics', {

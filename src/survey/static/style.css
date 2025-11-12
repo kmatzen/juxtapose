@@ -230,6 +230,42 @@ p {
     gap: 10px;
 }
 
+/* Checkbox Groups */
+.checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.checkbox-label:hover {
+    border-color: #4A90E2;
+    background: #f8f9fa;
+}
+
+.checkbox-label input[type="checkbox"] {
+    margin-right: 10px;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+
+.checkbox-label:has(input[type="checkbox"]:checked) {
+    border-color: #4A90E2;
+    background: #e3f2fd;
+    font-weight: 600;
+    color: #4A90E2;
+}
+
 .radio-label {
     display: flex;
     align-items: center;

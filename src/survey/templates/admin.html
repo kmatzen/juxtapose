@@ -82,35 +82,34 @@
 
         <button class="btn btn-primary" onclick="location.href='/admin/logout'" style="margin-bottom: 10px;">Logout</button>
 
+        <div style="margin-bottom: 20px;">
+            <button class="btn btn-primary" onclick="toggleView()">Toggle View</button>
+            <span id="view-mode" style="margin-left: 10px; font-weight: 600;">Demographics View</span>
+        </div>
+
         <table id="results-table">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Email</th>
-                    <th>Age</th>
-                    <th>Gender</th>
-                    <th>Education</th>
-                    <th>Country</th>
-                    <th>Q#</th>
-                    <th>Better</th>
-                    <th>Conf</th>
-                    <th>Adheres</th>
-                </tr>
+            <thead id="table-header">
+                <!-- Will be populated by JavaScript -->
             </thead>
             <tbody id="results-body">
-                <tr><td colspan="10">Loading...</td></tr>
+                <tr><td colspan="15">Loading...</td></tr>
             </tbody>
         </table>
     </div>
 
     <script>
+        let currentView = 'demographics'; // 'demographics' or 'responses'
+        let cachedData = [];
+
         async function loadResults() {
             try {
                 const response = await fetch('/api/admin/results');
                 const data = await response.json();
+                cachedData = data;
                 
                 // Update stats
-                document.getElementById('total-responses').textContent = data.length;
+                const uniqueParticipants = new Set(data.map(r => r.email)).size;
+                document.getElementById('total-responses').textContent = uniqueParticipants;
                 
                 const aCount = data.filter(r => r.better_choice === 'A').length;
                 const bCount = data.filter(r => r.better_choice === 'B').length;
@@ -122,30 +121,107 @@
                 document.getElementById('b-preferred').textContent = bCount;
                 document.getElementById('avg-confidence').textContent = avgConf;
                 
-                // Update table
-                const tbody = document.getElementById('results-body');
-                if (data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="10">No responses yet</td></tr>';
-                } else {
-                    tbody.innerHTML = data.map(row => `
-                        <tr>
-                            <td>${new Date(row.response_created).toLocaleDateString()}</td>
-                            <td>${row.email || '-'}</td>
-                            <td>${row.age_range || '-'}</td>
-                            <td>${row.gender || '-'}</td>
-                            <td>${row.education || '-'}</td>
-                            <td>${row.country || '-'}</td>
-                            <td>${row.question_pair_id || '-'}</td>
-                            <td>${row.better_choice || '-'}</td>
-                            <td>${row.confidence || '-'}</td>
-                            <td>${row.prompt_adherence || '-'}</td>
-                        </tr>
-                    `).join('');
-                }
+                // Render current view
+                renderTable();
             } catch (error) {
                 console.error('Error loading results:', error);
                 document.getElementById('results-body').innerHTML = 
-                    '<tr><td colspan="10">Error loading results</td></tr>';
+                    '<tr><td colspan="15">Error loading results</td></tr>';
+            }
+        }
+
+        function toggleView() {
+            currentView = currentView === 'demographics' ? 'responses' : 'demographics';
+            document.getElementById('view-mode').textContent = 
+                currentView === 'demographics' ? 'Demographics View' : 'Responses View';
+            renderTable();
+        }
+
+        function renderTable() {
+            const thead = document.getElementById('table-header');
+            const tbody = document.getElementById('results-body');
+            
+            if (cachedData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="15">No responses yet</td></tr>';
+                return;
+            }
+
+            if (currentView === 'demographics') {
+                // Demographics view - one row per participant
+                thead.innerHTML = `
+                    <tr>
+                        <th>Email</th>
+                        <th>Occupation</th>
+                        <th>Tech Level</th>
+                        <th>Used Image Gen</th>
+                        <th>Tools Used</th>
+                        <th>Works on AI</th>
+                        <th>AI Usage</th>
+                        <th>Graphics Work</th>
+                        <th>AI Familiarity</th>
+                        <th>Responses</th>
+                    </tr>
+                `;
+                
+                // Group by email
+                const participantMap = {};
+                cachedData.forEach(row => {
+                    if (!participantMap[row.email]) {
+                        participantMap[row.email] = {
+                            email: row.email,
+                            occupation: row.occupation,
+                            technical_background: row.technical_background,
+                            has_used_image_gen: row.has_used_image_gen,
+                            image_gen_tools: row.image_gen_tools,
+                            works_on_ai_development: row.works_on_ai_development,
+                            ai_usage_frequency: row.ai_usage_frequency,
+                            works_with_graphics: row.works_with_graphics,
+                            ai_familiarity: row.ai_familiarity,
+                            responseCount: 0
+                        };
+                    }
+                    participantMap[row.email].responseCount++;
+                });
+                
+                tbody.innerHTML = Object.values(participantMap).map(p => `
+                    <tr>
+                        <td>${p.email || '-'}</td>
+                        <td>${p.occupation || '-'}</td>
+                        <td>${p.technical_background || '-'}</td>
+                        <td>${p.has_used_image_gen || '-'}</td>
+                        <td style="font-size: 11px;">${p.image_gen_tools || '-'}</td>
+                        <td>${p.works_on_ai_development || '-'}</td>
+                        <td>${p.ai_usage_frequency || '-'}</td>
+                        <td>${p.works_with_graphics || '-'}</td>
+                        <td>${p.ai_familiarity || '-'}</td>
+                        <td><strong>${p.responseCount}/30</strong></td>
+                    </tr>
+                `).join('');
+            } else {
+                // Responses view - one row per response
+                thead.innerHTML = `
+                    <tr>
+                        <th>Date</th>
+                        <th>Email</th>
+                        <th>Q#</th>
+                        <th>Better</th>
+                        <th>Conf</th>
+                        <th>Adheres</th>
+                        <th>Randomized</th>
+                    </tr>
+                `;
+                
+                tbody.innerHTML = cachedData.map(row => `
+                    <tr>
+                        <td>${new Date(row.response_created).toLocaleDateString()}</td>
+                        <td>${row.email || '-'}</td>
+                        <td>${row.question_pair_id || '-'}</td>
+                        <td>${row.better_choice || '-'}</td>
+                        <td>${row.confidence || '-'}</td>
+                        <td>${row.prompt_adherence || '-'}</td>
+                        <td>${row.was_randomized ? 'Yes' : 'No'}</td>
+                    </tr>
+                `).join('');
             }
         }
 
