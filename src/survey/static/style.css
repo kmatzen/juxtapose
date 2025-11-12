@@ -267,6 +267,17 @@ p {
     max-height: 500px;
     object-fit: contain;
     background: #f8f9fa;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.survey-image:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.survey-image:active {
+    transform: scale(0.98);
 }
 
 /* Evaluation Sections */
