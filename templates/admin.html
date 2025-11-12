@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Survey Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .admin-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #4A90E2;
+        }
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        th {
+            background: #f5f5f5;
+            font-weight: 600;
+        }
+        tr:hover {
+            background: #f9f9f9;
+        }
+        .export-btn {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <h1>Survey Administration</h1>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="total-responses">0</div>
+                <div class="stat-label">Total Responses</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="a-preferred">0</div>
+                <div class="stat-label">Prefer Question A</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="b-preferred">0</div>
+                <div class="stat-label">Prefer Question B</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="avg-confidence">0</div>
+                <div class="stat-label">Avg Confidence</div>
+            </div>
+        </div>
+
+        <button class="btn btn-primary export-btn" onclick="exportCSV()">Export to CSV</button>
+
+        <button class="btn btn-primary" onclick="location.href='/admin/logout'" style="margin-bottom: 10px;">Logout</button>
+
+        <table id="results-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Email</th>
+                    <th>Age</th>
+                    <th>Gender</th>
+                    <th>Education</th>
+                    <th>Country</th>
+                    <th>Q#</th>
+                    <th>Better</th>
+                    <th>Conf</th>
+                    <th>Adheres</th>
+                </tr>
+            </thead>
+            <tbody id="results-body">
+                <tr><td colspan="10">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        async function loadResults() {
+            try {
+                const response = await fetch('/api/admin/results');
+                const data = await response.json();
+                
+                // Update stats
+                document.getElementById('total-responses').textContent = data.length;
+                
+                const aCount = data.filter(r => r.better_choice === 'A').length;
+                const bCount = data.filter(r => r.better_choice === 'B').length;
+                const avgConf = data.length > 0 
+                    ? (data.reduce((sum, r) => sum + (r.confidence || 0), 0) / data.length).toFixed(1)
+                    : 0;
+                
+                document.getElementById('a-preferred').textContent = aCount;
+                document.getElementById('b-preferred').textContent = bCount;
+                document.getElementById('avg-confidence').textContent = avgConf;
+                
+                // Update table
+                const tbody = document.getElementById('results-body');
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="10">No responses yet</td></tr>';
+                } else {
+                    tbody.innerHTML = data.map(row => `
+                        <tr>
+                            <td>${new Date(row.response_created).toLocaleDateString()}</td>
+                            <td>${row.email || '-'}</td>
+                            <td>${row.age_range || '-'}</td>
+                            <td>${row.gender || '-'}</td>
+                            <td>${row.education || '-'}</td>
+                            <td>${row.country || '-'}</td>
+                            <td>${row.question_pair_id || '-'}</td>
+                            <td>${row.better_choice || '-'}</td>
+                            <td>${row.confidence || '-'}</td>
+                            <td>${row.prompt_adherence || '-'}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading results:', error);
+                document.getElementById('results-body').innerHTML = 
+                    '<tr><td colspan="10">Error loading results</td></tr>';
+            }
+        }
+
+        function exportCSV() {
+            window.location.href = '/api/admin/export';
+        }
+
+        // Load results on page load
+        loadResults();
+        
+        // Refresh every 30 seconds
+        setInterval(loadResults, 30000);
+    </script>
+</body>
+</html>
+
