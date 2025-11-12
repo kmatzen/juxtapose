@@ -27,7 +27,16 @@
                 <p><strong>Contact us at:</strong> <a href="mailto:survey-x7qp@adobe.com">survey-x7qp@adobe.com</a></p>
             </div>
             
-            {% if already_submitted %}
+            {% if dev_mode %}
+            <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px;">
+                <p style="margin: 0; font-size: 14px; color: #856404;">
+                    <strong>🔧 Dev Mode:</strong> 
+                    <a href="/?new=true" style="color: #856404; text-decoration: underline;">Start a new test</a>
+                    or
+                    <a href="/reset_session" style="color: #856404; text-decoration: underline;">clear session</a>
+                </p>
+            </div>
+            {% elif already_submitted %}
             <div style="margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 8px;">
                 <p style="margin: 0; font-size: 14px; color: #666;">
                     <strong>Using a shared computer?</strong> 

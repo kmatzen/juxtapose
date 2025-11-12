@@ -137,30 +137,35 @@ def index():
     if 'session_id' not in session:
         session['session_id'] = str(uuid.uuid4())
     
+    # Check for explicit "new" parameter to force restart in dev mode
+    force_new = request.args.get('new') == 'true'
+    
     # In dev mode, use fewer image pairs
     required_count = 3 if DEV_MODE else 30
     
-    # Skip completion check in dev mode to allow re-testing
-    if not DEV_MODE:
-        # Check if this session has already submitted
-        db = get_db()
-        participant = db.execute(
-            'SELECT id FROM participants WHERE session_id = ?',
-            (session['session_id'],)
+    # Check if this session has completed the survey
+    db = get_db()
+    participant = db.execute(
+        'SELECT id FROM participants WHERE session_id = ?',
+        (session['session_id'],)
+    ).fetchone()
+    
+    if participant:
+        # Check if they've completed all required questions
+        response_count = db.execute(
+            'SELECT COUNT(*) as count FROM survey_responses WHERE participant_id = ?',
+            (participant['id'],)
         ).fetchone()
+        db.close()
         
-        if participant:
-            # Check if they've completed all required questions
-            response_count = db.execute(
-                'SELECT COUNT(*) as count FROM survey_responses WHERE participant_id = ?',
-                (participant['id'],)
-            ).fetchone()
-            db.close()
-            
-            if response_count and response_count['count'] >= required_count:
-                return render_template('thank_you.html', already_submitted=True)
-        else:
-            db.close()
+        if response_count and response_count['count'] >= required_count:
+            # In dev mode, allow restarting with ?new=true parameter
+            if DEV_MODE and force_new:
+                return render_template('index.html')
+            # Show thank you page if completed
+            return render_template('thank_you.html', already_submitted=True, dev_mode=DEV_MODE)
+    else:
+        db.close()
     
     return render_template('index.html')
 
