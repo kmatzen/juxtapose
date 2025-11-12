@@ -154,13 +154,13 @@
                 thead.innerHTML = `
                     <tr>
                         <th>Email</th>
+                        <th>Browser</th>
+                        <th>OS</th>
+                        <th>Screen</th>
+                        <th>DPR</th>
                         <th>Occupation</th>
                         <th>Tech Level</th>
                         <th>Used Image Gen</th>
-                        <th>Tools Used</th>
-                        <th>Works on AI</th>
-                        <th>AI Usage</th>
-                        <th>Graphics Work</th>
                         <th>AI Familiarity</th>
                         <th>Responses</th>
                     </tr>
@@ -172,13 +172,15 @@
                     if (!participantMap[row.email]) {
                         participantMap[row.email] = {
                             email: row.email,
+                            browser: row.browser,
+                            browser_version: row.browser_version,
+                            os: row.os,
+                            screen_width: row.screen_width,
+                            screen_height: row.screen_height,
+                            pixel_ratio: row.pixel_ratio,
                             occupation: row.occupation,
                             technical_background: row.technical_background,
                             has_used_image_gen: row.has_used_image_gen,
-                            image_gen_tools: row.image_gen_tools,
-                            works_on_ai_development: row.works_on_ai_development,
-                            ai_usage_frequency: row.ai_usage_frequency,
-                            works_with_graphics: row.works_with_graphics,
                             ai_familiarity: row.ai_familiarity,
                             responseCount: 0
                         };
@@ -189,13 +191,13 @@
                 tbody.innerHTML = Object.values(participantMap).map(p => `
                     <tr>
                         <td>${p.email || '-'}</td>
+                        <td style="font-size: 11px;">${p.browser || '-'} ${p.browser_version || ''}</td>
+                        <td>${p.os || '-'}</td>
+                        <td style="font-size: 11px;">${p.screen_width}×${p.screen_height}</td>
+                        <td>${p.pixel_ratio ? p.pixel_ratio + 'x' : '-'}</td>
                         <td>${p.occupation || '-'}</td>
                         <td>${p.technical_background || '-'}</td>
                         <td>${p.has_used_image_gen || '-'}</td>
-                        <td style="font-size: 11px;">${p.image_gen_tools || '-'}</td>
-                        <td>${p.works_on_ai_development || '-'}</td>
-                        <td>${p.ai_usage_frequency || '-'}</td>
-                        <td>${p.works_with_graphics || '-'}</td>
                         <td>${p.ai_familiarity || '-'}</td>
                         <td><strong>${p.responseCount}/30</strong></td>
                     </tr>

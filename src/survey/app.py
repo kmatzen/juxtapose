@@ -61,6 +61,15 @@ def init_db():
         CREATE TABLE IF NOT EXISTS participants (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             session_id TEXT UNIQUE NOT NULL,
+            browser TEXT,
+            browser_version TEXT,
+            os TEXT,
+            screen_width INTEGER,
+            screen_height INTEGER,
+            pixel_ratio REAL,
+            color_depth INTEGER,
+            viewport_width INTEGER,
+            viewport_height INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -166,10 +175,25 @@ def submit_demographics():
         ).fetchone()
         
         if not participant:
-            cursor = db.execute(
-                'INSERT INTO participants (session_id) VALUES (?)',
-                (session['session_id'],)
-            )
+            # Extract device info
+            device_info = data.get('device_info', {})
+            cursor = db.execute('''
+                INSERT INTO participants 
+                (session_id, browser, browser_version, os, screen_width, screen_height,
+                 pixel_ratio, color_depth, viewport_width, viewport_height)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                session['session_id'],
+                device_info.get('browser'),
+                device_info.get('browser_version'),
+                device_info.get('os'),
+                device_info.get('screen_width'),
+                device_info.get('screen_height'),
+                device_info.get('pixel_ratio'),
+                device_info.get('color_depth'),
+                device_info.get('viewport_width'),
+                device_info.get('viewport_height')
+            ))
             participant_id = cursor.lastrowid
         else:
             participant_id = participant['id']
@@ -317,6 +341,13 @@ def admin_results():
         SELECT 
             p.session_id,
             p.created_at as participant_created,
+            p.browser,
+            p.browser_version,
+            p.os,
+            p.screen_width,
+            p.screen_height,
+            p.pixel_ratio,
+            p.color_depth,
             d.email,
             d.occupation,
             d.has_used_image_gen,
@@ -359,6 +390,13 @@ def admin_export():
         SELECT 
             p.session_id,
             p.created_at as participant_created,
+            p.browser,
+            p.browser_version,
+            p.os,
+            p.screen_width,
+            p.screen_height,
+            p.pixel_ratio,
+            p.color_depth,
             d.email,
             d.occupation,
             d.has_used_image_gen,
