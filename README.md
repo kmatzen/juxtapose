@@ -5,12 +5,31 @@ A Flask-based survey application for collecting user evaluations of question pai
 ## Features
 
 - **User Tracking**: Email-based tracking to prevent duplicate submissions
-- **Demographics Collection**: Age, gender, education, country
-- **30 Question Pairs**: Sequential evaluation with progress tracking
-- **Randomization**: Question order (A/B) is randomized 50% of the time to prevent bias
+- **Demographics Collection**: Customizable demographics for image generation studies
+- **Image Comparison**: Dual evaluation (quality + prompt adherence) with confidence levels
+- **30 Image Pairs**: Sequential evaluation with progress tracking
+- **Randomization**: Image order (A/B) is randomized 50% of the time to prevent bias
 - **Admin Interface**: Password-protected dashboard to view and export results
 - **SQLite Database**: Simple file-based storage for all responses
 - **Responsive Design**: Works on desktop and mobile devices
+- **Device Tracking**: Browser, OS, screen resolution automatically collected
+- **Dev Mode**: Auto-fill forms and use only 3 pairs for fast testing 🔧
+
+## Quick Start (Dev Mode)
+
+Want to test immediately? Run:
+
+```bash
+./start.sh
+```
+
+This enables **DEV MODE** which:
+- 🔧 Auto-fills all form fields with test data
+- 🚀 Uses only 3 image pairs instead of 30
+- ⚡ Makes testing super fast!
+- 🔴 Shows a red "DEV MODE" badge in the top-right
+
+See `QUICKSTART.md` for more details.
 
 ## Setup Instructions
 
@@ -64,6 +83,9 @@ export SECRET_KEY="your-secret-key-here"
 
 # Set admin password (default is 'admin123')
 export ADMIN_PASSWORD="your-secure-password"
+
+# Enable dev mode for testing (auto-fill forms, only 3 pairs)
+export DEV_MODE=true
 
 # Optional: Set custom port
 export PORT=5000

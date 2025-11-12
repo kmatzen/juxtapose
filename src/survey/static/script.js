@@ -4,12 +4,33 @@ let currentImageIndex = 0;
 let currentImageData = null;
 let totalImagePairs = 30;
 let deviceInfo = {};
+let devMode = false;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
+    checkDevMode();
     collectDeviceInfo();
     setupEventListeners();
 });
+
+async function checkDevMode() {
+    try {
+        const response = await fetch('/api/config');
+        const config = await response.json();
+        devMode = config.dev_mode;
+        
+        if (devMode) {
+            console.log('🔧 DEV MODE ENABLED - Forms will be auto-filled');
+            // Add a visible indicator
+            const indicator = document.createElement('div');
+            indicator.style.cssText = 'position: fixed; top: 10px; right: 10px; background: #ff6b6b; color: white; padding: 10px 15px; border-radius: 5px; z-index: 10000; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);';
+            indicator.textContent = '🔧 DEV MODE';
+            document.body.appendChild(indicator);
+        }
+    } catch (error) {
+        console.error('Error checking dev mode:', error);
+    }
+}
 
 function collectDeviceInfo() {
     // Detect browser
@@ -65,6 +86,11 @@ function setupEventListeners() {
     const demographicsForm = document.getElementById('demographics-form');
     if (demographicsForm) {
         demographicsForm.addEventListener('submit', handleDemographicsSubmit);
+        
+        // Auto-fill in dev mode
+        if (devMode) {
+            setTimeout(() => fillDemographicsForm(), 500);
+        }
     }
     
     // Survey form submission
@@ -72,6 +98,45 @@ function setupEventListeners() {
     if (surveyForm) {
         surveyForm.addEventListener('submit', handleSurveySubmit);
     }
+}
+
+function fillDemographicsForm() {
+    // Auto-fill demographics form with test data
+    document.getElementById('email').value = 'test@example.com';
+    document.getElementById('occupation').value = 'Software Engineer';
+    document.getElementById('technical_background').value = 'Yes, I have a technical background';
+    document.getElementById('has_used_image_gen').value = 'yes_extensively';
+    
+    // Check some checkboxes
+    const checkboxes = ['dalle', 'midjourney', 'stable_diffusion'];
+    checkboxes.forEach(id => {
+        const checkbox = document.getElementById(id);
+        if (checkbox) checkbox.checked = true;
+    });
+    
+    document.getElementById('works_on_ai_development').value = 'yes';
+    document.getElementById('ai_usage_frequency').value = 'daily';
+    document.getElementById('works_with_graphics').value = 'yes';
+    document.getElementById('ai_familiarity').value = '5';
+    
+    console.log('✅ Demographics form auto-filled');
+}
+
+function fillSurveyForm() {
+    // Auto-select random choices
+    const betterImage = Math.random() < 0.5 ? 'A' : 'B';
+    document.querySelector(`input[name="better_image"][value="${betterImage}"]`).checked = true;
+    
+    const imageConf = Math.floor(Math.random() * 5) + 1;
+    document.querySelector(`input[name="image_confidence"][value="${imageConf}"]`).checked = true;
+    
+    const betterMatch = Math.random() < 0.5 ? 'A' : 'B';
+    document.querySelector(`input[name="better_prompt_match"][value="${betterMatch}"]`).checked = true;
+    
+    const promptConf = Math.floor(Math.random() * 5) + 1;
+    document.querySelector(`input[name="prompt_confidence"][value="${promptConf}"]`).checked = true;
+    
+    console.log(`✅ Survey form auto-filled: Image ${betterImage} (conf ${imageConf}), Match ${betterMatch} (conf ${promptConf})`);
 }
 
 async function handleDemographicsSubmit(event) {
@@ -172,6 +237,11 @@ async function loadImagePair(index) {
             
             // Reset form
             document.getElementById('survey-form').reset();
+            
+            // Auto-fill in dev mode
+            if (devMode) {
+                setTimeout(() => fillSurveyForm(), 100);
+            }
             
         } else {
             showError('Failed to load image pair. Please refresh the page.');

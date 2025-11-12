@@ -10,6 +10,7 @@ from functools import wraps
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')  # Change this in production
+DEV_MODE = os.environ.get('DEV_MODE', 'false').lower() == 'true'  # Set DEV_MODE=true for testing
 
 # Use /data for persistent storage on Fly.io, otherwise local directory
 DATABASE = '/data/survey.db' if os.path.exists('/data') else 'survey.db'
@@ -136,6 +137,9 @@ def index():
     if 'session_id' not in session:
         session['session_id'] = str(uuid.uuid4())
     
+    # In dev mode, use fewer image pairs
+    required_count = 3 if DEV_MODE else 30
+    
     # Check if this session has already submitted
     db = get_db()
     participant = db.execute(
@@ -144,19 +148,26 @@ def index():
     ).fetchone()
     
     if participant:
-        # Check if they've completed all 30 questions
+        # Check if they've completed all required questions
         response_count = db.execute(
             'SELECT COUNT(*) as count FROM survey_responses WHERE participant_id = ?',
             (participant['id'],)
         ).fetchone()
         db.close()
         
-        if response_count and response_count['count'] >= 30:
+        if response_count and response_count['count'] >= required_count:
             return render_template('thank_you.html', already_submitted=True)
     else:
         db.close()
     
     return render_template('index.html')
+
+@app.route('/api/config')
+def get_config():
+    """Get configuration settings for frontend"""
+    return jsonify({
+        'dev_mode': DEV_MODE
+    })
 
 @app.route('/api/submit_demographics', methods=['POST'])
 def submit_demographics():
@@ -230,10 +241,13 @@ def submit_demographics():
 @app.route('/api/get_image_pair/<int:pair_index>')
 def get_image_pair(pair_index):
     """Get a specific image pair"""
-    if pair_index < 0 or pair_index >= len(IMAGE_PAIRS):
+    # In dev mode, only use first 3 image pairs
+    available_pairs = IMAGE_PAIRS[:3] if DEV_MODE else IMAGE_PAIRS
+    
+    if pair_index < 0 or pair_index >= len(available_pairs):
         return jsonify({'error': 'Invalid image pair index'}), 404
     
-    pair = IMAGE_PAIRS[pair_index].copy()
+    pair = available_pairs[pair_index].copy()
     
     # Randomize the order 50% of the time
     randomized = random.random() < 0.5
@@ -241,7 +255,7 @@ def get_image_pair(pair_index):
         pair['image_a_url'], pair['image_b_url'] = pair['image_b_url'], pair['image_a_url']
     
     pair['was_randomized'] = randomized
-    pair['total_pairs'] = len(IMAGE_PAIRS)
+    pair['total_pairs'] = len(available_pairs)
     return jsonify(pair)
 
 @app.route('/api/submit_survey', methods=['POST'])
