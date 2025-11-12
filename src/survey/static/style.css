@@ -582,6 +582,11 @@ p {
     color: rgba(255, 255, 255, 0.95);
 }
 
+.survey-footer p {
+    color: rgba(255, 255, 255, 0.95);
+    margin: 0;
+}
+
 .survey-footer a {
     color: #ffffff;
     text-decoration: underline;
