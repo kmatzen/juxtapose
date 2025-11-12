@@ -183,13 +183,10 @@ async function handleDemographicsSubmit(event) {
         if (response.ok && result.success) {
             // Warn if retaking the survey
             if (result.is_retaking) {
-                const confirmRetake = confirm(
-                    'It looks like you have already taken this survey.\n\n' +
-                    'If you continue, your previous responses will be overwritten.\n\n' +
-                    'Do you want to continue and retake the survey?'
-                );
+                // Show custom modal and wait for user decision
+                const shouldContinue = await showRetakeModal();
                 
-                if (!confirmRetake) {
+                if (!shouldContinue) {
                     // Reload page to go back
                     window.location.reload();
                     return;
@@ -315,6 +312,43 @@ async function handleSurveySubmit(event) {
         showError('Network error. Please check your connection and try again.');
         console.error('Error:', error);
     }
+}
+
+function showRetakeModal() {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('retake-modal');
+        const confirmBtn = document.getElementById('retake-confirm');
+        const cancelBtn = document.getElementById('retake-cancel');
+        
+        // Show modal
+        modal.classList.add('show');
+        
+        // Handle confirm
+        const handleConfirm = () => {
+            modal.classList.remove('show');
+            confirmBtn.removeEventListener('click', handleConfirm);
+            cancelBtn.removeEventListener('click', handleCancel);
+            resolve(true);
+        };
+        
+        // Handle cancel
+        const handleCancel = () => {
+            modal.classList.remove('show');
+            confirmBtn.removeEventListener('click', handleConfirm);
+            cancelBtn.removeEventListener('click', handleCancel);
+            resolve(false);
+        };
+        
+        confirmBtn.addEventListener('click', handleConfirm);
+        cancelBtn.addEventListener('click', handleCancel);
+        
+        // Close on background click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                handleCancel();
+            }
+        });
+    });
 }
 
 function showError(message) {
