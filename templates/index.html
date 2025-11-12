@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research Survey</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="progress-container">
+            <div class="progress-bar">
+                <div class="progress-step active" id="step1">1</div>
+                <div class="progress-line"></div>
+                <div class="progress-step" id="step2">2</div>
+            </div>
+            <div class="survey-progress" id="survey-progress" style="display: none;">
+                <div class="progress-text">Question <span id="current-question">1</span> of <span id="total-questions">30</span></div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill" id="progress-bar-fill"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Demographics Section -->
+        <section id="demographics-section" class="section active">
+            <h1>Welcome to Our Research Survey</h1>
+            <p>Thank you for participating! Please provide some basic information about yourself.</p>
+            
+            <form id="demographics-form">
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" name="email" placeholder="your@email.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="age">Age Range</label>
+                    <select id="age" name="age_range" required>
+                        <option value="">Select...</option>
+                        <option value="18-24">18-24</option>
+                        <option value="25-34">25-34</option>
+                        <option value="35-44">35-44</option>
+                        <option value="45-54">45-54</option>
+                        <option value="55-64">55-64</option>
+                        <option value="65+">65+</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="gender">Gender</label>
+                    <select id="gender" name="gender" required>
+                        <option value="">Select...</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                        <option value="non-binary">Non-binary</option>
+                        <option value="prefer-not-to-say">Prefer not to say</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="education">Education Level</label>
+                    <select id="education" name="education" required>
+                        <option value="">Select...</option>
+                        <option value="high-school">High School</option>
+                        <option value="some-college">Some College</option>
+                        <option value="bachelors">Bachelor's Degree</option>
+                        <option value="masters">Master's Degree</option>
+                        <option value="doctorate">Doctorate</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="country">Country</label>
+                    <input type="text" id="country" name="country" placeholder="e.g., United States" required>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Continue to Survey</button>
+            </form>
+        </section>
+
+        <!-- Survey Section -->
+        <section id="survey-section" class="section">
+            <h1>Question Comparison</h1>
+            <p class="instruction">Please evaluate the following two questions based on the given prompt. You will see 30 question pairs in total.</p>
+            
+            <div class="prompt-box">
+                <h3>Prompt</h3>
+                <p id="prompt-text">Loading...</p>
+            </div>
+
+            <form id="survey-form">
+                <div class="questions-container">
+                    <div class="question-box">
+                        <h3>Question A</h3>
+                        <p id="question-a">Loading...</p>
+                    </div>
+
+                    <div class="question-box">
+                        <h3>Question B</h3>
+                        <p id="question-b">Loading...</p>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Which question is better overall?</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="better_choice" value="A" required>
+                            Question A
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="better_choice" value="B">
+                            Question B
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="better_choice" value="equal">
+                            About Equal
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>How confident are you in your choice?</label>
+                    <div class="likert-scale">
+                        <label class="likert-label">
+                            <input type="radio" name="confidence" value="1" required>
+                            <span>1<br><small>Not at all</small></span>
+                        </label>
+                        <label class="likert-label">
+                            <input type="radio" name="confidence" value="2">
+                            <span>2</span>
+                        </label>
+                        <label class="likert-label">
+                            <input type="radio" name="confidence" value="3">
+                            <span>3<br><small>Somewhat</small></span>
+                        </label>
+                        <label class="likert-label">
+                            <input type="radio" name="confidence" value="4">
+                            <span>4</span>
+                        </label>
+                        <label class="likert-label">
+                            <input type="radio" name="confidence" value="5">
+                            <span>5<br><small>Very confident</small></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Which question better adheres to the prompt?</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="prompt_adherence" value="A" required>
+                            Question A
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="prompt_adherence" value="B">
+                            Question B
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="prompt_adherence" value="equal">
+                            About Equal
+                        </label>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="submit-btn">Next Question</button>
+            </form>
+        </section>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
+

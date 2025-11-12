@@ -1,0 +1,59 @@
+=================================================================
+                    QUICK DEPLOYMENT GUIDE
+=================================================================
+
+Heroku eliminated their free tier in 2022.
+Here are your best FREE alternatives:
+
+-------------------------------------------------------------------
+OPTION 1: RENDER.COM (Easiest - Like Heroku)
+-------------------------------------------------------------------
+Pros: Easy, auto-deploy from Git
+Cons: Sleeps after 15 min (30s wake time), ephemeral SQLite
+
+Steps:
+1. Push code to GitHub
+2. Go to render.com → New Web Service
+3. Connect GitHub repo
+4. Set ADMIN_PASSWORD in environment
+5. Deploy!
+
+URL: https://your-app.onrender.com
+
+-------------------------------------------------------------------
+OPTION 2: FLY.IO (Best - Always On + Persistent SQLite)
+-------------------------------------------------------------------
+Pros: Always on, persistent storage, great for SQLite
+Cons: Need to install CLI
+
+Steps:
+1. brew install flyctl (or download from fly.io)
+2. fly auth signup
+3. fly launch --name your-survey-app
+4. fly volumes create survey_data --size 1 --region sjc
+5. fly secrets set ADMIN_PASSWORD="yourpassword"
+6. fly deploy
+
+URL: https://your-survey-app.fly.dev
+
+-------------------------------------------------------------------
+OPTION 3: RAILWAY.APP (Simple)
+-------------------------------------------------------------------
+Pros: Easy, $5 free credit/month
+Cons: Credit runs out
+
+Steps:
+1. Go to railway.app
+2. Deploy from GitHub
+3. Set ADMIN_PASSWORD env var
+4. Deploy!
+
+-------------------------------------------------------------------
+
+See DEPLOYMENT.md for detailed step-by-step instructions!
+
+Recommendation: Start with Render (easiest), switch to Fly.io if 
+you need always-on with persistent data.
+
+=================================================================
+

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thank You</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="thank-you-box">
+            <h1>✓ Thank You!</h1>
+            {% if already_submitted %}
+                <p>You have already completed this survey. We appreciate your participation!</p>
+            {% else %}
+                <p>Your responses have been recorded. We appreciate your time and contribution to our research.</p>
+            {% endif %}
+            <p class="small-text">You may now close this window.</p>
+        </div>
+    </div>
+</body>
+</html>
+

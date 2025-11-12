@@ -1,0 +1,384 @@
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+import sqlite3
+import uuid
+import os
+from datetime import datetime
+import json
+import random
+from functools import wraps
+
+app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')  # Change this in production
+
+# Use /data for persistent storage on Fly.io, otherwise local directory
+DATABASE = '/data/survey.db' if os.path.exists('/data') else 'survey.db'
+
+# Question pairs - customize these with your actual questions
+QUESTION_PAIRS = [
+    {
+        "id": 1,
+        "prompt": "Create a question about artificial intelligence for a general audience.",
+        "question_a": "What is artificial intelligence and how does it work?",
+        "question_b": "Can you explain the fundamental principles behind AI systems?"
+    },
+    {
+        "id": 2,
+        "prompt": "Write a question about climate change for high school students.",
+        "question_a": "How does human activity contribute to global warming?",
+        "question_b": "What are the main causes and effects of climate change?"
+    },
+    # Add 28 more question pairs here
+    # Template for adding more:
+    # {
+    #     "id": 3,
+    #     "prompt": "Your prompt here",
+    #     "question_a": "First question here",
+    #     "question_b": "Second question here"
+    # },
+]
+
+# Generate placeholder questions if we don't have 30 yet
+while len(QUESTION_PAIRS) < 30:
+    idx = len(QUESTION_PAIRS) + 1
+    QUESTION_PAIRS.append({
+        "id": idx,
+        "prompt": f"Sample prompt #{idx} - Replace this with your actual prompt.",
+        "question_a": f"Sample question A for pair #{idx} - Replace with your actual question.",
+        "question_b": f"Sample question B for pair #{idx} - Replace with your actual question."
+    })
+
+def get_db():
+    """Get database connection"""
+    db = sqlite3.connect(DATABASE)
+    db.row_factory = sqlite3.Row
+    return db
+
+def init_db():
+    """Initialize the database with required tables"""
+    db = get_db()
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS participants (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT UNIQUE NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS demographics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            participant_id INTEGER NOT NULL,
+            email TEXT,
+            age_range TEXT,
+            gender TEXT,
+            education TEXT,
+            country TEXT,
+            other_data TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (participant_id) REFERENCES participants (id)
+        )
+    ''')
+    
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS survey_responses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            participant_id INTEGER NOT NULL,
+            question_pair_id INTEGER,
+            question_a TEXT,
+            question_b TEXT,
+            prompt TEXT,
+            better_choice TEXT,
+            confidence INTEGER,
+            prompt_adherence TEXT,
+            was_randomized INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (participant_id) REFERENCES participants (id)
+        )
+    ''')
+    
+    db.commit()
+    db.close()
+
+# Initialize database on startup
+init_db()
+
+def check_admin_auth():
+    """Check if admin is authenticated"""
+    return session.get('admin_authenticated', False)
+
+def require_admin(f):
+    """Decorator to require admin authentication"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not check_admin_auth():
+            return redirect(url_for('admin_login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/')
+def index():
+    """Home page - check if user has already submitted"""
+    if 'session_id' not in session:
+        session['session_id'] = str(uuid.uuid4())
+    
+    # Check if this session has already submitted
+    db = get_db()
+    participant = db.execute(
+        'SELECT id FROM participants WHERE session_id = ?',
+        (session['session_id'],)
+    ).fetchone()
+    
+    if participant:
+        # Check if they've completed all 30 questions
+        response_count = db.execute(
+            'SELECT COUNT(*) as count FROM survey_responses WHERE participant_id = ?',
+            (participant['id'],)
+        ).fetchone()
+        db.close()
+        
+        if response_count and response_count['count'] >= 30:
+            return render_template('thank_you.html', already_submitted=True)
+    else:
+        db.close()
+    
+    return render_template('index.html')
+
+@app.route('/api/submit_demographics', methods=['POST'])
+def submit_demographics():
+    """Submit demographics information"""
+    if 'session_id' not in session:
+        return jsonify({'error': 'No session ID'}), 400
+    
+    data = request.json
+    db = get_db()
+    
+    try:
+        # Create or get participant
+        participant = db.execute(
+            'SELECT id FROM participants WHERE session_id = ?',
+            (session['session_id'],)
+        ).fetchone()
+        
+        if not participant:
+            cursor = db.execute(
+                'INSERT INTO participants (session_id) VALUES (?)',
+                (session['session_id'],)
+            )
+            participant_id = cursor.lastrowid
+        else:
+            participant_id = participant['id']
+        
+        # Store demographics
+        db.execute('''
+            INSERT INTO demographics 
+            (participant_id, email, age_range, gender, education, country, other_data)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            participant_id,
+            data.get('email'),
+            data.get('age_range'),
+            data.get('gender'),
+            data.get('education'),
+            data.get('country'),
+            json.dumps(data.get('other', {}))
+        ))
+        
+        db.commit()
+        return jsonify({'success': True, 'participant_id': participant_id})
+    except Exception as e:
+        db.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
+
+@app.route('/api/get_question_pair/<int:pair_index>')
+def get_question_pair(pair_index):
+    """Get a specific question pair"""
+    if pair_index < 0 or pair_index >= len(QUESTION_PAIRS):
+        return jsonify({'error': 'Invalid question pair index'}), 404
+    
+    pair = QUESTION_PAIRS[pair_index].copy()
+    
+    # Randomize the order 50% of the time
+    randomized = random.random() < 0.5
+    if randomized:
+        pair['question_a'], pair['question_b'] = pair['question_b'], pair['question_a']
+    
+    pair['was_randomized'] = randomized
+    pair['total_pairs'] = len(QUESTION_PAIRS)
+    return jsonify(pair)
+
+@app.route('/api/submit_survey', methods=['POST'])
+def submit_survey():
+    """Submit survey response for a single question pair"""
+    if 'session_id' not in session:
+        return jsonify({'error': 'No session ID'}), 400
+    
+    data = request.json
+    db = get_db()
+    
+    try:
+        # Get participant
+        participant = db.execute(
+            'SELECT id FROM participants WHERE session_id = ?',
+            (session['session_id'],)
+        ).fetchone()
+        
+        if not participant:
+            return jsonify({'error': 'Participant not found'}), 404
+        
+        # Check if this specific question pair was already answered
+        existing = db.execute(
+            'SELECT id FROM survey_responses WHERE participant_id = ? AND question_pair_id = ?',
+            (participant['id'], data.get('question_pair_id'))
+        ).fetchone()
+        
+        if existing:
+            return jsonify({'error': 'Question pair already submitted'}), 400
+        
+        # Store survey response
+        db.execute('''
+            INSERT INTO survey_responses 
+            (participant_id, question_pair_id, question_a, question_b, prompt, 
+             better_choice, confidence, prompt_adherence, was_randomized)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            participant['id'],
+            data.get('question_pair_id'),
+            data.get('question_a'),
+            data.get('question_b'),
+            data.get('prompt'),
+            data.get('better_choice'),
+            data.get('confidence'),
+            data.get('prompt_adherence'),
+            1 if data.get('was_randomized') else 0
+        ))
+        
+        # Check if they've completed all questions
+        response_count = db.execute(
+            'SELECT COUNT(*) as count FROM survey_responses WHERE participant_id = ?',
+            (participant['id'],)
+        ).fetchone()
+        
+        db.commit()
+        
+        completed = response_count['count'] >= 30
+        return jsonify({'success': True, 'completed': completed})
+    except Exception as e:
+        db.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    """Admin login page"""
+    if request.method == 'POST':
+        password = request.form.get('password')
+        if password == ADMIN_PASSWORD:
+            session['admin_authenticated'] = True
+            return redirect(url_for('admin'))
+        else:
+            return render_template('admin_login.html', error='Invalid password')
+    return render_template('admin_login.html')
+
+@app.route('/admin/logout')
+def admin_logout():
+    """Admin logout"""
+    session.pop('admin_authenticated', None)
+    return redirect(url_for('admin_login'))
+
+@app.route('/admin')
+@require_admin
+def admin():
+    """Admin page to view results"""
+    return render_template('admin.html')
+
+@app.route('/api/admin/results')
+@require_admin
+def admin_results():
+    """Get all survey results"""
+    db = get_db()
+    
+    results = db.execute('''
+        SELECT 
+            p.session_id,
+            p.created_at as participant_created,
+            d.email,
+            d.age_range,
+            d.gender,
+            d.education,
+            d.country,
+            s.question_pair_id,
+            s.question_a,
+            s.question_b,
+            s.prompt,
+            s.better_choice,
+            s.confidence,
+            s.prompt_adherence,
+            s.was_randomized,
+            s.created_at as response_created
+        FROM participants p
+        LEFT JOIN demographics d ON p.id = d.participant_id
+        LEFT JOIN survey_responses s ON p.id = s.participant_id
+        WHERE s.id IS NOT NULL
+        ORDER BY s.created_at DESC
+    ''').fetchall()
+    
+    db.close()
+    
+    return jsonify([dict(row) for row in results])
+
+@app.route('/api/admin/export')
+@require_admin
+def admin_export():
+    """Export results as CSV"""
+    import csv
+    from io import StringIO
+    
+    db = get_db()
+    results = db.execute('''
+        SELECT 
+            p.session_id,
+            p.created_at as participant_created,
+            d.email,
+            d.age_range,
+            d.gender,
+            d.education,
+            d.country,
+            s.question_pair_id,
+            s.question_a,
+            s.question_b,
+            s.prompt,
+            s.better_choice,
+            s.confidence,
+            s.prompt_adherence,
+            s.was_randomized,
+            s.created_at as response_created
+        FROM participants p
+        LEFT JOIN demographics d ON p.id = d.participant_id
+        LEFT JOIN survey_responses s ON p.id = s.participant_id
+        WHERE s.id IS NOT NULL
+        ORDER BY p.id, s.question_pair_id
+    ''').fetchall()
+    db.close()
+    
+    output = StringIO()
+    if results:
+        writer = csv.DictWriter(output, fieldnames=results[0].keys())
+        writer.writeheader()
+        for row in results:
+            writer.writerow(dict(row))
+    
+    response = app.response_class(
+        response=output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=survey_results.csv'}
+    )
+    return response
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
+
