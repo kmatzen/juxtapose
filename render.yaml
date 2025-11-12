@@ -8,7 +8,7 @@ services:
       uv sync
     startCommand: |
       export PATH="$HOME/.cargo/bin:$PATH"
-      uv run gunicorn app:app
+      uv run gunicorn src.survey.app:app
     envVars:
       - key: SECRET_KEY
         generateValue: true

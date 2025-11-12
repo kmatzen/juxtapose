@@ -42,7 +42,7 @@ pip install -r requirements.txt  # (will generate if needed)
 
 ### 3. Configure Your Questions
 
-Edit `app.py` and replace the placeholder questions in the `QUESTION_PAIRS` list (lines 17-48) with your actual questions:
+Edit `src/survey/app.py` and replace the placeholder questions in the `QUESTION_PAIRS` list (lines 17-48) with your actual questions:
 
 ```python
 QUESTION_PAIRS = [
@@ -185,17 +185,22 @@ To backup: Simply copy the `survey.db` file.
 
 ```
 survey/
-├── app.py                  # Flask backend
-├── requirements.txt        # Python dependencies
-├── survey.db              # SQLite database (created on first run)
-├── templates/
-│   ├── index.html         # Main survey page
-│   ├── thank_you.html     # Completion page
-│   ├── admin.html         # Admin dashboard
-│   └── admin_login.html   # Admin login
-└── static/
-    ├── style.css          # All styles
-    └── script.js          # Frontend logic
+├── pyproject.toml         # Project configuration
+├── requirements.txt       # Python dependencies (generated)
+├── run.py                 # Application entry point
+├── survey.db             # SQLite database (created on first run)
+└── src/
+    └── survey/           # Main package
+        ├── __init__.py
+        ├── app.py        # Flask backend
+        ├── templates/
+        │   ├── index.html       # Main survey page
+        │   ├── thank_you.html   # Completion page
+        │   ├── admin.html       # Admin dashboard
+        │   └── admin_login.html # Admin login
+        └── static/
+            ├── style.css  # All styles
+            └── script.js  # Frontend logic
 ```
 
 ## Security Considerations

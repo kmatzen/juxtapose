@@ -4,7 +4,7 @@
 
 ### Step 1: Add Your Questions
 
-Edit `app.py` around line 17 and replace the `QUESTION_PAIRS` list with your 30 actual question pairs. See `sample_questions.py` for the format.
+Edit `src/survey/app.py` around line 17 and replace the `QUESTION_PAIRS` list with your 30 actual question pairs. See `sample_questions.py` for the format.
 
 ### Step 2: Install uv (Fast Python Package Manager)
 

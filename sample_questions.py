@@ -51,5 +51,5 @@ SAMPLE_QUESTIONS = [
 # 2. Make sure each id is unique (1-30)
 # 3. The prompt explains what the question should accomplish
 # 4. question_a and question_b are two different ways to ask about the topic
-# 5. Copy the completed list to app.py, replacing the QUESTION_PAIRS variable
+# 5. Copy the completed list to src/survey/app.py, replacing the QUESTION_PAIRS variable
 
