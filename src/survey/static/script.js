@@ -103,21 +103,21 @@ function setupEventListeners() {
 function fillDemographicsForm() {
     // Auto-fill demographics form with test data
     document.getElementById('email').value = 'test@example.com';
-    document.getElementById('occupation').value = 'Software Engineer';
-    document.getElementById('technical_background').value = 'Yes, I have a technical background';
-    document.getElementById('has_used_image_gen').value = 'yes_extensively';
+    document.getElementById('occupation').value = 'software-engineer';
+    document.getElementById('technical-background').value = 'advanced';
+    document.getElementById('has-used-image-gen').value = 'extensively';
     
-    // Check some checkboxes
-    const checkboxes = ['dalle', 'midjourney', 'stable_diffusion'];
-    checkboxes.forEach(id => {
-        const checkbox = document.getElementById(id);
+    // Check some checkboxes (they don't have IDs, so use attribute selector)
+    const checkboxValues = ['dalle', 'midjourney', 'stable-diffusion'];
+    checkboxValues.forEach(value => {
+        const checkbox = document.querySelector(`input[name="image_gen_tools[]"][value="${value}"]`);
         if (checkbox) checkbox.checked = true;
     });
     
-    document.getElementById('works_on_ai_development').value = 'yes';
-    document.getElementById('ai_usage_frequency').value = 'daily';
-    document.getElementById('works_with_graphics').value = 'yes';
-    document.getElementById('ai_familiarity').value = '5';
+    document.getElementById('works-on-ai').value = 'yes-industry';
+    document.getElementById('ai-usage').value = 'often';
+    document.getElementById('works-with-graphics').value = 'professional';
+    document.getElementById('ai-familiarity').value = 'advanced';
     
     console.log('✅ Demographics form auto-filled');
 }
