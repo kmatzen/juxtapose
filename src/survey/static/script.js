@@ -98,6 +98,45 @@ function setupEventListeners() {
     if (surveyForm) {
         surveyForm.addEventListener('submit', handleSurveySubmit);
     }
+    
+    // Image lightbox
+    setupImageLightbox();
+}
+
+function setupImageLightbox() {
+    const lightbox = document.getElementById('image-lightbox');
+    const lightboxImage = document.getElementById('lightbox-image');
+    const lightboxCaption = document.querySelector('.lightbox-caption');
+    const closeBtn = document.querySelector('.lightbox-close');
+    
+    // Function to open lightbox
+    window.openLightbox = function(imageSrc, caption) {
+        lightboxImage.src = imageSrc;
+        lightboxCaption.textContent = caption;
+        lightbox.classList.add('show');
+    };
+    
+    // Function to close lightbox
+    const closeLightbox = () => {
+        lightbox.classList.remove('show');
+    };
+    
+    // Close button
+    closeBtn.addEventListener('click', closeLightbox);
+    
+    // Close on background click
+    lightbox.addEventListener('click', (e) => {
+        if (e.target === lightbox) {
+            closeLightbox();
+        }
+    });
+    
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && lightbox.classList.contains('show')) {
+            closeLightbox();
+        }
+    });
 }
 
 function fillDemographicsForm() {
@@ -228,8 +267,16 @@ async function loadImagePair(index) {
             
             // Update UI
             document.getElementById('prompt-text').textContent = data.prompt;
-            document.getElementById('image-a').src = data.image_a_url;
-            document.getElementById('image-b').src = data.image_b_url;
+            
+            const imageA = document.getElementById('image-a');
+            const imageB = document.getElementById('image-b');
+            
+            imageA.src = data.image_a_url;
+            imageB.src = data.image_b_url;
+            
+            // Add click handlers for lightbox
+            imageA.onclick = () => openLightbox(data.image_a_url, 'Image A');
+            imageB.onclick = () => openLightbox(data.image_b_url, 'Image B');
             
             // Update progress
             document.getElementById('current-question').textContent = index + 1;
