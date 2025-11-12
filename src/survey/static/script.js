@@ -1,8 +1,8 @@
 // State management
 let demographicsData = null;
-let currentQuestionIndex = 0;
-let currentQuestionData = null;
-let totalQuestions = 30;
+let currentImageIndex = 0;
+let currentImageData = null;
+let totalImagePairs = 30;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
@@ -71,8 +71,8 @@ async function handleDemographicsSubmit(event) {
             // Show survey progress
             document.getElementById('survey-progress').style.display = 'block';
             
-            // Load first question
-            await loadQuestionPair(0);
+            // Load first image pair
+            await loadImagePair(0);
             
             // Scroll to top
             window.scrollTo(0, 0);
@@ -86,24 +86,24 @@ async function handleDemographicsSubmit(event) {
     }
 }
 
-async function loadQuestionPair(index) {
+async function loadImagePair(index) {
     try {
-        const response = await fetch(`/api/get_question_pair/${index}`);
+        const response = await fetch(`/api/get_image_pair/${index}`);
         const data = await response.json();
         
         if (response.ok) {
-            currentQuestionData = data;
-            currentQuestionIndex = index;
+            currentImageData = data;
+            currentImageIndex = index;
             
             // Update UI
             document.getElementById('prompt-text').textContent = data.prompt;
-            document.getElementById('question-a').textContent = data.question_a;
-            document.getElementById('question-b').textContent = data.question_b;
+            document.getElementById('image-a').src = data.image_a_url;
+            document.getElementById('image-b').src = data.image_b_url;
             
             // Update progress
             document.getElementById('current-question').textContent = index + 1;
             document.getElementById('total-questions').textContent = data.total_pairs;
-            totalQuestions = data.total_pairs;
+            totalImagePairs = data.total_pairs;
             
             const progressPercent = ((index) / data.total_pairs) * 100;
             document.getElementById('progress-bar-fill').style.width = progressPercent + '%';
@@ -113,14 +113,14 @@ async function loadQuestionPair(index) {
             if (index >= data.total_pairs - 1) {
                 submitBtn.textContent = 'Submit Survey';
             } else {
-                submitBtn.textContent = 'Next Question';
+                submitBtn.textContent = 'Next Image Pair';
             }
             
             // Reset form
             document.getElementById('survey-form').reset();
             
         } else {
-            showError('Failed to load question. Please refresh the page.');
+            showError('Failed to load image pair. Please refresh the page.');
             console.error('Error:', data.error);
         }
     } catch (error) {
@@ -135,15 +135,16 @@ async function handleSurveySubmit(event) {
     const formData = new FormData(event.target);
     const surveyResponse = Object.fromEntries(formData.entries());
     
-    // Add the current question data to the response
+    // Add the current image data to the response
     const completeResponse = {
         ...surveyResponse,
-        question_pair_id: currentQuestionData.id,
-        question_a: currentQuestionData.question_a,
-        question_b: currentQuestionData.question_b,
-        prompt: currentQuestionData.prompt,
-        was_randomized: currentQuestionData.was_randomized,
-        confidence: parseInt(surveyResponse.confidence)
+        image_pair_id: currentImageData.id,
+        prompt: currentImageData.prompt,
+        image_a_url: currentImageData.image_a_url,
+        image_b_url: currentImageData.image_b_url,
+        was_randomized: currentImageData.was_randomized,
+        image_confidence: parseInt(surveyResponse.image_confidence),
+        prompt_confidence: parseInt(surveyResponse.prompt_confidence)
     };
     
     try {
@@ -159,17 +160,17 @@ async function handleSurveySubmit(event) {
         
         if (response.ok && result.success) {
             if (result.completed) {
-                // All questions completed, redirect to thank you page
+                // All image pairs completed, redirect to thank you page
                 window.location.href = '/';
             } else {
-                // Load next question
-                currentQuestionIndex++;
-                await loadQuestionPair(currentQuestionIndex);
+                // Load next image pair
+                currentImageIndex++;
+                await loadImagePair(currentImageIndex);
                 window.scrollTo(0, 0);
             }
         } else {
             if (result.error && result.error.includes('already submitted')) {
-                showError('You have already answered this question.');
+                showError('You have already evaluated this image pair.');
             } else {
                 showError('Failed to submit response. Please try again.');
             }

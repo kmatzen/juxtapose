@@ -14,38 +14,38 @@ ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')  # Change this in 
 # Use /data for persistent storage on Fly.io, otherwise local directory
 DATABASE = '/data/survey.db' if os.path.exists('/data') else 'survey.db'
 
-# Question pairs - customize these with your actual questions
-QUESTION_PAIRS = [
+# Image pairs - customize these with your actual images and prompts
+IMAGE_PAIRS = [
     {
         "id": 1,
-        "prompt": "Create a question about artificial intelligence for a general audience.",
-        "question_a": "What is artificial intelligence and how does it work?",
-        "question_b": "Can you explain the fundamental principles behind AI systems?"
+        "prompt": "A serene mountain landscape at sunset",
+        "image_a_url": "https://placehold.co/600x400/0066cc/white?text=Image+A-1",
+        "image_b_url": "https://placehold.co/600x400/cc6600/white?text=Image+B-1"
     },
     {
         "id": 2,
-        "prompt": "Write a question about climate change for high school students.",
-        "question_a": "How does human activity contribute to global warming?",
-        "question_b": "What are the main causes and effects of climate change?"
+        "prompt": "A futuristic city with flying cars",
+        "image_a_url": "https://placehold.co/600x400/0066cc/white?text=Image+A-2",
+        "image_b_url": "https://placehold.co/600x400/cc6600/white?text=Image+B-2"
     },
-    # Add 28 more question pairs here
+    # Add 28 more image pairs here
     # Template for adding more:
     # {
     #     "id": 3,
-    #     "prompt": "Your prompt here",
-    #     "question_a": "First question here",
-    #     "question_b": "Second question here"
+    #     "prompt": "Your text prompt here",
+    #     "image_a_url": "URL or path to image A",
+    #     "image_b_url": "URL or path to image B"
     # },
 ]
 
-# Generate placeholder questions if we don't have 30 yet
-while len(QUESTION_PAIRS) < 30:
-    idx = len(QUESTION_PAIRS) + 1
-    QUESTION_PAIRS.append({
+# Generate placeholder image pairs if we don't have 30 yet
+while len(IMAGE_PAIRS) < 30:
+    idx = len(IMAGE_PAIRS) + 1
+    IMAGE_PAIRS.append({
         "id": idx,
-        "prompt": f"Sample prompt #{idx} - Replace this with your actual prompt.",
-        "question_a": f"Sample question A for pair #{idx} - Replace with your actual question.",
-        "question_b": f"Sample question B for pair #{idx} - Replace with your actual question."
+        "prompt": f"Sample prompt #{idx} - Replace this with your actual image generation prompt.",
+        "image_a_url": f"https://placehold.co/600x400/0066cc/white?text=Image+A-{idx}",
+        "image_b_url": f"https://placehold.co/600x400/cc6600/white?text=Image+B-{idx}"
     })
 
 def get_db():
@@ -88,13 +88,14 @@ def init_db():
         CREATE TABLE IF NOT EXISTS survey_responses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             participant_id INTEGER NOT NULL,
-            question_pair_id INTEGER,
-            question_a TEXT,
-            question_b TEXT,
+            image_pair_id INTEGER,
             prompt TEXT,
-            better_choice TEXT,
-            confidence INTEGER,
-            prompt_adherence TEXT,
+            image_a_url TEXT,
+            image_b_url TEXT,
+            better_image TEXT,
+            image_confidence INTEGER,
+            better_prompt_match TEXT,
+            prompt_confidence INTEGER,
             was_randomized INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (participant_id) REFERENCES participants (id)
@@ -202,26 +203,26 @@ def submit_demographics():
     finally:
         db.close()
 
-@app.route('/api/get_question_pair/<int:pair_index>')
-def get_question_pair(pair_index):
-    """Get a specific question pair"""
-    if pair_index < 0 or pair_index >= len(QUESTION_PAIRS):
-        return jsonify({'error': 'Invalid question pair index'}), 404
+@app.route('/api/get_image_pair/<int:pair_index>')
+def get_image_pair(pair_index):
+    """Get a specific image pair"""
+    if pair_index < 0 or pair_index >= len(IMAGE_PAIRS):
+        return jsonify({'error': 'Invalid image pair index'}), 404
     
-    pair = QUESTION_PAIRS[pair_index].copy()
+    pair = IMAGE_PAIRS[pair_index].copy()
     
     # Randomize the order 50% of the time
     randomized = random.random() < 0.5
     if randomized:
-        pair['question_a'], pair['question_b'] = pair['question_b'], pair['question_a']
+        pair['image_a_url'], pair['image_b_url'] = pair['image_b_url'], pair['image_a_url']
     
     pair['was_randomized'] = randomized
-    pair['total_pairs'] = len(QUESTION_PAIRS)
+    pair['total_pairs'] = len(IMAGE_PAIRS)
     return jsonify(pair)
 
 @app.route('/api/submit_survey', methods=['POST'])
 def submit_survey():
-    """Submit survey response for a single question pair"""
+    """Submit survey response for a single image pair"""
     if 'session_id' not in session:
         return jsonify({'error': 'No session ID'}), 400
     
@@ -238,34 +239,35 @@ def submit_survey():
         if not participant:
             return jsonify({'error': 'Participant not found'}), 404
         
-        # Check if this specific question pair was already answered
+        # Check if this specific image pair was already answered
         existing = db.execute(
-            'SELECT id FROM survey_responses WHERE participant_id = ? AND question_pair_id = ?',
-            (participant['id'], data.get('question_pair_id'))
+            'SELECT id FROM survey_responses WHERE participant_id = ? AND image_pair_id = ?',
+            (participant['id'], data.get('image_pair_id'))
         ).fetchone()
         
         if existing:
-            return jsonify({'error': 'Question pair already submitted'}), 400
+            return jsonify({'error': 'Image pair already submitted'}), 400
         
         # Store survey response
         db.execute('''
             INSERT INTO survey_responses 
-            (participant_id, question_pair_id, question_a, question_b, prompt, 
-             better_choice, confidence, prompt_adherence, was_randomized)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (participant_id, image_pair_id, prompt, image_a_url, image_b_url,
+             better_image, image_confidence, better_prompt_match, prompt_confidence, was_randomized)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             participant['id'],
-            data.get('question_pair_id'),
-            data.get('question_a'),
-            data.get('question_b'),
+            data.get('image_pair_id'),
             data.get('prompt'),
-            data.get('better_choice'),
-            data.get('confidence'),
-            data.get('prompt_adherence'),
+            data.get('image_a_url'),
+            data.get('image_b_url'),
+            data.get('better_image'),
+            data.get('image_confidence'),
+            data.get('better_prompt_match'),
+            data.get('prompt_confidence'),
             1 if data.get('was_randomized') else 0
         ))
         
-        # Check if they've completed all questions
+        # Check if they've completed all image pairs
         response_count = db.execute(
             'SELECT COUNT(*) as count FROM survey_responses WHERE participant_id = ?',
             (participant['id'],)
@@ -324,13 +326,14 @@ def admin_results():
             d.works_with_graphics,
             d.technical_background,
             d.ai_familiarity,
-            s.question_pair_id,
-            s.question_a,
-            s.question_b,
+            s.image_pair_id,
             s.prompt,
-            s.better_choice,
-            s.confidence,
-            s.prompt_adherence,
+            s.image_a_url,
+            s.image_b_url,
+            s.better_image,
+            s.image_confidence,
+            s.better_prompt_match,
+            s.prompt_confidence,
             s.was_randomized,
             s.created_at as response_created
         FROM participants p
@@ -365,20 +368,21 @@ def admin_export():
             d.works_with_graphics,
             d.technical_background,
             d.ai_familiarity,
-            s.question_pair_id,
-            s.question_a,
-            s.question_b,
+            s.image_pair_id,
             s.prompt,
-            s.better_choice,
-            s.confidence,
-            s.prompt_adherence,
+            s.image_a_url,
+            s.image_b_url,
+            s.better_image,
+            s.image_confidence,
+            s.better_prompt_match,
+            s.prompt_confidence,
             s.was_randomized,
             s.created_at as response_created
         FROM participants p
         LEFT JOIN demographics d ON p.id = d.participant_id
         LEFT JOIN survey_responses s ON p.id = s.participant_id
         WHERE s.id IS NOT NULL
-        ORDER BY p.id, s.question_pair_id
+        ORDER BY p.id, s.image_pair_id
     ''').fetchall()
     db.close()
     
