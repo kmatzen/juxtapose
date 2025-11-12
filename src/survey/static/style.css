@@ -578,18 +578,17 @@ p {
     text-align: center;
     padding: 20px;
     margin-top: 40px;
-    border-top: 2px solid #e0e0e0;
-    font-size: 13px;
-    color: #666;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.95);
 }
 
 .survey-footer a {
-    color: #4A90E2;
-    text-decoration: none;
+    color: #ffffff;
+    text-decoration: underline;
     font-weight: 600;
 }
 
 .survey-footer a:hover {
-    text-decoration: underline;
+    color: #ffeb3b;
 }
 
