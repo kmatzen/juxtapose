@@ -27,6 +27,16 @@
                 <p><strong>Contact us at:</strong> <a href="mailto:survey-x7qp@adobe.com">survey-x7qp@adobe.com</a></p>
             </div>
             
+            {% if already_submitted %}
+            <div style="margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 8px;">
+                <p style="margin: 0; font-size: 14px; color: #666;">
+                    <strong>Using a shared computer?</strong> 
+                    <a href="/reset_session" style="color: #4A90E2;">Clear your session</a> 
+                    to allow the next person to take the survey.
+                </p>
+            </div>
+            {% endif %}
+            
             <p class="small-text">You may now close this window.</p>
         </div>
     </div>
