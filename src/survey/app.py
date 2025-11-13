@@ -618,20 +618,38 @@ def admin_results():
             s.method_b,
             s.image_a_url,
             s.image_b_url,
+            s.identity_urls,
+            s.mask_url,
             s.better_image,
             s.image_confidence,
             s.better_prompt_match,
             s.prompt_confidence,
+            s.better_mask_match,
+            s.mask_confidence,
+            s.better_identity_match,
+            s.identity_confidence,
             s.was_randomized,
             s.created_at as response_created,
             CASE 
                 WHEN s.better_image = 'A' THEN s.method_a
                 WHEN s.better_image = 'B' THEN s.method_b
+                WHEN s.better_image = 'equal' THEN 'equal'
             END as preferred_method_image,
             CASE 
                 WHEN s.better_prompt_match = 'A' THEN s.method_a
                 WHEN s.better_prompt_match = 'B' THEN s.method_b
-            END as preferred_method_prompt
+                WHEN s.better_prompt_match = 'equal' THEN 'equal'
+            END as preferred_method_prompt,
+            CASE 
+                WHEN s.better_mask_match = 'A' THEN s.method_a
+                WHEN s.better_mask_match = 'B' THEN s.method_b
+                WHEN s.better_mask_match = 'equal' THEN 'equal'
+            END as preferred_method_mask,
+            CASE 
+                WHEN s.better_identity_match = 'A' THEN s.method_a
+                WHEN s.better_identity_match = 'B' THEN s.method_b
+                WHEN s.better_identity_match = 'equal' THEN 'equal'
+            END as preferred_method_identity
         FROM participants p
         LEFT JOIN demographics d ON p.id = d.participant_id
         LEFT JOIN survey_responses s ON p.id = s.participant_id
@@ -678,20 +696,38 @@ def admin_export():
             s.method_b,
             s.image_a_url,
             s.image_b_url,
+            s.identity_urls,
+            s.mask_url,
             s.better_image,
             s.image_confidence,
             s.better_prompt_match,
             s.prompt_confidence,
+            s.better_mask_match,
+            s.mask_confidence,
+            s.better_identity_match,
+            s.identity_confidence,
             s.was_randomized,
             s.created_at as response_created,
             CASE 
                 WHEN s.better_image = 'A' THEN s.method_a
                 WHEN s.better_image = 'B' THEN s.method_b
+                WHEN s.better_image = 'equal' THEN 'equal'
             END as preferred_method_image,
             CASE 
                 WHEN s.better_prompt_match = 'A' THEN s.method_a
                 WHEN s.better_prompt_match = 'B' THEN s.method_b
-            END as preferred_method_prompt
+                WHEN s.better_prompt_match = 'equal' THEN 'equal'
+            END as preferred_method_prompt,
+            CASE 
+                WHEN s.better_mask_match = 'A' THEN s.method_a
+                WHEN s.better_mask_match = 'B' THEN s.method_b
+                WHEN s.better_mask_match = 'equal' THEN 'equal'
+            END as preferred_method_mask,
+            CASE 
+                WHEN s.better_identity_match = 'A' THEN s.method_a
+                WHEN s.better_identity_match = 'B' THEN s.method_b
+                WHEN s.better_identity_match = 'equal' THEN 'equal'
+            END as preferred_method_identity
         FROM participants p
         LEFT JOIN demographics d ON p.id = d.participant_id
         LEFT JOIN survey_responses s ON p.id = s.participant_id
