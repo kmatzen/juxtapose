@@ -104,6 +104,13 @@ def load_image_pairs():
 # Load image pairs on startup
 IMAGE_PAIRS = load_image_pairs()
 
+# Run database migrations before initializing
+try:
+    from src.survey.migrate_db import migrate_database
+    migrate_database()
+except Exception as e:
+    print(f"Warning: Migration failed (might be first run): {e}")
+
 def get_db():
     """Get database connection"""
     db = sqlite3.connect(DATABASE)
