@@ -1,9 +1,69 @@
-# Image Pairs Configuration
+# Image Pairs Configuration - Test Data
 # Format: prompt <TAB> method_a <TAB> method_b <TAB> image_a_url <TAB> image_b_url
+# Extended format (with conditioning): add <TAB> identity_urls <TAB> mask_url
+# identity_urls can be comma-separated for multiple identities
 # Lines starting with # are comments and will be ignored
-# You can use full URLs or relative paths to images in the static folder
 
-A serene mountain landscape at sunset	Method-A	Method-B	https://placehold.co/600x400/0066cc/white?text=Method+A	https://placehold.co/600x400/cc6600/white?text=Method+B
-A futuristic city with flying cars	Method-A	Method-B	https://placehold.co/600x400/0066cc/white?text=Method+A	https://placehold.co/600x400/cc6600/white?text=Method+B
-A cat wearing sunglasses on a beach	Method-A	Method-B	https://placehold.co/600x400/0066cc/white?text=Method+A	https://placehold.co/600x400/cc6600/white?text=Method+B
+# ==============================================================================
+# OLD FORMAT (5 fields) - Backward Compatibility Test
+# These pairs will show only 2 evaluation sections (Image Quality, Prompt Adherence)
+# ==============================================================================
 
+A serene mountain landscape at sunset	Method-A	Method-B	https://picsum.photos/seed/mountain1a/600/400	https://picsum.photos/seed/mountain1b/600/400
+A futuristic city with flying cars	Method-A	Method-B	https://picsum.photos/seed/city2a/600/400	https://picsum.photos/seed/city2b/600/400
+A cozy coffee shop interior	Method-A	Method-B	https://picsum.photos/seed/coffee3a/600/400	https://picsum.photos/seed/coffee3b/600/400
+
+# ==============================================================================
+# NEW FORMAT (7 fields) - Identity Conditioning Only
+# These pairs will show 3 evaluation sections + Identity Preservation
+# ==============================================================================
+
+A person reading a book in a library	Method-A	Method-B	https://picsum.photos/seed/reading4a/600/400	https://picsum.photos/seed/reading4b/600/400	https://picsum.photos/seed/identity1/200/200	
+A professional headshot in an office	Method-A	Method-B	https://picsum.photos/seed/headshot5a/600/400	https://picsum.photos/seed/headshot5b/600/400	https://picsum.photos/seed/identity2/200/200	
+
+# ==============================================================================
+# NEW FORMAT (7 fields) - Mask Conditioning Only
+# These pairs will show 3 evaluation sections + Mask Adherence
+# ==============================================================================
+
+A living room with modern furniture	Method-A	Method-B	https://picsum.photos/seed/living6a/600/400	https://picsum.photos/seed/living6b/600/400		https://placehold.co/300x300/e3f2fd/1976d2?text=Room+Layout
+A kitchen with island counter	Method-A	Method-B	https://picsum.photos/seed/kitchen7a/600/400	https://picsum.photos/seed/kitchen7b/600/400		https://placehold.co/300x300/fff3e0/f57c00?text=Kitchen+Zones
+
+# ==============================================================================
+# NEW FORMAT (7 fields) - FULL CONDITIONING (Identity + Mask)
+# These pairs will show ALL 4 evaluation sections
+# ==============================================================================
+
+A person skiing down a snowy mountain	Method-A	Method-B	https://picsum.photos/seed/skiing8a/600/400	https://picsum.photos/seed/skiing8b/600/400	https://picsum.photos/seed/identity3/200/200	https://placehold.co/300x300/f3e5f5/8e24aa?text=Ski+Pose
+A person surfing a large wave	Method-A	Method-B	https://picsum.photos/seed/surfing9a/600/400	https://picsum.photos/seed/surfing9b/600/400	https://picsum.photos/seed/identity4/200/200	https://placehold.co/300x300/e8f5e9/43a047?text=Wave+Position
+A portrait in a garden setting	Method-A	Method-B	https://picsum.photos/seed/garden10a/600/400	https://picsum.photos/seed/garden10b/600/400	https://picsum.photos/seed/identity5/200/200,https://picsum.photos/seed/identity6/200/200	https://placehold.co/300x300/fce4ec/c2185b?text=Garden+Composition
+
+# ==============================================================================
+# ADVANCED EXAMPLE - Multiple Identity References
+# This demonstrates the comma-separated identity_urls feature
+# ==============================================================================
+
+A group photo at a wedding	Method-A	Method-B	https://picsum.photos/seed/wedding11a/600/400	https://picsum.photos/seed/wedding11b/600/400	https://picsum.photos/seed/face1/150/150,https://picsum.photos/seed/face2/150/150,https://picsum.photos/seed/face3/150/150	https://placehold.co/300x300/e1f5fe/0277bd?text=Group+Layout
+A family portrait in a park	Method-A	Method-B	https://picsum.photos/seed/family12a/600/400	https://picsum.photos/seed/family12b/600/400	https://picsum.photos/seed/face4/150/150,https://picsum.photos/seed/face5/150/150	https://placehold.co/300x300/f1f8e9/689f38?text=Park+Arrangement
+
+# ==============================================================================
+# MIXED METHODS - Different Method Names
+# This demonstrates how method tracking works with various AI models
+# ==============================================================================
+
+A sunset over the ocean	DALL-E-3	Midjourney-v6	https://picsum.photos/seed/sunset13a/600/400	https://picsum.photos/seed/sunset13b/600/400
+A fantasy dragon in flight	Stable-Diffusion-XL	DALL-E-3	https://picsum.photos/seed/dragon14a/600/400	https://picsum.photos/seed/dragon14b/600/400	https://picsum.photos/seed/dragon-ref/200/200	https://placehold.co/300x300/ede7f6/5e35b1?text=Dragon+Pose
+A cyberpunk street scene	Midjourney-v6	Stable-Diffusion-XL	https://picsum.photos/seed/cyber15a/600/400	https://picsum.photos/seed/cyber15b/600/400		https://placehold.co/300x300/e0f2f1/00695c?text=Street+Layout
+
+# ==============================================================================
+# TEST NOTES:
+# - Lines 1-3: Old format, shows basic 2-evaluation UX
+# - Lines 4-5: Identity only, tests single identity reference
+# - Lines 6-7: Mask only, tests spatial layout evaluation
+# - Lines 8-10: Full conditioning, including one with multiple identities
+# - Lines 11-12: Advanced multi-identity scenarios
+# - Lines 13-15: Different method names for tracking preferences
+#
+# Total: 15 pairs (Dev mode will randomly sample 3, Production will sample 30)
+# Mix ensures comprehensive testing of all feature combinations
+# ==============================================================================
