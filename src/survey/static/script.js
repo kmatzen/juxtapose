@@ -258,10 +258,14 @@ async function handleDemographicsSubmit(event) {
 
 async function loadImagePair(index) {
     try {
+        console.log(`Fetching image pair ${index}...`);
         const response = await fetch(`/api/get_image_pair/${index}`);
         const data = await response.json();
         
+        console.log('API response:', { ok: response.ok, status: response.status });
+        
         if (response.ok) {
+            console.log('Image pair data received:', { id: data.id, hasImageA: !!data.image_a_url, hasImageB: !!data.image_b_url });
             currentImageData = data;
             currentImageIndex = index;
             
@@ -327,28 +331,31 @@ async function loadImagePair(index) {
             };
             
             imgALoader.onload = () => {
+                console.log('Image A loaded successfully');
                 aLoaded = true;
                 checkBothLoaded();
             };
             
             imgBLoader.onload = () => {
+                console.log('Image B loaded successfully');
                 bLoaded = true;
                 checkBothLoaded();
             };
             
-            imgALoader.onerror = () => {
-                console.error(`Failed to load image A`);
+            imgALoader.onerror = (e) => {
+                console.error('Failed to load image A', e);
                 aError = true;
                 checkBothLoaded();
             };
             
-            imgBLoader.onerror = () => {
-                console.error(`Failed to load image B`);
+            imgBLoader.onerror = (e) => {
+                console.error('Failed to load image B', e);
                 bError = true;
                 checkBothLoaded();
             };
             
             // Start loading
+            console.log('Starting image load...');
             imgALoader.src = data.image_a_url;
             imgBLoader.src = data.image_b_url;
             
