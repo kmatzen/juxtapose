@@ -252,25 +252,8 @@ def reset_session():
         session.clear()
         return redirect(url_for('referral') if REQUIRE_REFERRAL else url_for('index'))
     else:
-        # In production, require confirmation
-        return '''
-            <html>
-            <head><title>Reset Session</title></head>
-            <body style="font-family: Arial; padding: 40px; text-align: center;">
-                <h2>Reset Survey Session</h2>
-                <p>This will clear your session and allow you to take the survey again.</p>
-                <p style="color: #d32f2f;"><strong>Note:</strong> This is intended for shared computers. 
-                Your previous responses will remain in the database.</p>
-                <form method="POST" action="/reset_session_confirm" style="margin-top: 20px;">
-                    <button type="submit" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">
-                        Yes, Reset My Session
-                    </button>
-                    <br><br>
-                    <a href="/" style="color: #666;">Cancel and return to survey</a>
-                </form>
-            </body>
-            </html>
-        '''
+        # In production, show styled confirmation page
+        return render_template('reset_session_confirm.html')
 
 @app.route('/reset_session_confirm', methods=['POST'])
 def reset_session_confirm():
