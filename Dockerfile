@@ -1,24 +1,19 @@
-# Use Python slim image
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy project files
-COPY pyproject.toml uv.lock* ./
+# Copy application code
 COPY . .
 
-# Install dependencies
-RUN uv sync --frozen --no-dev
+# Create data directory for SQLite
+RUN mkdir -p /data
 
 # Expose port
-EXPOSE 8080
-
-# Set environment variables
-ENV PORT=8080
+EXPOSE 8000
 
 # Run the application
-CMD ["uv", "run", "gunicorn", "src.survey.app:app", "--bind", "0.0.0.0:8080"]
-
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "1", "src.survey.app:app"]
