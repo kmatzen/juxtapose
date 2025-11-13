@@ -544,6 +544,7 @@ def admin_results():
     results = db.execute('''
         SELECT 
             p.session_id,
+            p.referral_code,
             p.created_at as participant_created,
             p.browser,
             p.browser_version,
@@ -603,6 +604,7 @@ def admin_export():
     results = db.execute('''
         SELECT 
             p.session_id,
+            p.referral_code,
             p.created_at as participant_created,
             p.browser,
             p.browser_version,
