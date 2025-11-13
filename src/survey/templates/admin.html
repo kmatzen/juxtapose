@@ -62,8 +62,18 @@
                 const uniqueParticipants = new Set(data.map(r => r.email)).size;
                 document.getElementById('total-responses').textContent = uniqueParticipants;
                 
-                const aCount = data.filter(r => r.better_image === 'A').length;
-                const bCount = data.filter(r => r.better_image === 'B').length;
+                // Count preferences by actual method, not just A/B position
+                const methodImagePrefs = {};
+                const methodPromptPrefs = {};
+                data.forEach(r => {
+                    if (r.preferred_method_image) {
+                        methodImagePrefs[r.preferred_method_image] = (methodImagePrefs[r.preferred_method_image] || 0) + 1;
+                    }
+                    if (r.preferred_method_prompt) {
+                        methodPromptPrefs[r.preferred_method_prompt] = (methodPromptPrefs[r.preferred_method_prompt] || 0) + 1;
+                    }
+                });
+                
                 const avgImageConf = data.length > 0 
                     ? (data.reduce((sum, r) => sum + (r.image_confidence || 0), 0) / data.length).toFixed(1)
                     : 0;
@@ -71,8 +81,13 @@
                     ? (data.reduce((sum, r) => sum + (r.prompt_confidence || 0), 0) / data.length).toFixed(1)
                     : 0;
                 
-                document.getElementById('a-preferred').textContent = aCount;
-                document.getElementById('b-preferred').textContent = bCount;
+                // Display method preferences
+                const methodSummary = Object.keys(methodImagePrefs).map(method => 
+                    `${method}: ${methodImagePrefs[method]}`
+                ).join(', ') || 'No data yet';
+                
+                document.getElementById('a-preferred').textContent = methodSummary;
+                document.getElementById('b-preferred').textContent = ''; // Remove this field
                 document.getElementById('avg-confidence').textContent = avgImageConf + ' / ' + avgPromptConf;
                 
                 // Render current view
@@ -160,24 +175,32 @@
                         <th>Date</th>
                         <th>Email</th>
                         <th>Pair#</th>
-                        <th>Better Image</th>
+                        <th>Method A</th>
+                        <th>Method B</th>
+                        <th>UI Choice (Img)</th>
+                        <th>Preferred Method (Img)</th>
                         <th>Img Conf</th>
-                        <th>Better Match</th>
+                        <th>UI Choice (Prompt)</th>
+                        <th>Preferred Method (Prompt)</th>
                         <th>Prompt Conf</th>
-                        <th>Randomized</th>
+                        <th>Rand?</th>
                     </tr>
                 `;
                 
                 tbody.innerHTML = cachedData.map(row => `
                     <tr>
-                        <td>${new Date(row.response_created).toLocaleDateString()}</td>
+                        <td style="font-size: 11px;">${new Date(row.response_created).toLocaleDateString()}</td>
                         <td>${row.email || '-'}</td>
                         <td>${row.image_pair_id || '-'}</td>
+                        <td style="font-size: 11px;">${row.method_a || 'N/A'}</td>
+                        <td style="font-size: 11px;">${row.method_b || 'N/A'}</td>
                         <td>${row.better_image || '-'}</td>
+                        <td><strong>${row.preferred_method_image || 'N/A'}</strong></td>
                         <td>${row.image_confidence || '-'}</td>
                         <td>${row.better_prompt_match || '-'}</td>
+                        <td><strong>${row.preferred_method_prompt || 'N/A'}</strong></td>
                         <td>${row.prompt_confidence || '-'}</td>
-                        <td>${row.was_randomized ? 'Yes' : 'No'}</td>
+                        <td>${row.was_randomized ? 'Y' : 'N'}</td>
                     </tr>
                 `).join('');
             }

@@ -109,6 +109,8 @@ def init_db():
             participant_id INTEGER NOT NULL,
             image_pair_id INTEGER,
             prompt TEXT,
+            method_a TEXT,
+            method_b TEXT,
             image_a_url TEXT,
             image_b_url TEXT,
             better_image TEXT,
