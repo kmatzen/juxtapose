@@ -481,10 +481,16 @@ def submit_survey():
                     method_b = ?,
                     image_a_url = ?, 
                     image_b_url = ?,
+                    identity_urls = ?,
+                    mask_url = ?,
                     better_image = ?, 
                     image_confidence = ?, 
                     better_prompt_match = ?, 
-                    prompt_confidence = ?, 
+                    prompt_confidence = ?,
+                    better_mask_match = ?,
+                    mask_confidence = ?,
+                    better_identity_match = ?,
+                    identity_confidence = ?,
                     was_randomized = ?,
                     created_at = CURRENT_TIMESTAMP
                 WHERE id = ?
@@ -494,10 +500,16 @@ def submit_survey():
                 data.get('method_b'),
                 data.get('image_a_url'),
                 data.get('image_b_url'),
+                data.get('identity_urls'),
+                data.get('mask_url'),
                 data.get('better_image'),
                 data.get('image_confidence'),
                 data.get('better_prompt_match'),
                 data.get('prompt_confidence'),
+                data.get('better_mask_match'),
+                data.get('mask_confidence'),
+                data.get('better_identity_match'),
+                data.get('identity_confidence'),
                 1 if data.get('was_randomized') else 0,
                 existing['id']
             ))
@@ -506,8 +518,11 @@ def submit_survey():
             db.execute('''
                 INSERT INTO survey_responses 
                 (participant_id, image_pair_id, prompt, method_a, method_b, image_a_url, image_b_url,
-                 better_image, image_confidence, better_prompt_match, prompt_confidence, was_randomized)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 identity_urls, mask_url,
+                 better_image, image_confidence, better_prompt_match, prompt_confidence,
+                 better_mask_match, mask_confidence, better_identity_match, identity_confidence,
+                 was_randomized)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 participant['id'],
                 data.get('image_pair_id'),
@@ -516,10 +531,16 @@ def submit_survey():
                 data.get('method_b'),
                 data.get('image_a_url'),
                 data.get('image_b_url'),
+                data.get('identity_urls'),
+                data.get('mask_url'),
                 data.get('better_image'),
                 data.get('image_confidence'),
                 data.get('better_prompt_match'),
                 data.get('prompt_confidence'),
+                data.get('better_mask_match'),
+                data.get('mask_confidence'),
+                data.get('better_identity_match'),
+                data.get('identity_confidence'),
                 1 if data.get('was_randomized') else 0
             ))
         
