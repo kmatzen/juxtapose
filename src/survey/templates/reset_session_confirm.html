@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reset Session</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .reset-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+        
+        .reset-box {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 50px 40px;
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+        
+        .reset-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        
+        .reset-box h1 {
+            color: #4A90E2;
+            margin-bottom: 20px;
+            font-size: 32px;
+        }
+        
+        .reset-box p {
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+        
+        .warning-box {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 30px 0;
+            text-align: left;
+        }
+        
+        .warning-box strong {
+            color: #856404;
+            font-size: 18px;
+            display: block;
+            margin-bottom: 10px;
+        }
+        
+        .warning-box p {
+            color: #856404;
+            margin: 0;
+            font-size: 14px;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+        
+        .btn-reset {
+            background: #d32f2f;
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            flex: 1;
+            max-width: 220px;
+        }
+        
+        .btn-reset:hover {
+            background: #b71c1c;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(211, 47, 47, 0.4);
+        }
+        
+        .btn-cancel {
+            background: #f5f5f5;
+            color: #333;
+            border: 2px solid #ddd;
+            padding: 16px 32px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            flex: 1;
+            max-width: 220px;
+        }
+        
+        .btn-cancel:hover {
+            background: #e0e0e0;
+            border-color: #bbb;
+            transform: translateY(-2px);
+        }
+        
+        .info-text {
+            font-size: 14px;
+            color: #999;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+    <div class="reset-container">
+        <div class="reset-box">
+            <div class="reset-icon">🔄</div>
+            <h1>Reset Survey Session</h1>
+            <p>This will clear your current session and allow you to take the survey again from the beginning.</p>
+            
+            <div class="warning-box">
+                <strong>⚠️ Important Note</strong>
+                <p>This feature is designed for <strong>shared computers</strong>. Your previous responses will remain in our database and will be included in the study results.</p>
+                <p style="margin-top: 10px;">If you want your data completely removed, please contact us at <a href="mailto:survey-x7qp@adobe.com" style="color: #4A90E2;">survey-x7qp@adobe.com</a></p>
+            </div>
+            
+            <form method="POST" action="/reset_session_confirm">
+                <div class="button-group">
+                    <button type="submit" class="btn-reset">Yes, Reset My Session</button>
+                    <a href="/" class="btn-cancel">Cancel</a>
+                </div>
+            </form>
+            
+            <div class="info-text">
+                Questions? Contact <a href="mailto:survey-x7qp@adobe.com" style="color: #4A90E2;">survey-x7qp@adobe.com</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+
