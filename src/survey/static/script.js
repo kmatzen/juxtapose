@@ -175,6 +175,28 @@ function fillSurveyForm() {
     const promptConf = Math.floor(Math.random() * 5) + 1;
     document.querySelector(`input[name="prompt_confidence"][value="${promptConf}"]`).checked = true;
     
+    // Auto-fill mask evaluation if visible
+    const maskEval = document.getElementById('mask-evaluation');
+    if (maskEval && maskEval.style.display !== 'none') {
+        const betterMask = Math.random() < 0.5 ? 'A' : 'B';
+        const maskRadio = document.querySelector(`input[name="better_mask_match"][value="${betterMask}"]`);
+        const maskConf = Math.floor(Math.random() * 5) + 1;
+        const maskConfRadio = document.querySelector(`input[name="mask_confidence"][value="${maskConf}"]`);
+        if (maskRadio) maskRadio.checked = true;
+        if (maskConfRadio) maskConfRadio.checked = true;
+    }
+    
+    // Auto-fill identity evaluation if visible
+    const identityEval = document.getElementById('identity-evaluation');
+    if (identityEval && identityEval.style.display !== 'none') {
+        const betterIdentity = Math.random() < 0.5 ? 'A' : 'B';
+        const identityRadio = document.querySelector(`input[name="better_identity_match"][value="${betterIdentity}"]`);
+        const identityConf = Math.floor(Math.random() * 5) + 1;
+        const identityConfRadio = document.querySelector(`input[name="identity_confidence"][value="${identityConf}"]`);
+        if (identityRadio) identityRadio.checked = true;
+        if (identityConfRadio) identityConfRadio.checked = true;
+    }
+    
     console.log(`✅ Survey form auto-filled: Image ${betterImage} (conf ${imageConf}), Match ${betterMatch} (conf ${promptConf})`);
 }
 
@@ -271,6 +293,9 @@ async function loadImagePair(index) {
             
             // Update UI
             document.getElementById('prompt-text').textContent = data.prompt;
+            
+            // Handle identity and mask conditioning
+            displayConditioningInputs(data);
             
             const imageA = document.getElementById('image-a');
             const imageB = document.getElementById('image-b');
@@ -437,9 +462,20 @@ async function handleSurveySubmit(event) {
         method_b: currentImageData.method_b,
         image_a_url: currentImageData.image_a_url,
         image_b_url: currentImageData.image_b_url,
+        identity_urls: currentImageData.identity_urls || null,
+        mask_url: currentImageData.mask_url || null,
         was_randomized: currentImageData.was_randomized,
         image_confidence: parseInt(surveyResponse.image_confidence),
-        prompt_confidence: parseInt(surveyResponse.prompt_confidence)
+        prompt_confidence: parseInt(surveyResponse.prompt_confidence),
+        // Conditionally add mask/identity fields if present
+        ...(surveyResponse.better_mask_match && {
+            better_mask_match: surveyResponse.better_mask_match,
+            mask_confidence: parseInt(surveyResponse.mask_confidence)
+        }),
+        ...(surveyResponse.better_identity_match && {
+            better_identity_match: surveyResponse.better_identity_match,
+            identity_confidence: parseInt(surveyResponse.identity_confidence)
+        })
     };
     
     try {
@@ -508,6 +544,82 @@ function showRetakeModal() {
             }
         });
     });
+}
+
+function displayConditioningInputs(data) {
+    const conditioningContainer = document.getElementById('conditioning-container');
+    const identitySection = document.getElementById('identity-section');
+    const maskSection = document.getElementById('mask-section');
+    const identityEvaluation = document.getElementById('identity-evaluation');
+    const maskEvaluation = document.getElementById('mask-evaluation');
+    
+    let hasConditioning = false;
+    
+    // Handle identity images
+    if (data.identity_urls) {
+        const identityUrls = data.identity_urls.split(',').map(url => url.trim());
+        const identityContainer = document.getElementById('identity-images');
+        identityContainer.innerHTML = ''; // Clear previous
+        
+        identityUrls.forEach((url, index) => {
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = `Identity ${index + 1}`;
+            img.className = 'identity-image';
+            img.onclick = () => openLightbox(url, `Identity Reference ${index + 1}`);
+            identityContainer.appendChild(img);
+        });
+        
+        identitySection.style.display = 'block';
+        identityEvaluation.style.display = 'block';
+        
+        // Make identity evaluation fields required
+        const identityRadios = identityEvaluation.querySelectorAll('input[name="better_identity_match"]');
+        identityRadios.forEach(radio => radio.required = true);
+        const identityConfRadios = identityEvaluation.querySelectorAll('input[name="identity_confidence"]');
+        identityConfRadios.forEach(radio => radio.required = true);
+        
+        hasConditioning = true;
+    } else {
+        identitySection.style.display = 'none';
+        identityEvaluation.style.display = 'none';
+        
+        // Remove required attribute
+        const identityRadios = identityEvaluation.querySelectorAll('input[name="better_identity_match"]');
+        identityRadios.forEach(radio => radio.required = false);
+        const identityConfRadios = identityEvaluation.querySelectorAll('input[name="identity_confidence"]');
+        identityConfRadios.forEach(radio => radio.required = false);
+    }
+    
+    // Handle mask image
+    if (data.mask_url) {
+        const maskImg = document.getElementById('mask-image');
+        maskImg.src = data.mask_url;
+        maskImg.onclick = () => openLightbox(data.mask_url, 'Spatial Mask');
+        
+        maskSection.style.display = 'block';
+        maskEvaluation.style.display = 'block';
+        
+        // Make mask evaluation fields required
+        const maskRadios = maskEvaluation.querySelectorAll('input[name="better_mask_match"]');
+        maskRadios.forEach(radio => radio.required = true);
+        const maskConfRadios = maskEvaluation.querySelectorAll('input[name="mask_confidence"]');
+        maskConfRadios.forEach(radio => radio.required = true);
+        
+        hasConditioning = true;
+    } else {
+        maskSection.style.display = 'none';
+        maskEvaluation.style.display = 'none';
+        
+        // Remove required attribute
+        const maskRadios = maskEvaluation.querySelectorAll('input[name="better_mask_match"]');
+        maskRadios.forEach(radio => radio.required = false);
+        const maskConfRadios = maskEvaluation.querySelectorAll('input[name="mask_confidence"]');
+        maskConfRadios.forEach(radio => radio.required = false);
+    }
+    
+    // Show/hide conditioning container
+    conditioningContainer.style.display = hasConditioning ? 'block' : 'none';
 }
 
 function showError(message) {
