@@ -4,6 +4,7 @@ A Flask-based survey application for collecting user evaluations of question pai
 
 ## Features
 
+- **Referral Code Gating** 🔒: Optional access codes to control survey participation (see `REFERRAL_CODES.md`)
 - **User Tracking**: Email-based tracking to prevent duplicate submissions
 - **Demographics Collection**: Customizable demographics for image generation studies
 - **Image Comparison**: Dual evaluation (quality + prompt adherence) with confidence levels
@@ -88,7 +89,10 @@ export SECRET_KEY="your-secret-key-here"
 # Set admin password (default is 'admin123')
 export ADMIN_PASSWORD="your-secure-password"
 
-# Enable dev mode for testing (auto-fill forms, only 3 pairs)
+# Set referral codes (comma-separated) to gate survey access
+export REFERRAL_CODES="CODE1,CODE2,CODE3"
+
+# Enable dev mode for testing (auto-fill forms, only 3 pairs, bypass referral)
 export DEV_MODE=true
 
 # Optional: Set custom port
