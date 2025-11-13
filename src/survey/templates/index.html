@@ -171,16 +171,16 @@
                 <p id="prompt-text">Loading...</p>
             </div>
             
-            <!-- Conditioning Inputs (Identity & Mask) - shown only when present -->
-            <div id="conditioning-container" style="display: none;">
+            <!-- Conditioning Inputs (Identity & Mask) - always shown -->
+            <div id="conditioning-container">
                 <div class="conditioning-section">
-                    <div id="identity-section" class="conditioning-box" style="display: none;">
+                    <div id="identity-section" class="conditioning-box">
                         <h3>Identity Reference Images</h3>
                         <p class="conditioning-note">The generated images should preserve the identity features from these reference images.</p>
                         <div id="identity-images" class="identity-images-container"></div>
                     </div>
                     
-                    <div id="mask-section" class="conditioning-box" style="display: none;">
+                    <div id="mask-section" class="conditioning-box">
                         <h3>Spatial Mask</h3>
                         <p class="conditioning-note">The generated images should follow the spatial layout indicated by this mask (different colors represent different regions).</p>
                         <div class="mask-image-container">
@@ -299,8 +299,8 @@
                     </div>
                 </div>
                 
-                <!-- Mask Adherence Section (shown only when mask is present) -->
-                <div id="mask-evaluation" class="evaluation-section" style="display: none;">
+                <!-- Mask Adherence Section (always shown) -->
+                <div id="mask-evaluation" class="evaluation-section">
                     <h3 class="section-title">Mask Adherence</h3>
                     
                     <div class="form-group">
@@ -348,8 +348,8 @@
                     </div>
                 </div>
                 
-                <!-- Identity Adherence Section (shown only when identity images are present) -->
-                <div id="identity-evaluation" class="evaluation-section" style="display: none;">
+                <!-- Identity Adherence Section (always shown) -->
+                <div id="identity-evaluation" class="evaluation-section">
                     <h3 class="section-title">Identity Preservation</h3>
                     
                     <div class="form-group">
