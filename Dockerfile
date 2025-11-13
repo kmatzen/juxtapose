@@ -1,5 +1,11 @@
 FROM python:3.11-slim
 
+# Install utilities needed for Fly.io SSH debugging and monitoring
+RUN apt-get update && apt-get install -y \
+    curl \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Install dependencies
