@@ -52,11 +52,19 @@ def load_image_pairs():
                 
                 # Split by tab
                 parts = line.split('\t')
-                if len(parts) != 5:
-                    print(f"Warning: Line {line_num} has {len(parts)} fields (expected 5), skipping: {line[:50]}...")
-                    continue
                 
-                prompt, method_a, method_b, image_a_url, image_b_url = parts
+                # Accept 5 fields (old format) or 7 fields (new format with identity and mask)
+                if len(parts) == 5:
+                    # Old format: prompt, method_a, method_b, image_a_url, image_b_url
+                    prompt, method_a, method_b, image_a_url, image_b_url = parts
+                    identity_urls = None
+                    mask_url = None
+                elif len(parts) == 7:
+                    # New format: includes identity_urls and mask_url
+                    prompt, method_a, method_b, image_a_url, image_b_url, identity_urls, mask_url = parts
+                else:
+                    print(f"Warning: Line {line_num} has {len(parts)} fields (expected 5 or 7), skipping: {line[:50]}...")
+                    continue
                 
                 pairs.append({
                     "id": pair_id,
@@ -64,7 +72,9 @@ def load_image_pairs():
                     "method_a": method_a.strip(),
                     "method_b": method_b.strip(),
                     "image_a_url": image_a_url.strip(),
-                    "image_b_url": image_b_url.strip()
+                    "image_b_url": image_b_url.strip(),
+                    "identity_urls": identity_urls.strip() if identity_urls else None,
+                    "mask_url": mask_url.strip() if mask_url else None
                 })
                 pair_id += 1
         
@@ -82,6 +92,8 @@ def load_image_pairs():
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write("# Image Pairs Configuration\n")
             f.write("# Format: prompt <TAB> method_a <TAB> method_b <TAB> image_a_url <TAB> image_b_url\n")
+            f.write("# Extended format (with conditioning): add <TAB> identity_urls <TAB> mask_url\n")
+            f.write("# identity_urls can be comma-separated for multiple identities\n")
             f.write("# Lines starting with # are comments and will be ignored\n\n")
             f.write("A serene mountain landscape at sunset\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\n")
             f.write("A futuristic city with flying cars\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\n")
@@ -154,10 +166,16 @@ def init_db():
             method_b TEXT,
             image_a_url TEXT,
             image_b_url TEXT,
+            identity_urls TEXT,
+            mask_url TEXT,
             better_image TEXT,
             image_confidence INTEGER,
             better_prompt_match TEXT,
             prompt_confidence INTEGER,
+            better_mask_match TEXT,
+            mask_confidence INTEGER,
+            better_identity_match TEXT,
+            identity_confidence INTEGER,
             was_randomized INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (participant_id) REFERENCES participants (id)
