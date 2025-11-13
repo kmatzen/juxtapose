@@ -61,23 +61,23 @@ pip install -r requirements.txt  # (will generate if needed)
 
 ### 3. Configure Your Image Pairs
 
-Edit `src/survey/app.py` and replace the placeholder image pairs in the `IMAGE_PAIRS` list with your actual data:
+**Easy!** Just edit `image_pairs.txt` - a simple tab-separated file:
 
-```python
-IMAGE_PAIRS = [
-    {
-        "id": 1,
-        "prompt": "A serene mountain landscape at sunset",
-        "method_a": "GPT-4-Vision",      # Your method name
-        "method_b": "DALL-E-3",          # Your method name
-        "image_a_url": "https://your-image-url-a.jpg",
-        "image_b_url": "https://your-image-url-b.jpg"
-    },
-    # ... add 29 more
-]
+```
+# Format: prompt <TAB> method_a <TAB> method_b <TAB> image_a_url <TAB> image_b_url
+A serene mountain landscape at sunset	GPT-4-Vision	DALL-E-3	https://example.com/img1a.jpg	https://example.com/img1b.jpg
+A futuristic city with flying cars	GPT-4-Vision	DALL-E-3	https://example.com/img2a.jpg	https://example.com/img2b.jpg
 ```
 
-The `method_a` and `method_b` fields track which generation method created each image. This is crucial because when images are randomized (50% of the time), the method names are swapped along with the images, allowing you to see which actual method users preferred.
+**Benefits:**
+- No Python code editing needed!
+- Easy to create in Excel/Google Sheets (export as TSV)
+- Comments supported (lines starting with #)
+- Auto-creates sample file if missing
+
+See `IMAGE_PAIRS_FORMAT.md` for complete documentation and examples.
+
+**Method Tracking:** The `method_a` and `method_b` fields identify which generation method created each image. When images are randomized (50% of the time), the method names are swapped along with the images, allowing you to see which actual method users preferred.
 
 ### 4. Set Environment Variables (Optional but Recommended)
 
