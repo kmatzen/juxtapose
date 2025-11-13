@@ -210,7 +210,7 @@ git commit -m "Add study image pairs"
 git push
 
 # 6. Share with participants
-# Send them: https://your-app.onrender.com
+# Send them: https://your-app.fly.dev
 ```
 
 ## Questions?

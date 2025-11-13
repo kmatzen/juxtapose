@@ -116,37 +116,24 @@ The app will run on `http://localhost:5000` (or your custom PORT).
 
 ## Deployment Options
 
-### Option 1: Render.com (Recommended - Easiest)
+### Option 1: Fly.io (Recommended - Production Ready)
 
-**Free tier available!** Most Heroku-like experience.
-
-1. Push code to GitHub
-2. Sign up at [render.com](https://render.com)
-3. Create new Web Service from your GitHub repo
-4. Set `ADMIN_PASSWORD` environment variable
-5. Deploy!
-
-**Pros:** Easy, auto-deploy from Git, free tier  
-**Cons:** Sleeps after 15 min inactivity (30s wake-up), ephemeral storage on free tier
-
-See `DEPLOYMENT.md` for detailed instructions.
-
-### Option 2: Fly.io (Best for Always-On)
-
-**Free tier: 3 VMs, persistent storage!** Best for production SQLite.
+**~$4.50/month** - Always on, persistent storage, best for SQLite!
 
 1. Install flyctl: `brew install flyctl`
-2. Run: `fly launch --name your-survey-app`
-3. Create volume: `fly volumes create survey_data --size 1`
-4. Set secrets: `fly secrets set ADMIN_PASSWORD="yourpass"`
-5. Deploy: `fly deploy`
+2. Sign up: `fly auth signup`
+3. Launch: `fly launch --no-deploy --name your-survey-app`
+4. Create volume: `fly volumes create survey_data --size 3 --region sjc`
+5. Allocate IPv4: `fly ips allocate-v4 --yes`
+6. Set secrets: `fly secrets set ADMIN_PASSWORD="yourpass"`
+7. Deploy: `fly deploy`
 
-**Pros:** Always on, persistent SQLite, truly free  
-**Cons:** Requires CLI installation
+**Pros:** Always on, persistent SQLite, fast, ~$4.50/month  
+**Cons:** Requires credit card, CLI installation
 
-See `DEPLOYMENT.md` for detailed instructions.
+See `FLY_DEPLOYMENT_SUCCESS.md` and `DEPLOY_INSTRUCTIONS.txt` for detailed instructions.
 
-### Option 3: Railway.app
+### Option 2: Railway.app
 
 **$5 free credit per month** - Simple deployment.
 
@@ -158,7 +145,7 @@ See `DEPLOYMENT.md` for detailed instructions.
 **Pros:** Very easy, good for testing  
 **Cons:** Credit-based (runs out with heavy traffic)
 
-### Option 4: Local + ngrok (Testing Only)
+### Option 3: Local + ngrok (Testing Only)
 
 **What is ngrok?** Creates a tunnel to your local machine.
 
@@ -170,11 +157,9 @@ See `DEPLOYMENT.md` for detailed instructions.
 **Pros:** Free, instant, no server setup  
 **Cons:** Computer must stay on, URL changes each restart
 
-### Option 5: AWS EC2 / Google Cloud (If You Have Access)
+### Option 4: AWS EC2 / Google Cloud (If You Have Access)
 
 For full control, deploy to cloud VMs. See standard Flask deployment guides.
-
-**Note:** Heroku eliminated their free tier in 2022 - use Render or Fly.io instead!
 
 ## Using the Application
 
