@@ -53,18 +53,12 @@ def load_image_pairs():
                 # Split by tab
                 parts = line.split('\t')
                 
-                # Accept 5 fields (old format) or 7 fields (new format with identity and mask)
-                if len(parts) == 5:
-                    # Old format: prompt, method_a, method_b, image_a_url, image_b_url
-                    prompt, method_a, method_b, image_a_url, image_b_url = parts
-                    identity_urls = None
-                    mask_url = None
-                elif len(parts) == 7:
-                    # New format: includes identity_urls and mask_url
-                    prompt, method_a, method_b, image_a_url, image_b_url, identity_urls, mask_url = parts
-                else:
-                    print(f"Warning: Line {line_num} has {len(parts)} fields (expected 5 or 7), skipping: {line[:50]}...")
+                # Expect exactly 7 fields: prompt, method_a, method_b, image_a_url, image_b_url, identity_urls, mask_url
+                if len(parts) != 7:
+                    print(f"Warning: Line {line_num} has {len(parts)} fields (expected 7), skipping: {line[:50]}...")
                     continue
+                
+                prompt, method_a, method_b, image_a_url, image_b_url, identity_urls, mask_url = parts
                 
                 pairs.append({
                     "id": pair_id,
@@ -91,13 +85,13 @@ def load_image_pairs():
         # Create a sample file with helpful instructions
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write("# Image Pairs Configuration\n")
-            f.write("# Format: prompt <TAB> method_a <TAB> method_b <TAB> image_a_url <TAB> image_b_url\n")
-            f.write("# Extended format (with conditioning): add <TAB> identity_urls <TAB> mask_url\n")
-            f.write("# identity_urls can be comma-separated for multiple identities\n")
-            f.write("# Lines starting with # are comments and will be ignored\n\n")
-            f.write("A serene mountain landscape at sunset\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\n")
-            f.write("A futuristic city with flying cars\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\n")
-            f.write("A cat wearing sunglasses on a beach\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\n")
+            f.write("# Format: prompt <TAB> method_a <TAB> method_b <TAB> image_a_url <TAB> image_b_url <TAB> identity_urls <TAB> mask_url\n")
+            f.write("# identity_urls: comma-separated list of identity images\n")
+            f.write("# mask_url: single spatial mask image\n")
+            f.write("# Lines starting with # are comments\n\n")
+            f.write("A serene mountain landscape\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\thttps://placehold.co/200x200/gray/white?text=Identity\thttps://placehold.co/300x300/yellow/black?text=Mask\n")
+            f.write("A futuristic city\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\thttps://placehold.co/200x200/gray/white?text=Identity\thttps://placehold.co/300x300/yellow/black?text=Mask\n")
+            f.write("A person skiing\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\thttps://placehold.co/200x200/gray/white?text=ID1,https://placehold.co/200x200/gray/white?text=ID2\thttps://placehold.co/300x300/yellow/black?text=Mask\n")
         
         print(f"✓ Created {file_path} with sample data")
         # Recursively call to load the newly created file
