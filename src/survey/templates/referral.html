@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access Code Required</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .referral-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+        
+        .referral-box {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 50px 40px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+        
+        .referral-box h1 {
+            color: #4A90E2;
+            margin-bottom: 15px;
+            font-size: 32px;
+        }
+        
+        .referral-box p {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+        
+        .referral-form {
+            margin-top: 30px;
+        }
+        
+        .referral-input {
+            width: 100%;
+            padding: 16px;
+            font-size: 18px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            text-align: center;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
+        }
+        
+        .referral-input:focus {
+            outline: none;
+            border-color: #4A90E2;
+            box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+        }
+        
+        .referral-button {
+            width: 100%;
+            padding: 16px;
+            margin-top: 20px;
+            background: #4A90E2;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .referral-button:hover {
+            background: #357abd;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(74, 144, 226, 0.4);
+        }
+        
+        .referral-button:active {
+            transform: translateY(0);
+        }
+        
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #fcc;
+        }
+        
+        .lock-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+            color: #4A90E2;
+        }
+    </style>
+</head>
+<body>
+    <div class="referral-container">
+        <div class="referral-box">
+            <div class="lock-icon">🔒</div>
+            <h1>Access Code Required</h1>
+            <p>Please enter your access code to participate in this survey. If you don't have a code, please contact the survey administrator.</p>
+            
+            {% if error %}
+            <div class="error-message">
+                {{ error }}
+            </div>
+            {% endif %}
+            
+            <form method="POST" class="referral-form">
+                <input 
+                    type="text" 
+                    name="referral_code" 
+                    class="referral-input" 
+                    placeholder="ENTER CODE" 
+                    required 
+                    autocomplete="off"
+                    maxlength="20"
+                    autofocus
+                >
+                <button type="submit" class="referral-button">Continue to Survey</button>
+            </form>
+            
+            <p style="margin-top: 30px; font-size: 14px; color: #999;">
+                Questions? Contact <a href="mailto:survey-x7qp@adobe.com" style="color: #4A90E2;">survey-x7qp@adobe.com</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>
+
