@@ -165,45 +165,50 @@
         <section id="survey-section" class="section">
             <h1>Image Comparison</h1>
             <p class="instruction">Please evaluate the following two images based on the given prompt. <span id="total-pairs-text">You will see multiple image pairs in total.</span></p>
-            
-            <div class="prompt-box">
-                <h3>Text Prompt</h3>
-                <p id="prompt-text">Loading...</p>
-            </div>
-            
-            <!-- Conditioning Inputs (Identity & Mask) - always shown -->
-            <div id="conditioning-container">
-                <div class="conditioning-section">
-                    <div id="identity-section" class="conditioning-box">
-                        <h3>Identity Reference Images</h3>
-                        <p class="conditioning-note">The generated images should preserve the identity features from these reference images.</p>
-                        <div id="identity-images" class="identity-images-container"></div>
-                    </div>
-                    
-                    <div id="mask-section" class="conditioning-box">
-                        <h3>Spatial Mask</h3>
-                        <p class="conditioning-note">The generated images should follow the spatial layout indicated by this mask (different colors represent different regions).</p>
-                        <div class="mask-image-container">
-                            <img id="mask-image" src="" alt="Spatial Mask" class="mask-image">
-                        </div>
-                    </div>
-                </div>
-            </div>
 
             <form id="survey-form">
-                <!-- Two-column layout: Images on left, questions on right -->
+                <!-- Two-column layout: All visual content on left, questions on right -->
                 <div class="survey-grid">
-                    <!-- Left column: Images (sticky) -->
+                    <!-- Left column: All visual content (sticky) -->
                     <div class="images-column">
-                        <div class="images-container">
-                            <div class="image-box">
-                                <h3>Image A</h3>
-                                <img id="image-a" src="" alt="Image A" class="survey-image">
+                        <!-- Prompt -->
+                        <div class="prompt-box">
+                            <h3>Text Prompt</h3>
+                            <p id="prompt-text">Loading...</p>
+                        </div>
+                        
+                        <!-- Conditioning Inputs (Identity & Mask) -->
+                        <div id="conditioning-container">
+                            <div class="conditioning-section">
+                                <div id="identity-section" class="conditioning-box">
+                                    <h3>Identity Reference Images</h3>
+                                    <p class="conditioning-note">The generated images should preserve the identity features from these reference images.</p>
+                                    <div id="identity-images" class="identity-images-container"></div>
+                                </div>
+                                
+                                <div id="mask-section" class="conditioning-box">
+                                    <h3>Spatial Mask</h3>
+                                    <p class="conditioning-note">The generated images should follow the spatial layout indicated by this mask (different colors represent different regions).</p>
+                                    <div class="mask-image-container">
+                                        <img id="mask-image" src="" alt="Spatial Mask" class="mask-image">
+                                    </div>
+                                </div>
                             </div>
+                        </div>
 
-                            <div class="image-box">
-                                <h3>Image B</h3>
-                                <img id="image-b" src="" alt="Image B" class="survey-image">
+                        <!-- Output Images (larger) -->
+                        <div class="output-images-section">
+                            <h3 class="section-title">Generated Images</h3>
+                            <div class="output-images-grid">
+                                <div class="output-image-box">
+                                    <h4>Image A</h4>
+                                    <img id="image-a" src="" alt="Image A" class="output-image">
+                                </div>
+
+                                <div class="output-image-box">
+                                    <h4>Image B</h4>
+                                    <img id="image-b" src="" alt="Image B" class="output-image">
+                                </div>
                             </div>
                         </div>
                     </div>
