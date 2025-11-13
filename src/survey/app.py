@@ -15,48 +15,74 @@ DEV_MODE = os.environ.get('DEV_MODE', 'false').lower() == 'true'  # Set DEV_MODE
 # Use /data for persistent storage on Fly.io, otherwise local directory
 DATABASE = '/data/survey.db' if os.path.exists('/data') else 'survey.db'
 
-# Image pairs - customize these with your actual images and prompts
-# method_a and method_b are the actual method identifiers (e.g., "GPT-4", "DALL-E", "Method-X")
-IMAGE_PAIRS = [
-    {
-        "id": 1,
-        "prompt": "A serene mountain landscape at sunset",
-        "method_a": "Method-A",  # Replace with your actual method name
-        "method_b": "Method-B",  # Replace with your actual method name
-        "image_a_url": "https://placehold.co/600x400/0066cc/white?text=Method+A",
-        "image_b_url": "https://placehold.co/600x400/cc6600/white?text=Method+B"
-    },
-    {
-        "id": 2,
-        "prompt": "A futuristic city with flying cars",
-        "method_a": "Method-A",
-        "method_b": "Method-B",
-        "image_a_url": "https://placehold.co/600x400/0066cc/white?text=Method+A",
-        "image_b_url": "https://placehold.co/600x400/cc6600/white?text=Method+B"
-    },
-    # Add 28 more image pairs here
-    # Template for adding more:
-    # {
-    #     "id": 3,
-    #     "prompt": "Your text prompt here",
-    #     "method_a": "Your-Method-Name-A",
-    #     "method_b": "Your-Method-Name-B",
-    #     "image_a_url": "URL to method A's image",
-    #     "image_b_url": "URL to method B's image"
-    # },
-]
+# Image pairs configuration file
+IMAGE_PAIRS_FILE = os.environ.get('IMAGE_PAIRS_FILE', 'image_pairs.txt')
 
-# Generate placeholder image pairs if we don't have 30 yet
-while len(IMAGE_PAIRS) < 30:
-    idx = len(IMAGE_PAIRS) + 1
-    IMAGE_PAIRS.append({
-        "id": idx,
-        "prompt": f"Sample prompt #{idx} - Replace this with your actual image generation prompt.",
-        "method_a": "Method-A",
-        "method_b": "Method-B",
-        "image_a_url": f"https://placehold.co/600x400/0066cc/white?text=Method+A",
-        "image_b_url": f"https://placehold.co/600x400/cc6600/white?text=Method+B"
-    })
+def load_image_pairs():
+    """Load image pairs from text file"""
+    pairs = []
+    pair_id = 1
+    
+    # Get the path relative to the app root (parent of src/)
+    base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    file_path = os.path.join(base_path, IMAGE_PAIRS_FILE)
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                
+                # Skip empty lines and comments
+                if not line or line.startswith('#'):
+                    continue
+                
+                # Split by tab
+                parts = line.split('\t')
+                if len(parts) != 5:
+                    print(f"Warning: Line {line_num} has {len(parts)} fields (expected 5), skipping: {line[:50]}...")
+                    continue
+                
+                prompt, method_a, method_b, image_a_url, image_b_url = parts
+                
+                pairs.append({
+                    "id": pair_id,
+                    "prompt": prompt.strip(),
+                    "method_a": method_a.strip(),
+                    "method_b": method_b.strip(),
+                    "image_a_url": image_a_url.strip(),
+                    "image_b_url": image_b_url.strip()
+                })
+                pair_id += 1
+        
+        if not pairs:
+            raise ValueError(f"No valid image pairs found in {IMAGE_PAIRS_FILE}")
+        
+        print(f"✓ Loaded {len(pairs)} image pairs from {IMAGE_PAIRS_FILE}")
+        return pairs
+        
+    except FileNotFoundError:
+        print(f"ERROR: {IMAGE_PAIRS_FILE} not found at {file_path}")
+        print("Creating sample file with 3 placeholder pairs...")
+        
+        # Create a sample file with helpful instructions
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write("# Image Pairs Configuration\n")
+            f.write("# Format: prompt <TAB> method_a <TAB> method_b <TAB> image_a_url <TAB> image_b_url\n")
+            f.write("# Lines starting with # are comments and will be ignored\n\n")
+            f.write("A serene mountain landscape at sunset\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\n")
+            f.write("A futuristic city with flying cars\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\n")
+            f.write("A cat wearing sunglasses on a beach\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\n")
+        
+        print(f"✓ Created {file_path} with sample data")
+        # Recursively call to load the newly created file
+        return load_image_pairs()
+    
+    except Exception as e:
+        print(f"ERROR loading {IMAGE_PAIRS_FILE}: {e}")
+        raise
+
+# Load image pairs on startup
+IMAGE_PAIRS = load_image_pairs()
 
 def get_db():
     """Get database connection"""
