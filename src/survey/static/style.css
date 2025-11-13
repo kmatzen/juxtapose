@@ -245,6 +245,8 @@ p {
     border-radius: 8px;
     padding: 15px;
     transition: all 0.3s ease;
+    position: relative;
+    min-height: 300px;
 }
 
 .image-box:hover {
@@ -278,6 +280,35 @@ p {
 
 .survey-image:active {
     transform: scale(0.98);
+}
+
+/* Loading Indicator */
+.loading-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 255, 255, 0.95);
+    padding: 20px 30px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    font-weight: 600;
+    color: #4A90E2;
+    z-index: 10;
+    pointer-events: none;
+    font-size: 18px;
+}
+
+.loading-indicator::after {
+    content: '...';
+    animation: dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes dots {
+    0%, 20% { content: '.'; }
+    40% { content: '..'; }
+    60% { content: '...'; }
+    80%, 100% { content: ''; }
 }
 
 /* Evaluation Sections */
