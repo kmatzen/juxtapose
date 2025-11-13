@@ -251,6 +251,21 @@ def submit_demographics():
                     (previous_participant['id'],)
                 ).fetchone()
                 is_retaking = response_count and response_count['count'] > 0
+                
+                # If retaking, clear all previous data for this email to start fresh
+                if is_retaking:
+                    # Delete all responses for all participants with this email
+                    db.execute('''
+                        DELETE FROM survey_responses 
+                        WHERE participant_id IN (
+                            SELECT p.id FROM participants p
+                            JOIN demographics d ON p.id = d.participant_id
+                            WHERE d.email = ?
+                        )
+                    ''', (email,))
+                    
+                    # Delete all demographics for this email
+                    db.execute('DELETE FROM demographics WHERE email = ?', (email,))
         
         # Create or get participant for current session
         participant = db.execute(
