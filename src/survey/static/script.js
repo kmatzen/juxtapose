@@ -386,6 +386,13 @@ async function loadImagePair(index) {
             document.getElementById('total-questions').textContent = data.total_pairs;
             totalImagePairs = data.total_pairs;
             
+            // Update instruction text with actual number of pairs (only on first load)
+            if (index === 0) {
+                const pairWord = data.total_pairs === 1 ? 'pair' : 'pairs';
+                document.getElementById('total-pairs-text').textContent = 
+                    `You will see ${data.total_pairs} image ${pairWord} in total.`;
+            }
+            
             const progressPercent = ((index) / data.total_pairs) * 100;
             document.getElementById('progress-bar-fill').style.width = progressPercent + '%';
             
