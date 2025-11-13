@@ -323,6 +323,8 @@ async function handleSurveySubmit(event) {
         ...surveyResponse,
         image_pair_id: currentImageData.id,
         prompt: currentImageData.prompt,
+        method_a: currentImageData.method_a,
+        method_b: currentImageData.method_b,
         image_a_url: currentImageData.image_a_url,
         image_b_url: currentImageData.image_b_url,
         was_randomized: currentImageData.was_randomized,
