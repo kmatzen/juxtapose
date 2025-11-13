@@ -170,6 +170,25 @@
                 <h3>Text Prompt</h3>
                 <p id="prompt-text">Loading...</p>
             </div>
+            
+            <!-- Conditioning Inputs (Identity & Mask) - shown only when present -->
+            <div id="conditioning-container" style="display: none;">
+                <div class="conditioning-section">
+                    <div id="identity-section" class="conditioning-box" style="display: none;">
+                        <h3>Identity Reference Images</h3>
+                        <p class="conditioning-note">The generated images should preserve the identity features from these reference images.</p>
+                        <div id="identity-images" class="identity-images-container"></div>
+                    </div>
+                    
+                    <div id="mask-section" class="conditioning-box" style="display: none;">
+                        <h3>Spatial Mask</h3>
+                        <p class="conditioning-note">The generated images should follow the spatial layout indicated by this mask (different colors represent different regions).</p>
+                        <div class="mask-image-container">
+                            <img id="mask-image" src="" alt="Spatial Mask" class="mask-image">
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <form id="survey-form">
                 <div class="images-container">
@@ -274,6 +293,104 @@
                             </label>
                             <label class="likert-label">
                                 <input type="radio" name="prompt_confidence" value="5">
+                                <span>5<br><small>Very confident</small></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Mask Adherence Section (shown only when mask is present) -->
+                <div id="mask-evaluation" class="evaluation-section" style="display: none;">
+                    <h3 class="section-title">Mask Adherence</h3>
+                    
+                    <div class="form-group">
+                        <label>Which image better follows the spatial layout defined by the mask?</label>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" name="better_mask_match" value="A">
+                                Image A
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="better_mask_match" value="B">
+                                Image B
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="better_mask_match" value="equal">
+                                About Equal
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>How confident are you in this assessment?</label>
+                        <div class="likert-scale">
+                            <label class="likert-label">
+                                <input type="radio" name="mask_confidence" value="1">
+                                <span>1<br><small>Not at all</small></span>
+                            </label>
+                            <label class="likert-label">
+                                <input type="radio" name="mask_confidence" value="2">
+                                <span>2</span>
+                            </label>
+                            <label class="likert-label">
+                                <input type="radio" name="mask_confidence" value="3">
+                                <span>3<br><small>Somewhat</small></span>
+                            </label>
+                            <label class="likert-label">
+                                <input type="radio" name="mask_confidence" value="4">
+                                <span>4</span>
+                            </label>
+                            <label class="likert-label">
+                                <input type="radio" name="mask_confidence" value="5">
+                                <span>5<br><small>Very confident</small></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Identity Adherence Section (shown only when identity images are present) -->
+                <div id="identity-evaluation" class="evaluation-section" style="display: none;">
+                    <h3 class="section-title">Identity Preservation</h3>
+                    
+                    <div class="form-group">
+                        <label>Which image better preserves the identity features from the reference images?</label>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" name="better_identity_match" value="A">
+                                Image A
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="better_identity_match" value="B">
+                                Image B
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="better_identity_match" value="equal">
+                                About Equal
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>How confident are you in this assessment?</label>
+                        <div class="likert-scale">
+                            <label class="likert-label">
+                                <input type="radio" name="identity_confidence" value="1">
+                                <span>1<br><small>Not at all</small></span>
+                            </label>
+                            <label class="likert-label">
+                                <input type="radio" name="identity_confidence" value="2">
+                                <span>2</span>
+                            </label>
+                            <label class="likert-label">
+                                <input type="radio" name="identity_confidence" value="3">
+                                <span>3<br><small>Somewhat</small></span>
+                            </label>
+                            <label class="likert-label">
+                                <input type="radio" name="identity_confidence" value="4">
+                                <span>4</span>
+                            </label>
+                            <label class="likert-label">
+                                <input type="radio" name="identity_confidence" value="5">
                                 <span>5<br><small>Very confident</small></span>
                             </label>
                         </div>
