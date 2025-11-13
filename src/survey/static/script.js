@@ -175,29 +175,19 @@ function fillSurveyForm() {
     const promptConf = Math.floor(Math.random() * 5) + 1;
     document.querySelector(`input[name="prompt_confidence"][value="${promptConf}"]`).checked = true;
     
-    // Auto-fill mask evaluation if visible
-    const maskEval = document.getElementById('mask-evaluation');
-    if (maskEval && maskEval.style.display !== 'none') {
-        const betterMask = Math.random() < 0.5 ? 'A' : 'B';
-        const maskRadio = document.querySelector(`input[name="better_mask_match"][value="${betterMask}"]`);
-        const maskConf = Math.floor(Math.random() * 5) + 1;
-        const maskConfRadio = document.querySelector(`input[name="mask_confidence"][value="${maskConf}"]`);
-        if (maskRadio) maskRadio.checked = true;
-        if (maskConfRadio) maskConfRadio.checked = true;
-    }
+    // Auto-fill mask evaluation (always present)
+    const betterMask = Math.random() < 0.5 ? 'A' : 'B';
+    document.querySelector(`input[name="better_mask_match"][value="${betterMask}"]`).checked = true;
+    const maskConf = Math.floor(Math.random() * 5) + 1;
+    document.querySelector(`input[name="mask_confidence"][value="${maskConf}"]`).checked = true;
     
-    // Auto-fill identity evaluation if visible
-    const identityEval = document.getElementById('identity-evaluation');
-    if (identityEval && identityEval.style.display !== 'none') {
-        const betterIdentity = Math.random() < 0.5 ? 'A' : 'B';
-        const identityRadio = document.querySelector(`input[name="better_identity_match"][value="${betterIdentity}"]`);
-        const identityConf = Math.floor(Math.random() * 5) + 1;
-        const identityConfRadio = document.querySelector(`input[name="identity_confidence"][value="${identityConf}"]`);
-        if (identityRadio) identityRadio.checked = true;
-        if (identityConfRadio) identityConfRadio.checked = true;
-    }
+    // Auto-fill identity evaluation (always present)
+    const betterIdentity = Math.random() < 0.5 ? 'A' : 'B';
+    document.querySelector(`input[name="better_identity_match"][value="${betterIdentity}"]`).checked = true;
+    const identityConf = Math.floor(Math.random() * 5) + 1;
+    document.querySelector(`input[name="identity_confidence"][value="${identityConf}"]`).checked = true;
     
-    console.log(`✅ Survey form auto-filled: Image ${betterImage} (conf ${imageConf}), Match ${betterMatch} (conf ${promptConf})`);
+    console.log(`✅ Survey form auto-filled: Image ${betterImage} (conf ${imageConf}), Match ${betterMatch} (conf ${promptConf}), Mask ${betterMask} (conf ${maskConf}), Identity ${betterIdentity} (conf ${identityConf})`);
 }
 
 async function handleDemographicsSubmit(event) {
