@@ -252,7 +252,7 @@ def reset_session():
     """Reset session - useful for dev/testing or shared computers"""
     if DEV_MODE:
         session.clear()
-        return redirect(url_for('index'))
+        return redirect(url_for('referral') if REQUIRE_REFERRAL else url_for('index'))
     else:
         # In production, require confirmation
         return '''
@@ -278,7 +278,7 @@ def reset_session():
 def reset_session_confirm():
     """Confirm session reset"""
     session.clear()
-    return redirect(url_for('index'))
+    return redirect(url_for('referral') if REQUIRE_REFERRAL else url_for('index'))
 
 @app.route('/api/config')
 def get_config():
