@@ -120,6 +120,18 @@ body {
     animation: fadeIn 0.3s ease;
 }
 
+/* Constrain demographics section width for better readability */
+#demographics-section {
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Survey section uses full width for side-by-side layout */
+#survey-section {
+    max-width: none;
+}
+
 @keyframes fadeIn {
     from {
         opacity: 0;
