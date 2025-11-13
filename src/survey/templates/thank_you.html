@@ -27,21 +27,19 @@
                 <p><strong>Contact us at:</strong> <a href="mailto:survey-x7qp@adobe.com">survey-x7qp@adobe.com</a></p>
             </div>
             
+            <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border: 2px solid #4A90E2; border-radius: 8px; text-align: center;">
+                <h3 style="margin-top: 0; color: #333;">Want to Retake the Survey?</h3>
+                <p style="color: #666; margin-bottom: 20px;">You can retake the survey with the same or a different email address.</p>
+                <a href="/reset_session" class="btn btn-primary" style="display: inline-block; padding: 12px 30px; background: #4A90E2; color: white; text-decoration: none; border-radius: 5px; font-weight: 600;">Start Over</a>
+                <p style="margin-top: 15px; font-size: 13px; color: #666;">
+                    <em>Using a shared computer? This will clear your session to allow another person to take the survey.</em>
+                </p>
+            </div>
+            
             {% if dev_mode %}
             <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px;">
                 <p style="margin: 0; font-size: 14px; color: #856404;">
-                    <strong>🔧 Dev Mode:</strong> 
-                    <a href="/?new=true" style="color: #856404; text-decoration: underline;">Start a new test</a>
-                    or
-                    <a href="/reset_session" style="color: #856404; text-decoration: underline;">clear session</a>
-                </p>
-            </div>
-            {% elif already_submitted %}
-            <div style="margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 8px;">
-                <p style="margin: 0; font-size: 14px; color: #666;">
-                    <strong>Using a shared computer?</strong> 
-                    <a href="/reset_session" style="color: #4A90E2;">Clear your session</a> 
-                    to allow the next person to take the survey.
+                    <strong>🔧 Dev Mode Active:</strong> Fast testing enabled
                 </p>
             </div>
             {% endif %}
