@@ -320,12 +320,8 @@ async function loadImagePair(index) {
                         surveyForm.style.pointerEvents = 'auto';
                         surveyForm.style.opacity = '1';
                         
-                        // Verify images are correct (log for debugging)
-                        console.log(`✓ Loaded pair ${data.id}:`);
-                        console.log(`  Prompt: "${data.prompt}"`);
-                        console.log(`  Image A: ${data.method_a} (${data.image_a_url.substring(0, 50)}...)`);
-                        console.log(`  Image B: ${data.method_b} (${data.image_b_url.substring(0, 50)}...)`);
-                        console.log(`  Randomized: ${data.was_randomized ? 'Yes' : 'No'}`);
+                        // Verify images loaded (don't reveal method names to avoid bias)
+                        console.log(`✓ Loaded comparison ${data.id} of ${data.total_pairs}`);
                     }
                 }
             };
@@ -341,13 +337,13 @@ async function loadImagePair(index) {
             };
             
             imgALoader.onerror = () => {
-                console.error(`Failed to load image A: ${data.image_a_url}`);
+                console.error(`Failed to load image A`);
                 aError = true;
                 checkBothLoaded();
             };
             
             imgBLoader.onerror = () => {
-                console.error(`Failed to load image B: ${data.image_b_url}`);
+                console.error(`Failed to load image B`);
                 bError = true;
                 checkBothLoaded();
             };
