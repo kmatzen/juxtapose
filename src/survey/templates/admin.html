@@ -191,6 +191,12 @@
                         <th>UI Choice (Prompt)</th>
                         <th>Preferred Method (Prompt)</th>
                         <th>Prompt Conf</th>
+                        <th>UI Choice (Mask)</th>
+                        <th>Preferred Method (Mask)</th>
+                        <th>Mask Conf</th>
+                        <th>UI Choice (Identity)</th>
+                        <th>Preferred Method (Identity)</th>
+                        <th>Identity Conf</th>
                     </tr>
                 `;
                 
@@ -207,6 +213,12 @@
                         <td>${row.better_prompt_match || '-'}</td>
                         <td><strong>${row.preferred_method_prompt || 'N/A'}</strong></td>
                         <td>${row.prompt_confidence || '-'}</td>
+                        <td>${row.better_mask_match || '-'}</td>
+                        <td><strong>${row.preferred_method_mask || '-'}</strong></td>
+                        <td>${row.mask_confidence || '-'}</td>
+                        <td>${row.better_identity_match || '-'}</td>
+                        <td><strong>${row.preferred_method_identity || '-'}</strong></td>
+                        <td>${row.identity_confidence || '-'}</td>
                     </tr>
                 `).join('');
             }
