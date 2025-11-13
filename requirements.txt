@@ -1,6 +1,2 @@
-# This file is auto-generated from pyproject.toml
-# For faster installs, use: uv sync
-# See UV_GUIDE.md for more info
-
-Flask==3.0.0
-gunicorn==21.2.0
+Flask==3.1.2
+gunicorn==23.0.0
