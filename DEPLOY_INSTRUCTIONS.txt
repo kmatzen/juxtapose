@@ -1,59 +1,92 @@
 =================================================================
-                    QUICK DEPLOYMENT GUIDE
+                   QUICK DEPLOYMENT GUIDE
 =================================================================
 
-Heroku eliminated their free tier in 2022.
-Here are your best FREE alternatives:
-
--------------------------------------------------------------------
-OPTION 1: RENDER.COM (Easiest - Like Heroku)
--------------------------------------------------------------------
-Pros: Easy, auto-deploy from Git
-Cons: Sleeps after 15 min (30s wake time), ephemeral SQLite
-
-Steps:
-1. Push code to GitHub
-2. Go to render.com → New Web Service
-3. Connect GitHub repo
-4. Set ADMIN_PASSWORD in environment
-5. Deploy!
-
-URL: https://your-app.onrender.com
-
--------------------------------------------------------------------
-OPTION 2: FLY.IO (Best - Always On + Persistent SQLite)
--------------------------------------------------------------------
+🚀 FLY.IO DEPLOYMENT (RECOMMENDED)
+=================================================================
 Pros: Always on, persistent storage, great for SQLite
-Cons: Need to install CLI
+Cost: ~$4.50/month (hobby plan + IPv4 + 3GB volume)
+
+Prerequisites:
+1. Credit card for Fly.io (needed to prevent auto-stop)
+2. Git repository
 
 Steps:
-1. brew install flyctl (or download from fly.io)
-2. fly auth signup
-3. fly launch --name your-survey-app
-4. fly volumes create survey_data --size 1 --region sjc
-5. fly secrets set ADMIN_PASSWORD="yourpassword"
-6. fly deploy
+1. Install flyctl:
+   brew install flyctl
+   # or download from https://fly.io/docs/hands-on/install-flyctl/
 
-URL: https://your-survey-app.fly.dev
+2. Sign up & login:
+   fly auth signup
+   fly auth login
+
+3. Launch the app:
+   cd /path/to/survey
+   fly launch --no-deploy --name your-survey-app
+   
+4. Create persistent volume:
+   fly volumes create survey_data --size 3 --region sjc
+
+5. Allocate IPv4 (required for DNS):
+   fly ips allocate-v4 --yes
+
+6. Set environment variables:
+   fly secrets set ADMIN_PASSWORD="your-secure-password"
+   fly secrets set REFERRAL_CODES="CODE1,CODE2"
+   
+7. Deploy:
+   fly deploy
+
+8. Your app will be live at:
+   https://your-survey-app.fly.dev
+
+9. To keep it always running (required):
+   - Ensure auto_stop_machines = false in fly.toml ✓
+   - Ensure min_machines_running = 1 in fly.toml ✓
 
 -------------------------------------------------------------------
-OPTION 3: RAILWAY.APP (Simple)
--------------------------------------------------------------------
-Pros: Easy, $5 free credit/month
-Cons: Credit runs out
-
-Steps:
-1. Go to railway.app
-2. Deploy from GitHub
-3. Set ADMIN_PASSWORD env var
-4. Deploy!
-
+USEFUL COMMANDS
 -------------------------------------------------------------------
 
-See DEPLOYMENT.md for detailed step-by-step instructions!
+# View status
+fly status
 
-Recommendation: Start with Render (easiest), switch to Fly.io if 
-you need always-on with persistent data.
+# View logs
+fly logs
+
+# SSH into the machine
+fly ssh console
+
+# Restart the app
+fly machine restart <MACHINE_ID>
+
+# Deploy updates
+git add .
+git commit -m "Your changes"
+fly deploy
+
+# Scale resources (if needed)
+fly scale memory 512  # Increase to 512MB
+fly scale count 2     # Add more instances
+
+-------------------------------------------------------------------
+TROUBLESHOOTING
+-------------------------------------------------------------------
+
+Machine keeps stopping?
+→ Make sure you have a credit card on file
+→ Check auto_stop_machines = false in fly.toml
+
+DNS not working?
+→ Make sure IPv4 is allocated: fly ips list
+→ May take 10-15 minutes to propagate
+
+Can't access the site?
+→ Add to /etc/hosts temporarily:
+  echo "<YOUR_IPV4> <your-app>.fly.dev" | sudo tee -a /etc/hosts
 
 =================================================================
 
+See FLY_DEPLOYMENT_SUCCESS.md for detailed configuration info!
+
+=================================================================
