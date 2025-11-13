@@ -16,26 +16,33 @@ DEV_MODE = os.environ.get('DEV_MODE', 'false').lower() == 'true'  # Set DEV_MODE
 DATABASE = '/data/survey.db' if os.path.exists('/data') else 'survey.db'
 
 # Image pairs - customize these with your actual images and prompts
+# method_a and method_b are the actual method identifiers (e.g., "GPT-4", "DALL-E", "Method-X")
 IMAGE_PAIRS = [
     {
         "id": 1,
         "prompt": "A serene mountain landscape at sunset",
-        "image_a_url": "https://placehold.co/600x400/0066cc/white?text=Image+A-1",
-        "image_b_url": "https://placehold.co/600x400/cc6600/white?text=Image+B-1"
+        "method_a": "Method-A",  # Replace with your actual method name
+        "method_b": "Method-B",  # Replace with your actual method name
+        "image_a_url": "https://placehold.co/600x400/0066cc/white?text=Method+A",
+        "image_b_url": "https://placehold.co/600x400/cc6600/white?text=Method+B"
     },
     {
         "id": 2,
         "prompt": "A futuristic city with flying cars",
-        "image_a_url": "https://placehold.co/600x400/0066cc/white?text=Image+A-2",
-        "image_b_url": "https://placehold.co/600x400/cc6600/white?text=Image+B-2"
+        "method_a": "Method-A",
+        "method_b": "Method-B",
+        "image_a_url": "https://placehold.co/600x400/0066cc/white?text=Method+A",
+        "image_b_url": "https://placehold.co/600x400/cc6600/white?text=Method+B"
     },
     # Add 28 more image pairs here
     # Template for adding more:
     # {
     #     "id": 3,
     #     "prompt": "Your text prompt here",
-    #     "image_a_url": "URL or path to image A",
-    #     "image_b_url": "URL or path to image B"
+    #     "method_a": "Your-Method-Name-A",
+    #     "method_b": "Your-Method-Name-B",
+    #     "image_a_url": "URL to method A's image",
+    #     "image_b_url": "URL to method B's image"
     # },
 ]
 
@@ -45,8 +52,10 @@ while len(IMAGE_PAIRS) < 30:
     IMAGE_PAIRS.append({
         "id": idx,
         "prompt": f"Sample prompt #{idx} - Replace this with your actual image generation prompt.",
-        "image_a_url": f"https://placehold.co/600x400/0066cc/white?text=Image+A-{idx}",
-        "image_b_url": f"https://placehold.co/600x400/cc6600/white?text=Image+B-{idx}"
+        "method_a": "Method-A",
+        "method_b": "Method-B",
+        "image_a_url": f"https://placehold.co/600x400/0066cc/white?text=Method+A",
+        "image_b_url": f"https://placehold.co/600x400/cc6600/white?text=Method+B"
     })
 
 def get_db():
@@ -315,10 +324,12 @@ def get_image_pair(pair_index):
     
     pair = available_pairs[pair_index].copy()
     
-    # Randomize the order 50% of the time
+    # ALWAYS randomize to prevent position bias
     randomized = random.random() < 0.5
     if randomized:
+        # Swap the images AND the method names
         pair['image_a_url'], pair['image_b_url'] = pair['image_b_url'], pair['image_a_url']
+        pair['method_a'], pair['method_b'] = pair['method_b'], pair['method_a']
     
     pair['was_randomized'] = randomized
     pair['total_pairs'] = len(available_pairs)
@@ -354,6 +365,8 @@ def submit_survey():
             db.execute('''
                 UPDATE survey_responses 
                 SET prompt = ?, 
+                    method_a = ?,
+                    method_b = ?,
                     image_a_url = ?, 
                     image_b_url = ?,
                     better_image = ?, 
@@ -365,6 +378,8 @@ def submit_survey():
                 WHERE id = ?
             ''', (
                 data.get('prompt'),
+                data.get('method_a'),
+                data.get('method_b'),
                 data.get('image_a_url'),
                 data.get('image_b_url'),
                 data.get('better_image'),
@@ -378,13 +393,15 @@ def submit_survey():
             # Insert new response
             db.execute('''
                 INSERT INTO survey_responses 
-                (participant_id, image_pair_id, prompt, image_a_url, image_b_url,
+                (participant_id, image_pair_id, prompt, method_a, method_b, image_a_url, image_b_url,
                  better_image, image_confidence, better_prompt_match, prompt_confidence, was_randomized)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 participant['id'],
                 data.get('image_pair_id'),
                 data.get('prompt'),
+                data.get('method_a'),
+                data.get('method_b'),
                 data.get('image_a_url'),
                 data.get('image_b_url'),
                 data.get('better_image'),
@@ -463,6 +480,8 @@ def admin_results():
             d.ai_familiarity,
             s.image_pair_id,
             s.prompt,
+            s.method_a,
+            s.method_b,
             s.image_a_url,
             s.image_b_url,
             s.better_image,
@@ -470,7 +489,15 @@ def admin_results():
             s.better_prompt_match,
             s.prompt_confidence,
             s.was_randomized,
-            s.created_at as response_created
+            s.created_at as response_created,
+            CASE 
+                WHEN s.better_image = 'A' THEN s.method_a
+                WHEN s.better_image = 'B' THEN s.method_b
+            END as preferred_method_image,
+            CASE 
+                WHEN s.better_prompt_match = 'A' THEN s.method_a
+                WHEN s.better_prompt_match = 'B' THEN s.method_b
+            END as preferred_method_prompt
         FROM participants p
         LEFT JOIN demographics d ON p.id = d.participant_id
         LEFT JOIN survey_responses s ON p.id = s.participant_id
@@ -512,6 +539,8 @@ def admin_export():
             d.ai_familiarity,
             s.image_pair_id,
             s.prompt,
+            s.method_a,
+            s.method_b,
             s.image_a_url,
             s.image_b_url,
             s.better_image,
@@ -519,7 +548,15 @@ def admin_export():
             s.better_prompt_match,
             s.prompt_confidence,
             s.was_randomized,
-            s.created_at as response_created
+            s.created_at as response_created,
+            CASE 
+                WHEN s.better_image = 'A' THEN s.method_a
+                WHEN s.better_image = 'B' THEN s.method_b
+            END as preferred_method_image,
+            CASE 
+                WHEN s.better_prompt_match = 'A' THEN s.method_a
+                WHEN s.better_prompt_match = 'B' THEN s.method_b
+            END as preferred_method_prompt
         FROM participants p
         LEFT JOIN demographics d ON p.id = d.participant_id
         LEFT JOIN survey_responses s ON p.id = s.participant_id
