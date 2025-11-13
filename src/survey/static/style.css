@@ -248,6 +248,7 @@ p {
     grid-template-columns: 55% 45%;
     gap: 40px;
     margin-bottom: 30px;
+    padding: 0 10px; /* Prevent columns from touching container edges */
 }
 
 .images-column {
@@ -256,12 +257,10 @@ p {
     align-self: start;
     max-height: 90vh;
     overflow-y: auto;
-    padding-left: 10px;
 }
 
 .questions-column {
     /* Questions scroll naturally */
-    padding-right: 10px;
 }
 
 /* Stack vertically on tablets/mobile */
