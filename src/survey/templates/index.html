@@ -191,19 +191,26 @@
             </div>
 
             <form id="survey-form">
-                <div class="images-container">
-                    <div class="image-box">
-                        <h3>Image A</h3>
-                        <img id="image-a" src="" alt="Image A" class="survey-image">
+                <!-- Two-column layout: Images on left, questions on right -->
+                <div class="survey-grid">
+                    <!-- Left column: Images (sticky) -->
+                    <div class="images-column">
+                        <div class="images-container">
+                            <div class="image-box">
+                                <h3>Image A</h3>
+                                <img id="image-a" src="" alt="Image A" class="survey-image">
+                            </div>
+
+                            <div class="image-box">
+                                <h3>Image B</h3>
+                                <img id="image-b" src="" alt="Image B" class="survey-image">
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="image-box">
-                        <h3>Image B</h3>
-                        <img id="image-b" src="" alt="Image B" class="survey-image">
-                    </div>
-                </div>
-
-                <div class="evaluation-section">
+                    <!-- Right column: Questions -->
+                    <div class="questions-column">
+                        <div class="evaluation-section">
                     <h3 class="section-title">Image Quality</h3>
                     
                     <div class="form-group">
@@ -396,6 +403,8 @@
                         </div>
                     </div>
                 </div>
+                    </div><!-- end questions-column -->
+                </div><!-- end survey-grid -->
 
                 <button type="submit" class="btn btn-primary" id="submit-btn">Next Image Pair</button>
             </form>
