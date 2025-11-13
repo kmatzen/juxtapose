@@ -547,79 +547,31 @@ function showRetakeModal() {
 }
 
 function displayConditioningInputs(data) {
-    const conditioningContainer = document.getElementById('conditioning-container');
-    const identitySection = document.getElementById('identity-section');
-    const maskSection = document.getElementById('mask-section');
-    const identityEvaluation = document.getElementById('identity-evaluation');
-    const maskEvaluation = document.getElementById('mask-evaluation');
+    // Always display conditioning since all pairs have identity and mask
+    document.getElementById('conditioning-container').style.display = 'block';
+    document.getElementById('identity-section').style.display = 'block';
+    document.getElementById('mask-section').style.display = 'block';
+    document.getElementById('identity-evaluation').style.display = 'block';
+    document.getElementById('mask-evaluation').style.display = 'block';
     
-    let hasConditioning = false;
+    // Display identity images (comma-separated list)
+    const identityUrls = data.identity_urls.split(',').map(url => url.trim());
+    const identityContainer = document.getElementById('identity-images');
+    identityContainer.innerHTML = ''; // Clear previous
     
-    // Handle identity images
-    if (data.identity_urls) {
-        const identityUrls = data.identity_urls.split(',').map(url => url.trim());
-        const identityContainer = document.getElementById('identity-images');
-        identityContainer.innerHTML = ''; // Clear previous
-        
-        identityUrls.forEach((url, index) => {
-            const img = document.createElement('img');
-            img.src = url;
-            img.alt = `Identity ${index + 1}`;
-            img.className = 'identity-image';
-            img.onclick = () => openLightbox(url, `Identity Reference ${index + 1}`);
-            identityContainer.appendChild(img);
-        });
-        
-        identitySection.style.display = 'block';
-        identityEvaluation.style.display = 'block';
-        
-        // Make identity evaluation fields required
-        const identityRadios = identityEvaluation.querySelectorAll('input[name="better_identity_match"]');
-        identityRadios.forEach(radio => radio.required = true);
-        const identityConfRadios = identityEvaluation.querySelectorAll('input[name="identity_confidence"]');
-        identityConfRadios.forEach(radio => radio.required = true);
-        
-        hasConditioning = true;
-    } else {
-        identitySection.style.display = 'none';
-        identityEvaluation.style.display = 'none';
-        
-        // Remove required attribute
-        const identityRadios = identityEvaluation.querySelectorAll('input[name="better_identity_match"]');
-        identityRadios.forEach(radio => radio.required = false);
-        const identityConfRadios = identityEvaluation.querySelectorAll('input[name="identity_confidence"]');
-        identityConfRadios.forEach(radio => radio.required = false);
-    }
+    identityUrls.forEach((url, index) => {
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = `Identity ${index + 1}`;
+        img.className = 'identity-image';
+        img.onclick = () => openLightbox(url, `Identity Reference ${index + 1}`);
+        identityContainer.appendChild(img);
+    });
     
-    // Handle mask image
-    if (data.mask_url) {
-        const maskImg = document.getElementById('mask-image');
-        maskImg.src = data.mask_url;
-        maskImg.onclick = () => openLightbox(data.mask_url, 'Spatial Mask');
-        
-        maskSection.style.display = 'block';
-        maskEvaluation.style.display = 'block';
-        
-        // Make mask evaluation fields required
-        const maskRadios = maskEvaluation.querySelectorAll('input[name="better_mask_match"]');
-        maskRadios.forEach(radio => radio.required = true);
-        const maskConfRadios = maskEvaluation.querySelectorAll('input[name="mask_confidence"]');
-        maskConfRadios.forEach(radio => radio.required = true);
-        
-        hasConditioning = true;
-    } else {
-        maskSection.style.display = 'none';
-        maskEvaluation.style.display = 'none';
-        
-        // Remove required attribute
-        const maskRadios = maskEvaluation.querySelectorAll('input[name="better_mask_match"]');
-        maskRadios.forEach(radio => radio.required = false);
-        const maskConfRadios = maskEvaluation.querySelectorAll('input[name="mask_confidence"]');
-        maskConfRadios.forEach(radio => radio.required = false);
-    }
-    
-    // Show/hide conditioning container
-    conditioningContainer.style.display = hasConditioning ? 'block' : 'none';
+    // Display mask image
+    const maskImg = document.getElementById('mask-image');
+    maskImg.src = data.mask_url;
+    maskImg.onclick = () => openLightbox(data.mask_url, 'Spatial Mask');
 }
 
 function showError(message) {
