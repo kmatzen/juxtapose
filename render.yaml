@@ -2,11 +2,8 @@ services:
   - type: web
     name: survey-app
     env: python
-    buildCommand: |
-      curl -LsSf https://astral.sh/uv/install.sh | sh
-      export PATH="$HOME/.local/bin:$PATH"
-      uv sync
-    startCommand: /opt/render/.local/bin/uv run gunicorn src.survey.app:app
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn src.survey.app:app
     envVars:
       - key: SECRET_KEY
         generateValue: true
