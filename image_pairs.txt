@@ -18,8 +18,8 @@ A cozy coffee shop interior	Method-A	Method-B	https://picsum.photos/seed/coffee3
 # These pairs will show 3 evaluation sections + Identity Preservation
 # ==============================================================================
 
-A person reading a book in a library	Method-A	Method-B	https://picsum.photos/seed/reading4a/600/400	https://picsum.photos/seed/reading4b/600/400	https://picsum.photos/seed/identity1/200/200	
-A professional headshot in an office	Method-A	Method-B	https://picsum.photos/seed/headshot5a/600/400	https://picsum.photos/seed/headshot5b/600/400	https://picsum.photos/seed/identity2/200/200	
+A person reading a book in a library	Method-A	Method-B	https://picsum.photos/seed/reading4a/600/400	https://picsum.photos/seed/reading4b/600/400	https://picsum.photos/seed/identity1/200/200
+A professional headshot in an office	Method-A	Method-B	https://picsum.photos/seed/headshot5a/600/400	https://picsum.photos/seed/headshot5b/600/400	https://picsum.photos/seed/identity2/200/200
 
 # ==============================================================================
 # NEW FORMAT (7 fields) - Mask Conditioning Only
