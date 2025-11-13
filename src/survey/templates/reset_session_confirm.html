@@ -56,13 +56,40 @@
             color: #856404;
             font-size: 18px;
             display: block;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
         }
         
         .warning-box p {
             color: #856404;
             margin: 0;
-            font-size: 14px;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+        
+        .warning-box ul {
+            color: #856404;
+            list-style-type: disc;
+            margin: 15px 0;
+            padding-left: 25px;
+        }
+        
+        .warning-box li {
+            font-size: 15px;
+            line-height: 1.8;
+            margin-bottom: 8px;
+        }
+        
+        .contact-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #ffc107;
+            text-align: center;
+        }
+        
+        .contact-section strong {
+            color: #856404;
+            font-size: 16px;
+            margin-bottom: 10px;
         }
         
         .button-group {
@@ -132,15 +159,25 @@
             
             <div class="warning-box">
                 <strong>⚠️ Important Note</strong>
-                <p>This feature is designed for <strong>shared computers</strong>.</p>
-                <ul style="margin: 15px 0; padding-left: 20px; text-align: left;">
+                
+                <p style="margin-bottom: 15px;">
+                    This feature is designed for <strong>shared computers</strong>.
+                </p>
+                
+                <p style="margin-bottom: 10px; font-weight: 600;">What happens when you reset:</p>
+                <ul>
                     <li>Your previous responses will remain in our database</li>
                     <li>They will be included in the study results</li>
                 </ul>
-                <p style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ffc107;">
-                    <strong>Need complete data removal?</strong><br>
-                    Contact: <a href="mailto:survey-x7qp@adobe.com" style="color: #4A90E2; font-weight: 600;">survey-x7qp@adobe.com</a>
-                </p>
+                
+                <div class="contact-section">
+                    <strong>Need complete data removal?</strong>
+                    <p style="margin-top: 8px;">
+                        <a href="mailto:survey-x7qp@adobe.com" style="color: #4A90E2; font-weight: 600; font-size: 16px; text-decoration: none;">
+                            📧 survey-x7qp@adobe.com
+                        </a>
+                    </p>
+                </div>
             </div>
             
             <form method="POST" action="/reset_session_confirm">
