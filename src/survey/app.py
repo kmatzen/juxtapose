@@ -20,9 +20,7 @@ REFERRAL_CODES = set(code.strip() for code in REFERRAL_CODES_ENV.split(',') if c
 # Or set them directly here:
 if not REFERRAL_CODES:
     REFERRAL_CODES = {
-        'SURVEY2024',
-        'RESEARCH',
-        'ADOBE',
+        'ADOBE2025',
     }
 
 # In dev mode, bypass referral code requirement
