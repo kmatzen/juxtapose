@@ -256,10 +256,12 @@ p {
     align-self: start;
     max-height: 90vh;
     overflow-y: auto;
+    padding-left: 10px;
 }
 
 .questions-column {
     /* Questions scroll naturally */
+    padding-right: 10px;
 }
 
 /* Stack vertically on tablets/mobile */
