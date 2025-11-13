@@ -10,18 +10,22 @@
     <div class="admin-container">
         <h1>Survey Administration</h1>
         
-        <div class="stats-grid">
+        <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr);">
             <div class="stat-card">
                 <div class="stat-number" id="total-responses">0</div>
                 <div class="stat-label">Total Participants</div>
             </div>
-            <div class="stat-card" style="grid-column: span 2;">
-                <div class="stat-number" id="a-preferred" style="font-size: 14px; line-height: 1.4;">Loading...</div>
-                <div class="stat-label">Method Preferences (Image Quality)</div>
-            </div>
             <div class="stat-card">
                 <div class="stat-number" id="avg-confidence" style="font-size: 1.5em;">0 / 0</div>
                 <div class="stat-label">Avg Confidence (Image / Prompt)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="method-prefs-image" style="font-size: 14px; line-height: 1.4;">Loading...</div>
+                <div class="stat-label">Method Preferences (Image Quality)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="method-prefs-prompt" style="font-size: 14px; line-height: 1.4;">Loading...</div>
+                <div class="stat-label">Method Preferences (Prompt Adherence)</div>
             </div>
         </div>
 
@@ -77,13 +81,18 @@
                     ? (data.reduce((sum, r) => sum + (r.prompt_confidence || 0), 0) / data.length).toFixed(1)
                     : 0;
                 
-                // Display method preferences
-                const methodSummary = Object.keys(methodImagePrefs).map(method => 
+                // Display method preferences for image quality
+                const imageSummary = Object.keys(methodImagePrefs).map(method => 
                     `${method}: ${methodImagePrefs[method]}`
                 ).join(', ') || 'No data yet';
                 
-                document.getElementById('a-preferred').textContent = methodSummary;
-                document.getElementById('b-preferred').textContent = ''; // Remove this field
+                // Display method preferences for prompt adherence
+                const promptSummary = Object.keys(methodPromptPrefs).map(method => 
+                    `${method}: ${methodPromptPrefs[method]}`
+                ).join(', ') || 'No data yet';
+                
+                document.getElementById('method-prefs-image').textContent = imageSummary;
+                document.getElementById('method-prefs-prompt').textContent = promptSummary;
                 document.getElementById('avg-confidence').textContent = avgImageConf + ' / ' + avgPromptConf;
                 
                 // Render current view
