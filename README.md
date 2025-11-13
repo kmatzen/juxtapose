@@ -59,21 +59,25 @@ Or if you prefer pip:
 pip install -r requirements.txt  # (will generate if needed)
 ```
 
-### 3. Configure Your Questions
+### 3. Configure Your Image Pairs
 
-Edit `src/survey/app.py` and replace the placeholder questions in the `QUESTION_PAIRS` list (lines 17-48) with your actual questions:
+Edit `src/survey/app.py` and replace the placeholder image pairs in the `IMAGE_PAIRS` list with your actual data:
 
 ```python
-QUESTION_PAIRS = [
+IMAGE_PAIRS = [
     {
         "id": 1,
-        "prompt": "Your prompt here",
-        "question_a": "First question",
-        "question_b": "Second question"
+        "prompt": "A serene mountain landscape at sunset",
+        "method_a": "GPT-4-Vision",      # Your method name
+        "method_b": "DALL-E-3",          # Your method name
+        "image_a_url": "https://your-image-url-a.jpg",
+        "image_b_url": "https://your-image-url-b.jpg"
     },
     # ... add 29 more
 ]
 ```
+
+The `method_a` and `method_b` fields track which generation method created each image. This is crucial because when images are randomized (50% of the time), the method names are swapped along with the images, allowing you to see which actual method users preferred.
 
 ### 4. Set Environment Variables (Optional but Recommended)
 
