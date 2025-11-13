@@ -202,11 +202,6 @@ def reset_session_confirm():
     session.clear()
     return redirect(url_for('index'))
 
-@app.route('/privacy')
-def privacy():
-    """Privacy policy page"""
-    return render_template('privacy.html')
-
 @app.route('/api/config')
 def get_config():
     """Get configuration settings for frontend"""
