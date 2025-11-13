@@ -189,6 +189,17 @@ def init_db():
 # Initialize database on startup
 init_db()
 
+# Health check endpoint (must come after init)
+@app.route('/health')
+def health():
+    """Simple health check endpoint for monitoring"""
+    return jsonify({
+        'status': 'healthy',
+        'pairs_loaded': len(IMAGE_PAIRS),
+        'dev_mode': DEV_MODE,
+        'database': DATABASE
+    }), 200
+
 def check_admin_auth():
     """Check if admin is authenticated"""
     return session.get('admin_authenticated', False)
