@@ -283,6 +283,20 @@ async function loadImagePair(index) {
             imageA.alt = `Loading ${data.method_a}...`;
             imageB.alt = `Loading ${data.method_b}...`;
             
+            // Add loading indicators
+            const imageBoxA = imageA.parentElement;
+            const imageBoxB = imageB.parentElement;
+            
+            const loadingA = document.createElement('div');
+            loadingA.className = 'loading-indicator';
+            loadingA.textContent = 'Loading';
+            imageBoxA.appendChild(loadingA);
+            
+            const loadingB = document.createElement('div');
+            loadingB.className = 'loading-indicator';
+            loadingB.textContent = 'Loading';
+            imageBoxB.appendChild(loadingB);
+            
             // Disable form during image loading to prevent submission with wrong images
             const surveyForm = document.getElementById('survey-form');
             surveyForm.style.pointerEvents = 'none';
@@ -299,6 +313,10 @@ async function loadImagePair(index) {
             
             const checkBothLoaded = () => {
                 if ((aLoaded || aError) && (bLoaded || bError)) {
+                    // Remove loading indicators
+                    const loadingIndicators = document.querySelectorAll('.loading-indicator');
+                    loadingIndicators.forEach(indicator => indicator.remove());
+                    
                     if (aError || bError) {
                         // Show error message
                         const errorMsg = `Failed to load images: ${aError ? 'Image A' : ''} ${bError ? 'Image B' : ''}`;
