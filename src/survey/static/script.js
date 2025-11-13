@@ -271,8 +271,41 @@ async function loadImagePair(index) {
             const imageA = document.getElementById('image-a');
             const imageB = document.getElementById('image-b');
             
-            imageA.src = data.image_a_url;
-            imageB.src = data.image_b_url;
+            // Clear previous images to avoid flashing old content
+            imageA.style.opacity = '0.3';
+            imageB.style.opacity = '0.3';
+            imageA.src = '';
+            imageB.src = '';
+            
+            // Preload images before showing them
+            const imgALoader = new Image();
+            const imgBLoader = new Image();
+            
+            let aLoaded = false;
+            let bLoaded = false;
+            
+            const checkBothLoaded = () => {
+                if (aLoaded && bLoaded) {
+                    imageA.src = data.image_a_url;
+                    imageB.src = data.image_b_url;
+                    imageA.style.opacity = '1';
+                    imageB.style.opacity = '1';
+                }
+            };
+            
+            imgALoader.onload = () => {
+                aLoaded = true;
+                checkBothLoaded();
+            };
+            
+            imgBLoader.onload = () => {
+                bLoaded = true;
+                checkBothLoaded();
+            };
+            
+            // Start loading
+            imgALoader.src = data.image_a_url;
+            imgBLoader.src = data.image_b_url;
             
             // Add click handlers for lightbox
             imageA.onclick = () => openLightbox(data.image_a_url, 'Image A');
