@@ -99,13 +99,13 @@ export PORT=5000
 
 ```bash
 # With uv (recommended)
-uv run python app.py
+uv run python run.py
 
-# Or use the convenience script
+# Or use the convenience script (auto-enables DEV MODE)
 ./start.sh
 
-# Or directly with python
-python app.py
+# Or directly with python (if you have dependencies installed)
+python run.py
 ```
 
 The app will run on `http://localhost:5000` (or your custom PORT).
@@ -177,35 +177,42 @@ For full control, deploy to cloud VMs. See standard Flask deployment guides.
 ### For Participants
 
 1. Visit the survey URL
-2. Fill in demographics (email, age, gender, education, country)
-3. Evaluate 30 question pairs:
-   - Select which question is better (A, B, or Equal)
-   - Rate confidence (1-5 Likert scale)
-   - Select which better adheres to the prompt
-4. Submit responses - participants can only complete once per email/session
+2. Fill in demographics (occupation, image gen experience, AI familiarity, etc.)
+3. Evaluate 30 image pairs:
+   - **Image Quality**: Select which image looks better (A or B) + confidence (1-5 Likert scale)
+   - **Prompt Adherence**: Select which image better matches the prompt (A or B) + confidence (1-5)
+   - Click images for a larger view (lightbox)
+4. Submit responses - participants can only complete once per email
+5. Retake warning shown if email was previously used
 
 ### For Administrators
 
 1. Visit `/admin/login`
 2. Enter admin password (default: `admin123`)
 3. View dashboard with:
-   - Total responses count
-   - Question A vs B preferences
-   - Average confidence scores
-   - Detailed response table
-4. Export results as CSV
+   - Total participants count
+   - **Method preferences** by actual generation method (not just A/B position)
+   - Average confidence scores (image quality / prompt adherence)
+   - Toggle between Demographics View and Responses View
+   - Detailed response table with method resolution
+4. Export all results as CSV for analysis
 
 ## Database
 
 The app uses SQLite with three tables:
 
-- **participants**: Session tracking
-- **demographics**: User information
-- **survey_responses**: Question evaluations (30 rows per participant)
+- **participants**: Session tracking + device information (browser, OS, screen, etc.)
+- **demographics**: User information (email, occupation, AI experience, etc.)
+- **survey_responses**: Image pair evaluations (30 rows per participant)
+  - Stores both UI choice (A/B) and actual method names
+  - Includes `method_a`, `method_b` columns for method tracking
+  - Admin queries compute which method was actually preferred
 
-Database file: `survey.db` (created automatically)
+Database file: `survey.db` (created automatically on first run)
 
-To backup: Simply copy the `survey.db` file.
+**Backup:** Simply copy the `survey.db` file.
+
+**Migration:** If updating from an older version without method tracking, see `MIGRATION_NOTE.md` for SQL migration scripts.
 
 ## File Structure
 
