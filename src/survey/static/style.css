@@ -13,12 +13,28 @@ body {
 }
 
 .container {
-    max-width: 800px;
+    max-width: 1600px;
+    width: 95%;
     margin: 0 auto;
     background: white;
     border-radius: 12px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
     padding: 40px;
+}
+
+@media (max-width: 1200px) {
+    .container {
+        width: 90%;
+        padding: 30px;
+    }
+}
+
+@media (max-width: 768px) {
+    .container {
+        width: 100%;
+        padding: 20px;
+        border-radius: 0;
+    }
 }
 
 /* Progress Container */
