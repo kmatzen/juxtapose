@@ -12,6 +12,22 @@ app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-producti
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')  # Change this in production
 DEV_MODE = os.environ.get('DEV_MODE', 'false').lower() == 'true'  # Set DEV_MODE=true for testing
 
+# Referral codes - Set valid codes via environment variable (comma-separated) or in code
+# If empty, no referral code is required
+REFERRAL_CODES_ENV = os.environ.get('REFERRAL_CODES', '')
+REFERRAL_CODES = set(code.strip() for code in REFERRAL_CODES_ENV.split(',') if code.strip()) if REFERRAL_CODES_ENV else set()
+
+# Or set them directly here:
+if not REFERRAL_CODES:
+    REFERRAL_CODES = {
+        'SURVEY2024',
+        'RESEARCH',
+        'ADOBE',
+    }
+
+# In dev mode, bypass referral code requirement
+REQUIRE_REFERRAL = bool(REFERRAL_CODES) and not DEV_MODE
+
 # Use /data for persistent storage on Fly.io, otherwise local directory
 DATABASE = '/data/survey.db' if os.path.exists('/data') else 'survey.db'
 
@@ -97,6 +113,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS participants (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             session_id TEXT UNIQUE NOT NULL,
+            referral_code TEXT,
             browser TEXT,
             browser_version TEXT,
             os TEXT,
@@ -170,9 +187,13 @@ def require_admin(f):
 
 @app.route('/')
 def index():
-    """Home page - check if user has already submitted"""
+    """Home page - check referral code and if user has already submitted"""
     if 'session_id' not in session:
         session['session_id'] = str(uuid.uuid4())
+    
+    # Check if referral code is required and validated
+    if REQUIRE_REFERRAL and not session.get('referral_validated'):
+        return redirect(url_for('referral'))
     
     # Check for explicit "new" parameter to force restart in dev mode
     force_new = request.args.get('new') == 'true'
@@ -205,6 +226,26 @@ def index():
         db.close()
     
     return render_template('index.html')
+
+@app.route('/referral', methods=['GET', 'POST'])
+def referral():
+    """Referral code entry page"""
+    if not REQUIRE_REFERRAL:
+        # If no referral code required, skip to survey
+        session['referral_validated'] = True
+        return redirect(url_for('index'))
+    
+    if request.method == 'POST':
+        code = request.form.get('referral_code', '').strip().upper()
+        
+        if code in REFERRAL_CODES:
+            session['referral_validated'] = True
+            session['referral_code'] = code
+            return redirect(url_for('index'))
+        else:
+            return render_template('referral.html', error='Invalid referral code. Please check and try again.')
+    
+    return render_template('referral.html')
 
 @app.route('/reset_session')
 def reset_session():
@@ -304,11 +345,12 @@ def submit_demographics():
             device_info = data.get('device_info', {})
             cursor = db.execute('''
                 INSERT INTO participants 
-                (session_id, browser, browser_version, os, screen_width, screen_height,
+                (session_id, referral_code, browser, browser_version, os, screen_width, screen_height,
                  pixel_ratio, color_depth, viewport_width, viewport_height)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 session['session_id'],
+                session.get('referral_code'),
                 device_info.get('browser'),
                 device_info.get('browser_version'),
                 device_info.get('os'),
