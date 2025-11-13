@@ -188,7 +188,6 @@
                         <th>UI Choice (Prompt)</th>
                         <th>Preferred Method (Prompt)</th>
                         <th>Prompt Conf</th>
-                        <th>Rand?</th>
                     </tr>
                 `;
                 
@@ -205,7 +204,6 @@
                         <td>${row.better_prompt_match || '-'}</td>
                         <td><strong>${row.preferred_method_prompt || 'N/A'}</strong></td>
                         <td>${row.prompt_confidence || '-'}</td>
-                        <td>${row.was_randomized ? 'Y' : 'N'}</td>
                     </tr>
                 `).join('');
             }
