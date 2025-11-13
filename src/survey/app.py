@@ -196,9 +196,6 @@ def index():
     # Check for explicit "new" parameter to force restart in dev mode
     force_new = request.args.get('new') == 'true'
     
-    # In dev mode, use fewer image pairs
-    required_count = 3 if DEV_MODE else 30
-    
     # Check if this session has completed the survey
     db = get_db()
     participant = db.execute(
@@ -207,14 +204,17 @@ def index():
     ).fetchone()
     
     if participant:
-        # Check if they've completed all required questions
+        # Get the number of pairs assigned to this user (from session or default)
+        user_pairs_count = session.get('user_pairs_count', min(len(IMAGE_PAIRS), 30 if not DEV_MODE else 3))
+        
+        # Check if they've completed all their assigned questions
         response_count = db.execute(
             'SELECT COUNT(*) as count FROM survey_responses WHERE participant_id = ?',
             (participant['id'],)
         ).fetchone()
         db.close()
         
-        if response_count and response_count['count'] >= required_count:
+        if response_count and response_count['count'] >= user_pairs_count:
             # In dev mode, allow restarting with ?new=true parameter
             if DEV_MODE and force_new:
                 return render_template('index.html')
@@ -399,15 +399,43 @@ def submit_demographics():
 @app.route('/api/get_image_pair/<int:pair_index>')
 def get_image_pair(pair_index):
     """Get a specific image pair"""
-    # In dev mode, only use first 3 image pairs
-    available_pairs = IMAGE_PAIRS[:3] if DEV_MODE else IMAGE_PAIRS
+    # Initialize user's randomized pair list if not already done
+    if 'user_image_pairs' not in session:
+        # In dev mode, use first 3 pairs; in production, randomly sample up to 30
+        max_pairs = 3 if DEV_MODE else 30
+        
+        # If we have fewer pairs than max, use all of them
+        num_pairs = min(len(IMAGE_PAIRS), max_pairs)
+        
+        # Randomly sample and shuffle pairs for this user
+        if len(IMAGE_PAIRS) <= num_pairs:
+            # Use all pairs, but in random order
+            user_pairs = IMAGE_PAIRS.copy()
+            random.shuffle(user_pairs)
+        else:
+            # Randomly sample without replacement
+            user_pairs = random.sample(IMAGE_PAIRS, num_pairs)
+        
+        # Store the shuffled pair list in session (store just the IDs to keep session small)
+        session['user_image_pairs'] = [pair['id'] for pair in user_pairs]
+        session['user_pairs_count'] = len(user_pairs)
     
-    if pair_index < 0 or pair_index >= len(available_pairs):
+    # Get user's pair list
+    user_pair_ids = session.get('user_image_pairs', [])
+    
+    if pair_index < 0 or pair_index >= len(user_pair_ids):
         return jsonify({'error': 'Invalid image pair index'}), 404
     
-    pair = available_pairs[pair_index].copy()
+    # Find the actual pair by ID
+    pair_id = user_pair_ids[pair_index]
+    pair = next((p for p in IMAGE_PAIRS if p['id'] == pair_id), None)
     
-    # ALWAYS randomize to prevent position bias
+    if not pair:
+        return jsonify({'error': 'Image pair not found'}), 404
+    
+    pair = pair.copy()
+    
+    # ALWAYS randomize A/B position to prevent position bias
     randomized = random.random() < 0.5
     if randomized:
         # Swap the images AND the method names
@@ -415,7 +443,7 @@ def get_image_pair(pair_index):
         pair['method_a'], pair['method_b'] = pair['method_b'], pair['method_a']
     
     pair['was_randomized'] = randomized
-    pair['total_pairs'] = len(available_pairs)
+    pair['total_pairs'] = len(user_pair_ids)
     return jsonify(pair)
 
 @app.route('/api/submit_survey', methods=['POST'])
@@ -494,8 +522,8 @@ def submit_survey():
                 1 if data.get('was_randomized') else 0
             ))
         
-        # Check if they've completed all image pairs
-        required_count = 3 if DEV_MODE else 30
+        # Check if they've completed all their assigned image pairs
+        user_pairs_count = session.get('user_pairs_count', min(len(IMAGE_PAIRS), 30 if not DEV_MODE else 3))
         response_count = db.execute(
             'SELECT COUNT(*) as count FROM survey_responses WHERE participant_id = ?',
             (participant['id'],)
@@ -503,7 +531,7 @@ def submit_survey():
         
         db.commit()
         
-        completed = response_count['count'] >= required_count
+        completed = response_count['count'] >= user_pairs_count
         return jsonify({'success': True, 'completed': completed})
     except Exception as e:
         db.rollback()
