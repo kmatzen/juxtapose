@@ -125,6 +125,7 @@
                 thead.innerHTML = `
                     <tr>
                         <th>Email</th>
+                        <th>Referral Code</th>
                         <th>Browser</th>
                         <th>OS</th>
                         <th>Screen</th>
@@ -143,6 +144,7 @@
                     if (!participantMap[row.email]) {
                         participantMap[row.email] = {
                             email: row.email,
+                            referral_code: row.referral_code,
                             browser: row.browser,
                             browser_version: row.browser_version,
                             os: row.os,
@@ -162,6 +164,7 @@
                 tbody.innerHTML = Object.values(participantMap).map(p => `
                     <tr>
                         <td>${p.email || '-'}</td>
+                        <td>${p.referral_code || '-'}</td>
                         <td style="font-size: 11px;">${p.browser || '-'} ${p.browser_version || ''}</td>
                         <td>${p.os || '-'}</td>
                         <td style="font-size: 11px;">${p.screen_width}×${p.screen_height}</td>
