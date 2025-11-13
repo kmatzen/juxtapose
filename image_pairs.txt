@@ -1,0 +1,9 @@
+# Image Pairs Configuration
+# Format: prompt <TAB> method_a <TAB> method_b <TAB> image_a_url <TAB> image_b_url
+# Lines starting with # are comments and will be ignored
+# You can use full URLs or relative paths to images in the static folder
+
+A serene mountain landscape at sunset	Method-A	Method-B	https://placehold.co/600x400/0066cc/white?text=Method+A	https://placehold.co/600x400/cc6600/white?text=Method+B
+A futuristic city with flying cars	Method-A	Method-B	https://placehold.co/600x400/0066cc/white?text=Method+A	https://placehold.co/600x400/cc6600/white?text=Method+B
+A cat wearing sunglasses on a beach	Method-A	Method-B	https://placehold.co/600x400/0066cc/white?text=Method+A	https://placehold.co/600x400/cc6600/white?text=Method+B
+
