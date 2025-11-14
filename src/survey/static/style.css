@@ -249,57 +249,41 @@ p {
     font-size: 18px;
 }
 
-/* Images Container */
-/* Two-column survey layout: All visual content on left, questions on right */
-.survey-grid {
+/* ==================================================================
+   NEW LAYOUT: TOP (visual content) / BOTTOM (progressive questions)
+   ================================================================== */
+
+/* TOP SECTION: Visual Content (Context + Generated Images) */
+.visual-content-section {
     display: grid;
-    grid-template-columns: 55% 45%;
-    gap: 40px;
-    margin-bottom: 30px;
+    grid-template-columns: 40% 60%;
+    gap: 30px;
+    margin-bottom: 40px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 12px;
 }
 
-.images-column {
-    position: sticky;
-    top: 20px;
-    align-self: start;
-    max-height: 90vh;
-    overflow-y: auto;
+.context-column {
+    /* Prompt, identity, mask */
 }
 
-.questions-column {
-    /* Questions scroll naturally */
+.generated-images-column {
+    /* Generated images A & B */
 }
 
-/* Stack vertically on tablets/mobile */
-@media (max-width: 1200px) {
-    .survey-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .images-column {
-        position: static;
-        max-height: none;
-        overflow-y: visible;
-    }
-}
-
-/* Output images section */
-.output-images-section {
-    margin-top: 25px;
-}
-
-.output-images-section h3 {
+.generated-images-column h3 {
     margin-bottom: 15px;
     color: #4A90E2;
 }
 
-.output-images-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+.generated-images-grid {
+    display: flex;
+    flex-direction: column;
     gap: 20px;
 }
 
-.output-image-box {
+.generated-image-box {
     background: #fff;
     border: 3px solid #4A90E2;
     border-radius: 8px;
@@ -307,18 +291,18 @@ p {
     transition: all 0.3s ease;
 }
 
-.output-image-box:hover {
+.generated-image-box:hover {
     border-color: #357ABD;
     box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
 }
 
-.output-image-box h4 {
+.generated-image-box h4 {
     margin: 0 0 10px 0;
     color: #4A90E2;
     font-size: 18px;
 }
 
-.output-image {
+.generated-image {
     width: 100%;
     height: auto;
     border-radius: 4px;
@@ -327,27 +311,92 @@ p {
     transition: transform 0.2s;
 }
 
-.output-image:hover {
-    transform: scale(1.02);
+.generated-image:hover {
+    transform: scale(1.01);
 }
 
-@media (max-width: 768px) {
-    .output-images-grid {
+/* BOTTOM SECTION: Questions (Progressive Flow) */
+.questions-section {
+    margin-top: 30px;
+}
+
+.question-progress {
+    text-align: center;
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 20px;
+    font-weight: 500;
+}
+
+.question-progress #question-num {
+    color: #4A90E2;
+    font-weight: 600;
+}
+
+.questions-container {
+    min-height: 300px;
+}
+
+.questions-container .evaluation-section {
+    display: none; /* Hidden by default, shown one at a time */
+}
+
+.questions-container .evaluation-section.active {
+    display: block;
+    animation: fadeInUp 0.3s ease;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.question-navigation {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 2px solid #e0e0e0;
+}
+
+.question-navigation .btn {
+    flex: 1;
+    max-width: 200px;
+}
+
+.question-navigation .btn:first-child {
+    margin-right: auto;
+}
+
+.question-navigation .btn:last-child {
+    margin-left: auto;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .visual-content-section {
         grid-template-columns: 1fr;
     }
 }
 
-/* Legacy images-container (now unused but keeping for compatibility) */
-.images-container {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    margin-bottom: 0;
-}
-
 @media (max-width: 768px) {
-    .images-container {
-        grid-template-columns: 1fr;
+    .visual-content-section {
+        padding: 15px;
+    }
+    
+    .question-navigation {
+        flex-direction: column;
+    }
+    
+    .question-navigation .btn {
+        max-width: none;
     }
 }
 
