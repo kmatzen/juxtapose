@@ -259,8 +259,6 @@ async function handleDemographicsSubmit(event) {
             // Move to survey section
             document.getElementById('demographics-section').classList.remove('active');
             document.getElementById('survey-section').classList.add('active');
-            document.getElementById('step1').classList.add('completed');
-            document.getElementById('step2').classList.add('active');
             
             // Show survey progress
             document.getElementById('survey-progress').style.display = 'block';
