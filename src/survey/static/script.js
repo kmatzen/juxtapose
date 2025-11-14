@@ -762,18 +762,4 @@ function showSubmitButton() {
 }
 
 // Initialize progressive questions when survey section loads
-document.addEventListener('DOMContentLoaded', () => {
-    // Wait for survey section to be active
-    const observer = new MutationObserver((mutations) => {
-        const surveySection = document.getElementById('survey-section');
-        if (surveySection && surveySection.classList.contains('active')) {
-            initializeProgressiveQuestions();
-        }
-    });
-    
-    observer.observe(document.body, {
-        attributes: true,
-        subtree: true,
-        attributeFilter: ['class']
-    });
-});
+// This is now handled in loadImagePair() to avoid MutationObserver overhead
