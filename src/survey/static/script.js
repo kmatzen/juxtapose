@@ -544,19 +544,51 @@ function displayConditioningInputs(data) {
     document.getElementById('identity-evaluation').style.display = 'block';
     document.getElementById('mask-evaluation').style.display = 'block';
     
-    // Display identity images (comma-separated list)
-    const identityUrls = data.identity_urls.split(',').map(url => url.trim());
+    // Display identity images
+    // The identity URL points to a single tall image: 512px wide x (512 * N) tall
+    // where N is the number of identities stacked vertically
     const identityContainer = document.getElementById('identity-images');
     identityContainer.innerHTML = ''; // Clear previous
     
-    identityUrls.forEach((url, index) => {
-        const img = document.createElement('img');
-        img.src = url;
-        img.alt = `Identity ${index + 1}`;
-        img.className = 'identity-image';
-        img.onclick = () => openLightbox(url, `Identity Reference ${index + 1}`);
-        identityContainer.appendChild(img);
-    });
+    const identityUrl = data.identity_urls.trim();
+    
+    // Load the tall stacked image
+    const stackedImg = new Image();
+    stackedImg.crossOrigin = 'anonymous'; // For canvas access
+    stackedImg.onload = () => {
+        const width = 512;
+        const height = 512;
+        const numIdentities = Math.round(stackedImg.height / height);
+        
+        // Create a canvas for slicing
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        
+        // Slice and display each 512x512 segment horizontally
+        for (let i = 0; i < numIdentities; i++) {
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+            
+            // Draw the slice from the stacked image
+            // sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight
+            ctx.drawImage(stackedImg, 0, i * height, width, height, 0, 0, width, height);
+            
+            // Convert canvas to image
+            const slicedImg = document.createElement('img');
+            slicedImg.src = canvas.toDataURL();
+            slicedImg.alt = `Identity ${i + 1}`;
+            slicedImg.className = 'identity-image';
+            slicedImg.onclick = () => openLightbox(slicedImg.src, `Identity Reference ${i + 1}`);
+            identityContainer.appendChild(slicedImg);
+        }
+    };
+    stackedImg.onerror = () => {
+        console.error('Failed to load identity image:', identityUrl);
+        identityContainer.innerHTML = '<p style="color: red;">Failed to load identity images</p>';
+    };
+    stackedImg.src = identityUrl;
     
     // Display mask image
     const maskImg = document.getElementById('mask-image');
