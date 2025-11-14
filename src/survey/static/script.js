@@ -13,6 +13,18 @@ document.addEventListener('DOMContentLoaded', async function() {
     setupEventListeners();
 });
 
+// Recalculate heights on window resize
+let resizeTimeout;
+window.addEventListener('resize', () => {
+    // Debounce resize events
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(() => {
+        if (questionSections.length > 0) {
+            setQuestionsHeight();
+        }
+    }, 250);
+});
+
 async function checkDevMode() {
     try {
         const response = await fetch('/api/config');
@@ -637,6 +649,9 @@ function initializeProgressiveQuestions() {
     questionSections.forEach(section => section.classList.add('active'));
     currentQuestionIndex = 0;
     
+    // Dynamically size the questions section to fit one full question
+    setQuestionsHeight();
+    
     // Set up navigation buttons
     const prevBtn = document.getElementById('prev-question-btn');
     const nextBtn = document.getElementById('next-question-btn');
@@ -649,6 +664,39 @@ function initializeProgressiveQuestions() {
     
     // Track scroll position to update progress indicator
     setupScrollTracking();
+}
+
+function setQuestionsHeight() {
+    // Measure the height of one evaluation section
+    if (questionSections.length === 0) return;
+    
+    const firstSection = questionSections[0];
+    const sectionHeight = firstSection.offsetHeight;
+    
+    // Add some padding for comfortable viewing
+    const desiredHeight = sectionHeight + 60; // 60px for padding/spacing
+    
+    // Get viewport height
+    const vh = window.innerHeight;
+    
+    // Questions section should be at least one full question, but not more than 50vh
+    const maxHeight = vh * 0.5;
+    const minHeight = 300;
+    
+    const finalHeight = Math.min(Math.max(desiredHeight, minHeight), maxHeight);
+    
+    // Set the questions section height
+    const questionsSection = document.querySelector('.questions-section');
+    if (questionsSection) {
+        questionsSection.style.height = `${finalHeight}px`;
+    }
+    
+    // Adjust the visual content section to take remaining space
+    const visualSection = document.querySelector('.visual-content-section');
+    if (visualSection) {
+        const remainingHeight = vh - finalHeight - 200; // 200px for header, margins, padding
+        visualSection.style.maxHeight = `${remainingHeight}px`;
+    }
 }
 
 function navigateQuestion(direction) {
