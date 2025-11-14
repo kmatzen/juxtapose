@@ -261,7 +261,7 @@ p {
     padding: 20px;
     background: #f8f9fa;
     border-radius: 12px;
-    max-height: calc(65vh - 100px); /* Responsive: leave space for questions (35vh) + header */
+    /* max-height set dynamically by JavaScript based on remaining space */
     min-height: 300px;
     overflow-y: auto;
     margin-bottom: 20px;
@@ -343,9 +343,8 @@ p {
     position: relative;
     display: flex;
     flex-direction: column;
-    height: 35vh; /* Responsive to window height */
+    /* Height set dynamically by JavaScript based on question size */
     min-height: 300px;
-    max-height: 500px;
     border-top: 2px solid #e0e0e0;
     padding-top: 20px;
 }
@@ -439,25 +438,15 @@ p {
 @media (max-width: 1024px) {
     .visual-content-section {
         grid-template-columns: 1fr;
-        max-height: calc(60vh - 100px);
-    }
-    
-    .questions-section {
-        height: 40vh;
-        min-height: 350px;
+        /* Height dynamically calculated by JavaScript */
     }
 }
 
 @media (max-width: 768px) {
     .visual-content-section {
         padding: 15px;
-        max-height: calc(55vh - 100px);
         min-height: 250px;
-    }
-    
-    .questions-section {
-        height: 45vh;
-        min-height: 400px;
+        /* Height dynamically calculated by JavaScript */
     }
     
     .question-navigation {
