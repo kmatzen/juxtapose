@@ -422,6 +422,11 @@ async function loadImagePair(index) {
             // Reset form
             document.getElementById('survey-form').reset();
             
+            // Reinitialize progressive questions for new image pair
+            setTimeout(() => {
+                initializeProgressiveQuestions();
+            }, 200);
+            
             // Auto-fill in dev mode
             if (devMode) {
                 setTimeout(() => fillSurveyForm(), 100);
@@ -614,3 +619,161 @@ function showError(message) {
         errorDiv.classList.remove('show');
     }, 5000);
 }
+
+// ==================================================================
+// PROGRESSIVE QUESTION FLOW
+// ==================================================================
+
+let currentQuestionIndex = 0;
+let questionSections = [];
+
+function initializeProgressiveQuestions() {
+    // Get all evaluation sections (4 total: image quality, prompt, mask, identity)
+    questionSections = Array.from(document.querySelectorAll('.questions-container .evaluation-section'));
+    
+    if (questionSections.length === 0) return;
+    
+    // Show first question
+    showQuestion(0);
+    
+    // Set up navigation buttons
+    const prevBtn = document.getElementById('prev-question-btn');
+    const nextBtn = document.getElementById('next-question-btn');
+    const submitBtn = document.getElementById('submit-btn');
+    
+    prevBtn.addEventListener('click', () => navigateQuestion(-1));
+    nextBtn.addEventListener('click', () => navigateQuestion(1));
+    
+    // Auto-advance when a question group is completed
+    setupAutoAdvance();
+}
+
+function showQuestion(index) {
+    // Hide all questions
+    questionSections.forEach(section => section.classList.remove('active'));
+    
+    // Show current question
+    if (questionSections[index]) {
+        questionSections[index].classList.add('active');
+        currentQuestionIndex = index;
+        
+        // Update progress
+        document.getElementById('question-num').textContent = `Question ${index + 1}`;
+        
+        // Update navigation buttons
+        updateNavigationButtons();
+        
+        // Scroll to questions section
+        setTimeout(() => {
+            document.querySelector('.questions-section').scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'nearest' 
+            });
+        }, 100);
+    }
+}
+
+function navigateQuestion(direction) {
+    const newIndex = currentQuestionIndex + direction;
+    
+    if (newIndex >= 0 && newIndex < questionSections.length) {
+        showQuestion(newIndex);
+    } else if (newIndex >= questionSections.length) {
+        // All questions answered, show submit button
+        showSubmitButton();
+    }
+}
+
+function updateNavigationButtons() {
+    const prevBtn = document.getElementById('prev-question-btn');
+    const nextBtn = document.getElementById('next-question-btn');
+    
+    // Disable prev button on first question
+    prevBtn.disabled = (currentQuestionIndex === 0);
+    
+    // Change next button text on last question
+    if (currentQuestionIndex === questionSections.length - 1) {
+        nextBtn.textContent = 'Review & Submit →';
+    } else {
+        nextBtn.textContent = 'Next →';
+    }
+}
+
+function setupAutoAdvance() {
+    // Listen for changes in all form inputs
+    questionSections.forEach((section, index) => {
+        const inputs = section.querySelectorAll('input[type="radio"]');
+        
+        inputs.forEach(input => {
+            input.addEventListener('change', () => {
+                // Check if this question group is complete
+                if (isQuestionGroupComplete(index)) {
+                    // Auto-advance after a short delay
+                    setTimeout(() => {
+                        if (currentQuestionIndex === index) {
+                            navigateQuestion(1);
+                        }
+                    }, 500);
+                }
+            });
+        });
+    });
+}
+
+function isQuestionGroupComplete(questionIndex) {
+    const section = questionSections[questionIndex];
+    const radioGroups = {};
+    
+    // Find all radio button groups in this section
+    const radios = section.querySelectorAll('input[type="radio"]');
+    radios.forEach(radio => {
+        if (!radioGroups[radio.name]) {
+            radioGroups[radio.name] = false;
+        }
+        if (radio.checked) {
+            radioGroups[radio.name] = true;
+        }
+    });
+    
+    // Check if all groups have a selection
+    return Object.values(radioGroups).every(selected => selected);
+}
+
+function showSubmitButton() {
+    // Hide question navigation
+    document.querySelector('.question-navigation').style.display = 'none';
+    
+    // Hide all questions
+    questionSections.forEach(section => section.classList.remove('active'));
+    
+    // Show submit button
+    const submitBtn = document.getElementById('submit-btn');
+    submitBtn.style.display = 'block';
+    submitBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
+    // Show completion message
+    const questionsContainer = document.querySelector('.questions-container');
+    questionsContainer.innerHTML = `
+        <div style="text-align: center; padding: 40px; background: #e8f5e9; border-radius: 8px;">
+            <h3 style="color: #2e7d32; margin-bottom: 15px;">✓ All Questions Answered!</h3>
+            <p style="color: #666; margin-bottom: 20px;">Click the button below to submit and continue to the next image pair.</p>
+        </div>
+    `;
+}
+
+// Initialize progressive questions when survey section loads
+document.addEventListener('DOMContentLoaded', () => {
+    // Wait for survey section to be active
+    const observer = new MutationObserver((mutations) => {
+        const surveySection = document.getElementById('survey-section');
+        if (surveySection && surveySection.classList.contains('active')) {
+            initializeProgressiveQuestions();
+        }
+    });
+    
+    observer.observe(document.body, {
+        attributes: true,
+        subtree: true,
+        attributeFilter: ['class']
+    });
+});
