@@ -53,12 +53,12 @@ def load_image_pairs():
                 # Split by tab
                 parts = line.split('\t')
                 
-                # Expect exactly 7 fields: prompt, method_a, method_b, image_a_url, image_b_url, identity_urls, mask_url
+                # Expect exactly 7 fields: prompt, method_a, method_b, image_a_url, image_b_url, mask_url, identity_urls
                 if len(parts) != 7:
                     print(f"Warning: Line {line_num} has {len(parts)} fields (expected 7), skipping: {line[:50]}...")
                     continue
                 
-                prompt, method_a, method_b, image_a_url, image_b_url, identity_urls, mask_url = parts
+                prompt, method_a, method_b, image_a_url, image_b_url, mask_url, identity_urls = parts
                 
                 pairs.append({
                     "id": pair_id,
@@ -85,13 +85,13 @@ def load_image_pairs():
         # Create a sample file with helpful instructions
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write("# Image Pairs Configuration\n")
-            f.write("# Format: prompt <TAB> method_a <TAB> method_b <TAB> image_a_url <TAB> image_b_url <TAB> identity_urls <TAB> mask_url\n")
-            f.write("# identity_urls: comma-separated list of identity images\n")
+            f.write("# Format: prompt <TAB> method_a <TAB> method_b <TAB> image_a_url <TAB> image_b_url <TAB> mask_url <TAB> identity_urls\n")
             f.write("# mask_url: single spatial mask image\n")
+            f.write("# identity_urls: comma-separated list of identity images\n")
             f.write("# Lines starting with # are comments\n\n")
-            f.write("A serene mountain landscape\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\thttps://placehold.co/200x200/gray/white?text=Identity\thttps://placehold.co/300x300/yellow/black?text=Mask\n")
-            f.write("A futuristic city\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\thttps://placehold.co/200x200/gray/white?text=Identity\thttps://placehold.co/300x300/yellow/black?text=Mask\n")
-            f.write("A person skiing\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\thttps://placehold.co/200x200/gray/white?text=ID1,https://placehold.co/200x200/gray/white?text=ID2\thttps://placehold.co/300x300/yellow/black?text=Mask\n")
+            f.write("A serene mountain landscape\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\thttps://placehold.co/300x300/yellow/black?text=Mask\thttps://placehold.co/200x200/gray/white?text=Identity\n")
+            f.write("A futuristic city\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\thttps://placehold.co/300x300/yellow/black?text=Mask\thttps://placehold.co/200x200/gray/white?text=Identity\n")
+            f.write("A person skiing\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\thttps://placehold.co/300x300/yellow/black?text=Mask\thttps://placehold.co/200x200/gray/white?text=ID1,https://placehold.co/200x200/gray/white?text=ID2\n")
         
         print(f"✓ Created {file_path} with sample data")
         # Recursively call to load the newly created file
