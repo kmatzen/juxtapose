@@ -657,10 +657,18 @@ function navigateQuestion(direction) {
     if (newIndex >= 0 && newIndex < questionSections.length) {
         currentQuestionIndex = newIndex;
         
-        // Scroll to the section
-        questionSections[newIndex].scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'start' 
+        // Scroll within the questions container
+        const container = document.querySelector('.questions-container');
+        const targetSection = questionSections[newIndex];
+        const containerRect = container.getBoundingClientRect();
+        const sectionRect = targetSection.getBoundingClientRect();
+        
+        // Calculate scroll position relative to container
+        const scrollOffset = sectionRect.top - containerRect.top + container.scrollTop;
+        
+        container.scrollTo({
+            top: scrollOffset,
+            behavior: 'smooth'
         });
         
         updateNavigationButtons();
@@ -679,10 +687,12 @@ function updateNavigationButtons() {
 }
 
 function setupScrollTracking() {
-    // Update navigation buttons when user scrolls to different sections
+    // Update navigation buttons when user scrolls within questions container
+    const container = document.querySelector('.questions-container');
+    
     const observer = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
-            if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
+            if (entry.isIntersecting && entry.intersectionRatio > 0.3) {
                 const index = questionSections.indexOf(entry.target);
                 if (index !== -1) {
                     currentQuestionIndex = index;
@@ -691,8 +701,9 @@ function setupScrollTracking() {
             }
         });
     }, {
-        threshold: [0.5],
-        rootMargin: '-100px 0px -100px 0px'
+        root: container, // Observe within the container, not the viewport
+        threshold: [0.3],
+        rootMargin: '-50px 0px -50px 0px'
     });
     
     questionSections.forEach(section => observer.observe(section));
