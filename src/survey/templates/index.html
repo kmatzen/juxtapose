@@ -167,10 +167,10 @@
             <p class="instruction">Please evaluate the following two images based on the given prompt. <span id="total-pairs-text">You will see multiple image pairs in total.</span></p>
 
             <form id="survey-form">
-                <!-- Two-column layout: All visual content on left, questions on right -->
-                <div class="survey-grid">
-                    <!-- Left column: All visual content (sticky) -->
-                    <div class="images-column">
+                <!-- TOP SECTION: Visual Content -->
+                <div class="visual-content-section">
+                    <!-- Left: Context (Prompt, Identity, Mask) -->
+                    <div class="context-column">
                         <!-- Prompt -->
                         <div class="prompt-box">
                             <h3>Text Prompt</h3>
@@ -195,26 +195,32 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
 
-                        <!-- Output Images (larger) -->
-                        <div class="output-images-section">
-                            <h3 class="section-title">Generated Images</h3>
-                            <div class="output-images-grid">
-                                <div class="output-image-box">
-                                    <h4>Image A</h4>
-                                    <img id="image-a" src="" alt="Image A" class="output-image">
-                                </div>
+                    <!-- Right: Generated Images -->
+                    <div class="generated-images-column">
+                        <h3 class="section-title">Generated Images</h3>
+                        <div class="generated-images-grid">
+                            <div class="generated-image-box">
+                                <h4>Image A</h4>
+                                <img id="image-a" src="" alt="Image A" class="generated-image">
+                            </div>
 
-                                <div class="output-image-box">
-                                    <h4>Image B</h4>
-                                    <img id="image-b" src="" alt="Image B" class="output-image">
-                                </div>
+                            <div class="generated-image-box">
+                                <h4>Image B</h4>
+                                <img id="image-b" src="" alt="Image B" class="generated-image">
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Right column: Questions -->
-                    <div class="questions-column">
+                <!-- BOTTOM SECTION: Questions (Progressive) -->
+                <div class="questions-section">
+                    <div class="question-progress">
+                        <span id="question-num">Question 1</span> of 8
+                    </div>
+                    
+                    <div class="questions-container">
                         <div class="evaluation-section">
                     <h3 class="section-title">Image Quality</h3>
                     
@@ -408,10 +414,16 @@
                         </div>
                     </div>
                 </div>
-                    </div><!-- end questions-column -->
-                </div><!-- end survey-grid -->
+                    </div><!-- end questions-container -->
+                    
+                    <!-- Question Navigation -->
+                    <div class="question-navigation">
+                        <button type="button" class="btn btn-secondary" id="prev-question-btn" disabled>← Previous</button>
+                        <button type="button" class="btn btn-primary" id="next-question-btn">Next →</button>
+                    </div>
+                </div><!-- end questions-section -->
 
-                <button type="submit" class="btn btn-primary" id="submit-btn">Next Image Pair</button>
+                <button type="submit" class="btn btn-primary" id="submit-btn" style="display: none;">Next Image Pair</button>
             </form>
         </section>
     </div>
