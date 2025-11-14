@@ -23,9 +23,9 @@ body {
     transition: max-width 0.3s ease;
 }
 
-/* Expand container when survey section is active (side-by-side layout) */
+/* Expand container when survey section is active (but narrower than before) */
 .container:has(#survey-section.active) {
-    max-width: 1600px;
+    max-width: 1200px;
 }
 
 @media (max-width: 1200px) {
@@ -256,9 +256,9 @@ p {
 /* TOP SECTION: Visual Content (Context + Generated Images) */
 .visual-content-section {
     display: grid;
-    grid-template-columns: 40% 60%;
-    gap: 30px;
-    margin-bottom: 40px;
+    grid-template-columns: 45% 55%;
+    gap: 25px;
+    margin-bottom: 30px;
     padding: 20px;
     background: #f8f9fa;
     border-radius: 12px;
@@ -280,15 +280,16 @@ p {
 .generated-images-grid {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 15px;
 }
 
 .generated-image-box {
     background: #fff;
     border: 3px solid #4A90E2;
     border-radius: 8px;
-    padding: 15px;
+    padding: 12px;
     transition: all 0.3s ease;
+    max-width: 500px; /* Limit image size */
 }
 
 .generated-image-box:hover {
@@ -297,9 +298,9 @@ p {
 }
 
 .generated-image-box h4 {
-    margin: 0 0 10px 0;
+    margin: 0 0 8px 0;
     color: #4A90E2;
-    font-size: 18px;
+    font-size: 16px;
 }
 
 .generated-image {
@@ -318,6 +319,9 @@ p {
 /* BOTTOM SECTION: Questions (Progressive Flow) */
 .questions-section {
     margin-top: 30px;
+    min-height: 50vh; /* Anchor to bottom portion of viewport */
+    display: flex;
+    flex-direction: column;
 }
 
 .question-progress {
@@ -334,16 +338,19 @@ p {
 }
 
 .questions-container {
+    flex: 1; /* Take up available space */
     min-height: 300px;
+    margin-bottom: 80px; /* Space for floating nav buttons */
 }
 
 .questions-container .evaluation-section {
-    display: none; /* Hidden by default, shown one at a time */
+    display: block; /* All visible, user scrolls through them */
+    margin-bottom: 40px;
+    scroll-margin-top: 20px; /* Space when scrolling to section */
 }
 
-.questions-container .evaluation-section.active {
-    display: block;
-    animation: fadeInUp 0.3s ease;
+.questions-container .evaluation-section:last-child {
+    margin-bottom: 20px;
 }
 
 @keyframes fadeInUp {
@@ -358,25 +365,23 @@ p {
 }
 
 .question-navigation {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     gap: 20px;
-    margin-top: 30px;
-    padding-top: 20px;
-    border-top: 2px solid #e0e0e0;
+    background: white;
+    padding: 15px 30px;
+    border-radius: 50px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
 }
 
 .question-navigation .btn {
-    flex: 1;
-    max-width: 200px;
-}
-
-.question-navigation .btn:first-child {
-    margin-right: auto;
-}
-
-.question-navigation .btn:last-child {
-    margin-left: auto;
+    flex: 0 0 auto;
+    min-width: 120px;
 }
 
 /* Responsive */
@@ -392,11 +397,13 @@ p {
     }
     
     .question-navigation {
-        flex-direction: column;
+        width: 90%;
+        padding: 10px 20px;
     }
     
     .question-navigation .btn {
-        max-width: none;
+        min-width: 100px;
+        font-size: 14px;
     }
 }
 
@@ -586,8 +593,9 @@ p {
 /* Radio Groups */
 .radio-group {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
+    flex-direction: row;
+    gap: 15px;
+    flex-wrap: wrap;
 }
 
 /* Checkbox Groups */
@@ -689,7 +697,7 @@ p {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     padding: 15px 10px;
     border: 2px solid #e0e0e0;
     border-radius: 6px;
@@ -697,6 +705,7 @@ p {
     min-height: 80px;
     text-align: center;
     transition: all 0.3s ease;
+    gap: 4px;
 }
 
 .likert-label span small {
