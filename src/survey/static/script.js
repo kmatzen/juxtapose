@@ -633,54 +633,38 @@ function initializeProgressiveQuestions() {
     
     if (questionSections.length === 0) return;
     
-    // Show first question
-    showQuestion(0);
+    // Show all questions at once
+    questionSections.forEach(section => section.classList.add('active'));
+    currentQuestionIndex = 0;
     
     // Set up navigation buttons
     const prevBtn = document.getElementById('prev-question-btn');
     const nextBtn = document.getElementById('next-question-btn');
-    const submitBtn = document.getElementById('submit-btn');
     
     prevBtn.addEventListener('click', () => navigateQuestion(-1));
     nextBtn.addEventListener('click', () => navigateQuestion(1));
     
-    // Auto-advance when a question group is completed
-    setupAutoAdvance();
-}
-
-function showQuestion(index) {
-    // Hide all questions
-    questionSections.forEach(section => section.classList.remove('active'));
+    // Update initial button states
+    updateNavigationButtons();
     
-    // Show current question
-    if (questionSections[index]) {
-        questionSections[index].classList.add('active');
-        currentQuestionIndex = index;
-        
-        // Update progress
-        document.getElementById('question-num').textContent = `Question ${index + 1}`;
-        
-        // Update navigation buttons
-        updateNavigationButtons();
-        
-        // Scroll to questions section
-        setTimeout(() => {
-            document.querySelector('.questions-section').scrollIntoView({ 
-                behavior: 'smooth', 
-                block: 'nearest' 
-            });
-        }, 100);
-    }
+    // Track scroll position to update progress indicator
+    setupScrollTracking();
 }
 
 function navigateQuestion(direction) {
     const newIndex = currentQuestionIndex + direction;
     
     if (newIndex >= 0 && newIndex < questionSections.length) {
-        showQuestion(newIndex);
-    } else if (newIndex >= questionSections.length) {
-        // All questions answered, show submit button
-        showSubmitButton();
+        currentQuestionIndex = newIndex;
+        
+        // Scroll to the section
+        questionSections[newIndex].scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'start' 
+        });
+        
+        updateNavigationButtons();
+        updateProgressIndicator();
     }
 }
 
@@ -691,34 +675,36 @@ function updateNavigationButtons() {
     // Disable prev button on first question
     prevBtn.disabled = (currentQuestionIndex === 0);
     
-    // Change next button text on last question
-    if (currentQuestionIndex === questionSections.length - 1) {
-        nextBtn.textContent = 'Review & Submit →';
-    } else {
-        nextBtn.textContent = 'Next →';
-    }
+    // Disable next button on last question
+    nextBtn.disabled = (currentQuestionIndex === questionSections.length - 1);
 }
 
-function setupAutoAdvance() {
-    // Listen for changes in all form inputs
-    questionSections.forEach((section, index) => {
-        const inputs = section.querySelectorAll('input[type="radio"]');
-        
-        inputs.forEach(input => {
-            input.addEventListener('change', () => {
-                // Check if this question group is complete
-                if (isQuestionGroupComplete(index)) {
-                    // Auto-advance after a short delay
-                    setTimeout(() => {
-                        if (currentQuestionIndex === index) {
-                            navigateQuestion(1);
-                        }
-                    }, 500);
-                }
-            });
-        });
-    });
+function updateProgressIndicator() {
+    document.getElementById('question-num').textContent = `Question ${currentQuestionIndex + 1}`;
 }
+
+function setupScrollTracking() {
+    // Update progress indicator when user scrolls to different sections
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
+                const index = questionSections.indexOf(entry.target);
+                if (index !== -1) {
+                    currentQuestionIndex = index;
+                    updateNavigationButtons();
+                    updateProgressIndicator();
+                }
+            }
+        });
+    }, {
+        threshold: [0.5],
+        rootMargin: '-100px 0px -100px 0px'
+    });
+    
+    questionSections.forEach(section => observer.observe(section));
+}
+
+// Auto-advance removed - user scrolls through all visible questions
 
 function isQuestionGroupComplete(questionIndex) {
     const section = questionSections[questionIndex];
