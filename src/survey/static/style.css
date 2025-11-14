@@ -324,19 +324,6 @@ p {
     flex-direction: column;
 }
 
-.question-progress {
-    text-align: center;
-    font-size: 14px;
-    color: #666;
-    margin-bottom: 20px;
-    font-weight: 500;
-}
-
-.question-progress #question-num {
-    color: #4A90E2;
-    font-weight: 600;
-}
-
 .questions-container {
     flex: 1; /* Take up available space */
     min-height: 300px;

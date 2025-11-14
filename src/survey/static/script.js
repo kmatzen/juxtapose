@@ -664,7 +664,6 @@ function navigateQuestion(direction) {
         });
         
         updateNavigationButtons();
-        updateProgressIndicator();
     }
 }
 
@@ -679,12 +678,8 @@ function updateNavigationButtons() {
     nextBtn.disabled = (currentQuestionIndex === questionSections.length - 1);
 }
 
-function updateProgressIndicator() {
-    document.getElementById('question-num').textContent = `Question ${currentQuestionIndex + 1}`;
-}
-
 function setupScrollTracking() {
-    // Update progress indicator when user scrolls to different sections
+    // Update navigation buttons when user scrolls to different sections
     const observer = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
             if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
@@ -692,7 +687,6 @@ function setupScrollTracking() {
                 if (index !== -1) {
                     currentQuestionIndex = index;
                     updateNavigationButtons();
-                    updateProgressIndicator();
                 }
             }
         });
