@@ -20,14 +20,16 @@ prompt <TAB> method_a <TAB> method_b <TAB> image_a_url <TAB> image_b_url <TAB> m
 6. **`mask_url`** (URL) - Mask image showing spatial layout constraints
    - Different colors can represent different regions/objects
    - Displayed to users as a reference for spatial adherence
-7. **`identity_urls`** (URLs) - Identity conditioning images, comma-separated if multiple
-   - Example: `https://example.com/identity1.jpg,https://example.com/identity2.jpg`
-   - Supports multiple identity reference images
+7. **`identity_urls`** (URL) - Single URL to a stacked identity image
+   - Image format: 512px wide x (512 * N) tall, where N = number of identities
+   - Each identity is a 512x512 square stacked vertically
+   - JavaScript automatically slices and displays them horizontally
+   - Example: `https://example.com/stacked_identities.jpg` (e.g., 512x1536 for 3 identities)
 
 ## Example
 
 ```
-A person skiing on a mountain	Method-A	Method-B	https://example.com/a.jpg	https://example.com/b.jpg	https://example.com/mask.png	https://example.com/id1.jpg,https://example.com/id2.jpg
+A person skiing on a mountain	Method-A	Method-B	https://example.com/a.jpg	https://example.com/b.jpg	https://example.com/mask.png	https://example.com/stacked_identities.jpg
 ```
 
 ## Backward Compatibility

@@ -87,11 +87,11 @@ def load_image_pairs():
             f.write("# Image Pairs Configuration\n")
             f.write("# Format: prompt <TAB> method_a <TAB> method_b <TAB> image_a_url <TAB> image_b_url <TAB> mask_url <TAB> identity_urls\n")
             f.write("# mask_url: single spatial mask image\n")
-            f.write("# identity_urls: comma-separated list of identity images\n")
+            f.write("# identity_urls: single URL to stacked identity image (512px wide x 512N tall, N = number of identities)\n")
             f.write("# Lines starting with # are comments\n\n")
             f.write("A serene mountain landscape\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\thttps://placehold.co/300x300/yellow/black?text=Mask\thttps://placehold.co/200x200/gray/white?text=Identity\n")
             f.write("A futuristic city\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\thttps://placehold.co/300x300/yellow/black?text=Mask\thttps://placehold.co/200x200/gray/white?text=Identity\n")
-            f.write("A person skiing\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\thttps://placehold.co/300x300/yellow/black?text=Mask\thttps://placehold.co/200x200/gray/white?text=ID1,https://placehold.co/200x200/gray/white?text=ID2\n")
+            f.write("A person skiing\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\thttps://placehold.co/300x300/yellow/black?text=Mask\thttps://placehold.co/512x1024/gray/white?text=Stacked+IDs\n")
         
         print(f"✓ Created {file_path} with sample data")
         # Recursively call to load the newly created file
