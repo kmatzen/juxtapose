@@ -258,10 +258,32 @@ p {
     display: grid;
     grid-template-columns: 45% 55%;
     gap: 25px;
-    margin-bottom: 30px;
     padding: 20px;
     background: #f8f9fa;
     border-radius: 12px;
+    max-height: calc(100vh - 500px); /* Leave space for questions below */
+    min-height: 300px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+}
+
+/* Scrollbar styling for visual content section */
+.visual-content-section::-webkit-scrollbar {
+    width: 8px;
+}
+
+.visual-content-section::-webkit-scrollbar-track {
+    background: #e0e0e0;
+    border-radius: 4px;
+}
+
+.visual-content-section::-webkit-scrollbar-thumb {
+    background: #4A90E2;
+    border-radius: 4px;
+}
+
+.visual-content-section::-webkit-scrollbar-thumb:hover {
+    background: #357ABD;
 }
 
 .context-column {
@@ -318,16 +340,37 @@ p {
 
 /* BOTTOM SECTION: Questions (Progressive Flow) */
 .questions-section {
-    margin-top: 30px;
-    min-height: 50vh; /* Anchor to bottom portion of viewport */
     display: flex;
     flex-direction: column;
+    height: 400px; /* Fixed height to show ~1 question */
+    border-top: 2px solid #e0e0e0;
+    padding-top: 20px;
 }
 
 .questions-container {
-    flex: 1; /* Take up available space */
-    min-height: 300px;
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 10px;
     margin-bottom: 80px; /* Space for floating nav buttons */
+}
+
+/* Scrollbar styling for questions container */
+.questions-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.questions-container::-webkit-scrollbar-track {
+    background: #e0e0e0;
+    border-radius: 4px;
+}
+
+.questions-container::-webkit-scrollbar-thumb {
+    background: #4A90E2;
+    border-radius: 4px;
+}
+
+.questions-container::-webkit-scrollbar-thumb:hover {
+    background: #357ABD;
 }
 
 .questions-container .evaluation-section {
@@ -375,12 +418,23 @@ p {
 @media (max-width: 1024px) {
     .visual-content-section {
         grid-template-columns: 1fr;
+        max-height: calc(100vh - 550px);
+    }
+    
+    .questions-section {
+        height: 450px; /* Slightly taller on tablets */
     }
 }
 
 @media (max-width: 768px) {
     .visual-content-section {
         padding: 15px;
+        max-height: calc(100vh - 600px);
+        min-height: 250px;
+    }
+    
+    .questions-section {
+        height: 500px; /* More height on mobile */
     }
     
     .question-navigation {
