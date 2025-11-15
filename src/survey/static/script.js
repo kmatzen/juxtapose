@@ -768,10 +768,24 @@ function setQuestionsHeight() {
     
     // Get viewport height
     const vh = window.innerHeight;
+    const vw = window.innerWidth;
     
-    // Questions section should be at least one full question, but not more than 50vh
-    const maxHeight = vh * 0.5;
-    const minHeight = 300;
+    // Detect landscape orientation on mobile
+    const isLandscape = vw > vh;
+    const isMobile = vw <= 768;
+    const isMobileLandscape = isMobile && isLandscape;
+    
+    // Adjust constraints based on orientation
+    let maxHeight, minHeight;
+    if (isMobileLandscape) {
+        // In mobile landscape, use more flexible constraints
+        maxHeight = vh * 0.4;  // Allow visual content more space
+        minHeight = Math.min(200, vh * 0.35);  // Reduce minimum
+    } else {
+        // Portrait or desktop
+        maxHeight = vh * 0.5;
+        minHeight = 300;
+    }
     
     const finalHeight = Math.min(Math.max(desiredHeight, minHeight), maxHeight);
     
