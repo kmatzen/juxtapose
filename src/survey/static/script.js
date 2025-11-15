@@ -714,10 +714,16 @@ function scaleVisualContent(availableHeight) {
     const visualSection = document.querySelector('.visual-content-section');
     if (!visualSection) return;
     
-    // Set the height constraint but allow vertical scrolling if needed
-    visualSection.style.maxHeight = `${availableHeight}px`;
-    visualSection.style.overflowY = 'auto';
-    visualSection.style.overflowX = 'hidden';
+    // Set max-height on each column independently for independent scrolling
+    const contextColumn = document.querySelector('.context-column');
+    const generatedImagesColumn = document.querySelector('.generated-images-column');
+    
+    if (contextColumn) {
+        contextColumn.style.maxHeight = `${availableHeight}px`;
+    }
+    if (generatedImagesColumn) {
+        generatedImagesColumn.style.maxHeight = `${availableHeight}px`;
+    }
     
     // Get all images in the visual section
     const generatedImages = visualSection.querySelectorAll('.generated-image');
