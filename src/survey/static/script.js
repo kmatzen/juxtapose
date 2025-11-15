@@ -768,8 +768,8 @@ function scaleVisualContent(availableHeight) {
     
     identityImages.forEach(img => {
         img.style.maxHeight = `${smallImageHeight}px`;
-        img.style.minWidth = '200px';
-        img.style.minHeight = '200px';
+        img.style.minWidth = '50px';
+        img.style.minHeight = '50px';
         img.style.width = 'auto';
         img.style.objectFit = 'contain';
     });
