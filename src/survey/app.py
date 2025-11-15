@@ -413,7 +413,8 @@ def submit_demographics():
 def get_image_pair(pair_index):
     """Get a specific image pair"""
     # Initialize user's randomized pair list if not already done
-    if 'user_image_pairs' not in session:
+    # OR if DEV_MODE has changed since session was created
+    if 'user_image_pairs' not in session or session.get('session_dev_mode') != DEV_MODE:
         # In dev mode, use first 3 pairs; in production, randomly sample up to 30
         max_pairs = 3 if DEV_MODE else 30
         
@@ -432,6 +433,7 @@ def get_image_pair(pair_index):
         # Store the shuffled pair list in session (store just the IDs to keep session small)
         session['user_image_pairs'] = [pair['id'] for pair in user_pairs]
         session['user_pairs_count'] = len(user_pairs)
+        session['session_dev_mode'] = DEV_MODE  # Track which mode this session was created in
     
     # Get user's pair list
     user_pair_ids = session.get('user_image_pairs', [])
