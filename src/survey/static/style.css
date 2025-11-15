@@ -728,6 +728,16 @@ p {
     .likert-scale {
         flex-wrap: wrap;
     }
+    
+    /* Stack generated images vertically on narrow displays */
+    .generated-images-grid {
+        flex-direction: column;
+    }
+    
+    .generated-image-box {
+        width: 100%;
+        max-width: 100%;
+    }
 }
 
 .likert-label {
