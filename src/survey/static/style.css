@@ -646,7 +646,7 @@ p {
     display: flex;
     flex-direction: row;
     gap: 15px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
 }
 
 /* Checkbox Groups */
@@ -725,10 +725,6 @@ p {
 }
 
 @media (max-width: 768px) {
-    .likert-scale {
-        flex-wrap: wrap;
-    }
-    
     /* Stack generated images vertically on narrow displays */
     .generated-images-grid {
         flex-direction: column;
@@ -737,6 +733,21 @@ p {
     .generated-image-box {
         width: 100%;
         max-width: 100%;
+    }
+    
+    /* Keep radio buttons and Likert scales on one line, reduce size to fit */
+    .radio-label {
+        padding: 8px 10px;
+        font-size: 12px;
+    }
+    
+    .likert-label span {
+        padding: 8px 4px;
+        font-size: 11px;
+    }
+    
+    .likert-label span small {
+        font-size: 9px;
     }
 }
 
