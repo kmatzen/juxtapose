@@ -679,8 +679,16 @@ function setQuestionsHeight() {
     
     const sectionHeight = firstSection.offsetHeight;
     
-    // Add some padding for comfortable viewing
-    const desiredHeight = sectionHeight + 60; // 60px for padding/spacing
+    // Account for all fixed elements in the questions section:
+    // - questions-section padding-top: 20px
+    // - questions-section border-top: 2px
+    // - navigation buttons height: ~50px
+    // - submit button section: ~60px (button + margins)
+    // - questions-container margin-bottom: 80px (space for nav buttons)
+    // - extra spacing: 20px
+    const fixedElementsHeight = 20 + 2 + 50 + 60 + 80 + 20; // ~232px
+    
+    const desiredHeight = sectionHeight + fixedElementsHeight;
     
     // Get viewport height
     const vh = window.innerHeight;
