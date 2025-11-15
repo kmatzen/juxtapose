@@ -14,19 +14,19 @@ body {
 }
 
 .container {
-    max-width: 900px; /* Default narrow width for forms */
+    max-width: 600px; /* Default narrow width for forms */
     width: 95%;
     margin: 0 auto;
     background: white;
     border-radius: 12px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-    padding: 40px;
+    padding: 20px;
     transition: max-width 0.3s ease;
 }
 
 /* Expand container when survey section is active (but narrower than before) */
 .container:has(#survey-section.active) {
-    max-width: 1200px;
+    max-width: 1000px;
 }
 
 @media (max-width: 1200px) {
@@ -794,6 +794,11 @@ p {
     cursor: pointer;
     transition: all 0.3s ease;
     display: inline-block;
+}
+
+#submit-btn {
+    font-size: 20px;
+    padding: 10px 20px;
 }
 
 .btn-primary {

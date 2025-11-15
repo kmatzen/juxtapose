@@ -421,16 +421,14 @@ async function loadImagePair(index) {
             const progressPercent = ((index) / data.total_pairs) * 100;
             document.getElementById('progress-bar-fill').style.width = progressPercent + '%';
             
-            // Update button text
-            const submitBtn = document.getElementById('submit-btn');
-            if (index >= data.total_pairs - 1) {
-                submitBtn.textContent = 'Submit Survey';
-            } else {
-                submitBtn.textContent = 'Next Image Pair';
-            }
-            
             // Reset form
             document.getElementById('survey-form').reset();
+            
+            // Disable submit button until questions are answered
+            const submitBtn = document.getElementById('submit-btn');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+            }
             
             // Reinitialize progressive questions for new image pair
             setTimeout(() => {
@@ -662,6 +660,9 @@ function initializeProgressiveQuestions() {
     
     // Track scroll position to update progress indicator
     setupScrollTracking();
+    
+    // Set up validation for submit button
+    setupSubmitValidation();
 }
 
 function setQuestionsHeight() {
@@ -892,7 +893,48 @@ function isQuestionGroupComplete(questionIndex) {
     return Object.values(radioGroups).every(selected => selected);
 }
 
-// Submit button is now always visible at the bottom of the questions section
+function setupSubmitValidation() {
+    const submitBtn = document.getElementById('submit-btn');
+    const surveyForm = document.getElementById('survey-form');
+    
+    if (!submitBtn || !surveyForm) return;
+    
+    // Function to check if all required questions are answered
+    function validateForm() {
+        // Get all required radio inputs
+        const requiredRadioGroups = {};
+        const allRadios = surveyForm.querySelectorAll('input[type="radio"][required]');
+        
+        allRadios.forEach(radio => {
+            requiredRadioGroups[radio.name] = false;
+        });
+        
+        // Check which groups have a selection
+        allRadios.forEach(radio => {
+            if (radio.checked) {
+                requiredRadioGroups[radio.name] = true;
+            }
+        });
+        
+        // All required groups must have a selection
+        const allAnswered = Object.values(requiredRadioGroups).every(answered => answered);
+        
+        // Enable/disable submit button
+        submitBtn.disabled = !allAnswered;
+        
+        return allAnswered;
+    }
+    
+    // Listen for changes on all radio inputs
+    surveyForm.addEventListener('change', (e) => {
+        if (e.target.type === 'radio') {
+            validateForm();
+        }
+    });
+    
+    // Initial validation
+    validateForm();
+}
 
 // Initialize progressive questions when survey section loads
 // This is now handled in loadImagePair() to avoid MutationObserver overhead
