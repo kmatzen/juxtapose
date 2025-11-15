@@ -714,9 +714,10 @@ function scaleVisualContent(availableHeight) {
     const visualSection = document.querySelector('.visual-content-section');
     if (!visualSection) return;
     
-    // Set the height constraint but allow scrolling if needed
+    // Set the height constraint but allow vertical scrolling if needed
     visualSection.style.maxHeight = `${availableHeight}px`;
-    visualSection.style.overflow = 'auto';
+    visualSection.style.overflowY = 'auto';
+    visualSection.style.overflowX = 'hidden';
     
     // Get all images in the visual section
     const generatedImages = visualSection.querySelectorAll('.generated-image');
