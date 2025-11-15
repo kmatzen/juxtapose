@@ -895,6 +895,64 @@ def admin_export():
     )
     return response
 
+@app.route('/api/admin/delete_by_email', methods=['POST'])
+@require_admin
+def delete_by_email():
+    """Delete all records associated with an email address"""
+    email = request.json.get('email')
+    
+    if not email:
+        return jsonify({'error': 'Email address is required'}), 400
+    
+    db = get_db()
+    try:
+        # Find all participant IDs associated with this email
+        participant_ids = db.execute('''
+            SELECT p.id 
+            FROM participants p
+            JOIN demographics d ON p.id = d.participant_id
+            WHERE d.email = ?
+        ''', (email,)).fetchall()
+        
+        if not participant_ids:
+            return jsonify({'error': 'No records found for this email address'}), 404
+        
+        participant_id_list = [p['id'] for p in participant_ids]
+        placeholders = ','.join('?' * len(participant_id_list))
+        
+        # Delete survey responses
+        responses_deleted = db.execute(
+            f'DELETE FROM survey_responses WHERE participant_id IN ({placeholders})',
+            participant_id_list
+        ).rowcount
+        
+        # Delete demographics
+        demographics_deleted = db.execute(
+            f'DELETE FROM demographics WHERE participant_id IN ({placeholders})',
+            participant_id_list
+        ).rowcount
+        
+        # Delete participants
+        participants_deleted = db.execute(
+            f'DELETE FROM participants WHERE id IN ({placeholders})',
+            participant_id_list
+        ).rowcount
+        
+        db.commit()
+        
+        return jsonify({
+            'success': True,
+            'email': email,
+            'participants_deleted': participants_deleted,
+            'demographics_deleted': demographics_deleted,
+            'responses_deleted': responses_deleted
+        })
+    except Exception as e:
+        db.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
