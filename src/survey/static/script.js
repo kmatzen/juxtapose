@@ -814,13 +814,15 @@ function setQuestionsHeight() {
     let availableHeight = vh - finalHeight - progressHeight - containerPadding - margins;
     
     // Ensure minimum height for visual content to show mask + generated images
-    // Minimum: image height (200px) + headers/padding (~80px) = 280px
-    const minVisualHeight = 280;
+    // Adjust minimum based on orientation
+    const minVisualHeight = isMobileLandscape ? 350 : 280;
     
     // If calculated height is too small, reduce questions section to make room
     if (availableHeight < minVisualHeight) {
         const deficit = minVisualHeight - availableHeight;
-        const adjustedQuestionsHeight = Math.max(finalHeight - deficit, minHeight * 0.8);
+        // In landscape, be more aggressive - shrink questions to 60% of minimum if needed
+        const minQuestionsFactor = isMobileLandscape ? 0.6 : 0.8;
+        const adjustedQuestionsHeight = Math.max(finalHeight - deficit, minHeight * minQuestionsFactor);
         
         if (questionsSection) {
             questionsSection.style.height = `${adjustedQuestionsHeight}px`;
