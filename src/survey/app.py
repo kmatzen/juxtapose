@@ -1,16 +1,55 @@
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, abort
 import sqlite3
 import uuid
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import random
 from functools import wraps
+import hashlib
+import secrets
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+
+# Security: Require strong SECRET_KEY in production
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    if os.environ.get('FLASK_ENV') == 'production' or os.path.exists('/data'):
+        raise ValueError("SECRET_KEY environment variable must be set in production!")
+    SECRET_KEY = 'dev-secret-key-change-in-production'
+app.secret_key = SECRET_KEY
+
+# Security: Session configuration
+app.config['SESSION_COOKIE_SECURE'] = not (os.environ.get('FLASK_ENV') == 'development')  # HTTPS only in production
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)  # Session timeout
+
+# Security: CSRF Protection
+app.config['WTF_CSRF_ENABLED'] = True
+app.config['WTF_CSRF_TIME_LIMIT'] = None  # Don't expire CSRF tokens
+csrf = CSRFProtect(app)
+
+# Security: Rate Limiting
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per hour"],
+    storage_uri="memory://",
+)
+
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')  # Change this in production
 DEV_MODE = os.environ.get('DEV_MODE', 'false').lower() == 'true'  # Set DEV_MODE=true for testing
+
+# Security: Warn if weak admin password in production
+if ADMIN_PASSWORD == 'admin123' and (os.environ.get('FLASK_ENV') == 'production' or os.path.exists('/data')):
+    print("WARNING: Using default admin password! Set ADMIN_PASSWORD environment variable!")
+
+# Audit log file
+AUDIT_LOG_FILE = '/data/audit.log' if os.path.exists('/data') else 'audit.log'
 
 # Referral codes - Set valid codes via environment variable (comma-separated) or in code
 # If empty, no referral code is required
@@ -110,6 +149,44 @@ try:
     migrate_database()
 except Exception as e:
     print(f"Warning: Migration failed (might be first run): {e}")
+
+# Security: Audit logging
+def audit_log(action, details, user_ip=None):
+    """Log security-sensitive actions"""
+    try:
+        timestamp = datetime.now().isoformat()
+        ip = user_ip or get_remote_address()
+        session_id = session.get('session_id', 'unknown')
+        admin_session = 'ADMIN' if session.get('admin_authenticated') else 'USER'
+        
+        log_entry = {
+            'timestamp': timestamp,
+            'ip': ip,
+            'session': session_id,
+            'role': admin_session,
+            'action': action,
+            'details': details
+        }
+        
+        with open(AUDIT_LOG_FILE, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(log_entry) + '\n')
+            
+    except Exception as e:
+        # Never let audit logging break the app
+        print(f"Audit logging error: {e}")
+
+# Security: HTTP Security Headers
+@app.after_request
+def set_security_headers(response):
+    """Add security headers to all responses"""
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    # Only set HSTS in production (Fly.io handles HTTPS)
+    if os.path.exists('/data'):
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    return response
 
 def get_db():
     """Get database connection"""
@@ -358,6 +435,7 @@ def check_demographics():
         db.close()
 
 @app.route('/api/submit_demographics', methods=['POST'])
+@csrf.exempt  # Exempt from CSRF - protected by session
 def submit_demographics():
     """Submit demographics information"""
     if 'session_id' not in session:
@@ -464,7 +542,9 @@ def submit_demographics():
         })
     except Exception as e:
         db.rollback()
-        return jsonify({'error': str(e)}), 500
+        # Security: Don't leak internal error details
+        print(f"Error in submit_demographics: {e}")
+        return jsonify({'error': 'An error occurred while submitting demographics'}), 500
     finally:
         db.close()
 
@@ -588,6 +668,7 @@ def get_image_pair(pair_index):
     return jsonify(pair)
 
 @app.route('/api/submit_survey', methods=['POST'])
+@csrf.exempt  # Exempt from CSRF - protected by session
 def submit_survey():
     """Submit survey response for a single image pair"""
     if 'session_id' not in session:
@@ -700,25 +781,44 @@ def submit_survey():
         return jsonify({'success': True, 'completed': completed})
     except Exception as e:
         db.rollback()
-        return jsonify({'error': str(e)}), 500
+        # Security: Don't leak internal error details
+        print(f"Error in submit_survey: {e}")
+        return jsonify({'error': 'An error occurred while submitting survey response'}), 500
     finally:
         db.close()
 
 @app.route('/admin/login', methods=['GET', 'POST'])
+@limiter.limit("10 per hour")  # Security: Strict rate limit on login attempts
 def admin_login():
     """Admin login page"""
     if request.method == 'POST':
         password = request.form.get('password')
+        ip = get_remote_address()
+        
         if password == ADMIN_PASSWORD:
             session['admin_authenticated'] = True
+            session.permanent = True  # Enable session timeout
+            
+            # Security: Audit successful login
+            audit_log('ADMIN_LOGIN_SUCCESS', {'ip': ip})
+            
             return redirect(url_for('admin'))
         else:
-            return render_template('admin_login.html', error='Invalid password')
+            # Security: Audit failed login attempt
+            audit_log('ADMIN_LOGIN_FAILED', {'ip': ip, 'reason': 'Invalid password'})
+            
+            # Security: Don't reveal whether username or password was wrong
+            return render_template('admin_login.html', error='Invalid credentials'), 401
+    
     return render_template('admin_login.html')
 
 @app.route('/admin/logout')
 def admin_logout():
     """Admin logout"""
+    if session.get('admin_authenticated'):
+        # Security: Audit logout
+        audit_log('ADMIN_LOGOUT', {'ip': get_remote_address()})
+    
     session.pop('admin_authenticated', None)
     return redirect(url_for('admin_login'))
 
@@ -897,12 +997,20 @@ def admin_export():
 
 @app.route('/api/admin/delete_by_email', methods=['POST'])
 @require_admin
+@limiter.limit("20 per hour")  # Security: Rate limit delete operations
 def delete_by_email():
     """Delete all records associated with an email address"""
-    email = request.json.get('email')
+    email = request.json.get('email') if request.json else None
     
+    # Security: Input validation
     if not email:
+        audit_log('DELETE_FAILED', {'reason': 'No email provided'})
         return jsonify({'error': 'Email address is required'}), 400
+    
+    # Security: Basic email format validation
+    if '@' not in email or len(email) > 255:
+        audit_log('DELETE_FAILED', {'reason': 'Invalid email format', 'email': email[:50]})
+        return jsonify({'error': 'Invalid email format'}), 400
     
     db = get_db()
     try:
@@ -915,6 +1023,8 @@ def delete_by_email():
         ''', (email,)).fetchall()
         
         if not participant_ids:
+            # Security: Audit attempted deletion of non-existent email
+            audit_log('DELETE_NOT_FOUND', {'email': email})
             return jsonify({'error': 'No records found for this email address'}), 404
         
         participant_id_list = [p['id'] for p in participant_ids]
@@ -940,6 +1050,14 @@ def delete_by_email():
         
         db.commit()
         
+        # Security: Audit successful deletion
+        audit_log('DELETE_SUCCESS', {
+            'email': email,
+            'participants_deleted': participants_deleted,
+            'demographics_deleted': demographics_deleted,
+            'responses_deleted': responses_deleted
+        })
+        
         return jsonify({
             'success': True,
             'email': email,
@@ -949,7 +1067,9 @@ def delete_by_email():
         })
     except Exception as e:
         db.rollback()
-        return jsonify({'error': str(e)}), 500
+        # Security: Audit deletion error, but don't leak details to client
+        audit_log('DELETE_ERROR', {'email': email, 'error': str(e)})
+        return jsonify({'error': 'An error occurred while deleting records'}), 500
     finally:
         db.close()
 
