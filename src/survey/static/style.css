@@ -10,6 +10,7 @@ body {
     min-height: 100vh;
     padding: 20px;
     color: #333;
+    font-size: 13px;
 }
 
 .container {
@@ -104,18 +105,19 @@ body {
 h1 {
     color: #2c3e50;
     margin-bottom: 10px;
-    font-size: 28px;
+    font-size: 20px;
 }
 
 p {
     color: #666;
-    margin-bottom: 30px;
-    line-height: 1.6;
+    margin-bottom: 20px;
+    line-height: 1.5;
+    font-size: 13px;
 }
 
 .instruction {
-    font-size: 16px;
-    margin-bottom: 20px;
+    font-size: 13px;
+    margin-bottom: 15px;
 }
 
 /* Info Box */
@@ -569,9 +571,9 @@ p {
 
 .section-title {
     color: #2c3e50;
-    font-size: 16px;
-    margin-bottom: 15px;
-    padding-bottom: 8px;
+    font-size: 14px;
+    margin-bottom: 12px;
+    padding-bottom: 6px;
     border-bottom: 2px solid #e0e0e0;
     font-weight: 600;
 }
@@ -584,18 +586,18 @@ p {
 .form-group label {
     display: block;
     font-weight: 600;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     color: #2c3e50;
-    font-size: 14px;
+    font-size: 13px;
 }
 
 .form-group input[type="text"],
 .form-group select {
     width: 100%;
-    padding: 8px 12px;
+    padding: 6px 10px;
     border: 2px solid #e0e0e0;
     border-radius: 6px;
-    font-size: 14px;
+    font-size: 13px;
     transition: border-color 0.3s ease;
 }
 
@@ -652,12 +654,12 @@ p {
 .radio-label {
     display: flex;
     align-items: center;
-    padding: 8px 12px;
+    padding: 6px 10px;
     border: 2px solid #e0e0e0;
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.3s ease;
-    font-size: 14px;
+    font-size: 13px;
 }
 
 .radio-label:hover {
@@ -714,15 +716,15 @@ p {
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    padding: 10px 8px;
+    padding: 8px 6px;
     border: 2px solid #e0e0e0;
     border-radius: 6px;
     width: 100%;
-    min-height: 65px;
+    min-height: 55px;
     text-align: center;
     transition: all 0.3s ease;
-    gap: 3px;
-    font-size: 14px;
+    gap: 2px;
+    font-size: 13px;
 }
 
 .likert-label span small {
@@ -750,10 +752,10 @@ p {
 
 /* Buttons */
 .btn {
-    padding: 8px 20px;
+    padding: 6px 16px;
     border: none;
     border-radius: 6px;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
