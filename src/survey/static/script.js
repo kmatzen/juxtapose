@@ -10,6 +10,7 @@ let devMode = false;
 document.addEventListener('DOMContentLoaded', async function() {
     await checkDevMode();
     collectDeviceInfo();
+    await checkDemographicsSubmitted();
     setupEventListeners();
 });
 
@@ -41,6 +42,29 @@ async function checkDevMode() {
         }
     } catch (error) {
         console.error('Error checking dev mode:', error);
+    }
+}
+
+async function checkDemographicsSubmitted() {
+    try {
+        const response = await fetch('/api/check_demographics');
+        const data = await response.json();
+        
+        if (data.submitted) {
+            // Demographics already submitted - skip to survey section
+            const demographicsSection = document.getElementById('demographics-section');
+            const surveySection = document.getElementById('survey-section');
+            
+            if (demographicsSection && surveySection) {
+                demographicsSection.classList.remove('active');
+                surveySection.classList.add('active');
+                
+                // Load the first image pair
+                await loadImagePair(0);
+            }
+        }
+    } catch (error) {
+        console.error('Error checking demographics:', error);
     }
 }
 
