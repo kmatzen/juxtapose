@@ -178,10 +178,17 @@ def init_db():
             better_identity_match TEXT,
             identity_confidence INTEGER,
             was_randomized INTEGER DEFAULT 0,
+            time_spent REAL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (participant_id) REFERENCES participants (id)
         )
     ''')
+    
+    # Add time_spent column if it doesn't exist (for existing databases)
+    try:
+        db.execute('ALTER TABLE survey_responses ADD COLUMN time_spent REAL')
+    except:
+        pass  # Column already exists
     
     db.commit()
     db.close()
@@ -625,6 +632,7 @@ def submit_survey():
                     better_identity_match = ?,
                     identity_confidence = ?,
                     was_randomized = ?,
+                    time_spent = ?,
                     created_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             ''', (
@@ -644,6 +652,7 @@ def submit_survey():
                 data.get('better_identity_match'),
                 data.get('identity_confidence'),
                 1 if data.get('was_randomized') else 0,
+                data.get('time_spent'),
                 existing['id']
             ))
         else:
@@ -654,8 +663,8 @@ def submit_survey():
                  identity_urls, mask_url,
                  better_image, image_confidence, better_prompt_match, prompt_confidence,
                  better_mask_match, mask_confidence, better_identity_match, identity_confidence,
-                 was_randomized)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 was_randomized, time_spent)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 participant['id'],
                 data.get('image_pair_id'),
@@ -674,7 +683,8 @@ def submit_survey():
                 data.get('mask_confidence'),
                 data.get('better_identity_match'),
                 data.get('identity_confidence'),
-                1 if data.get('was_randomized') else 0
+                1 if data.get('was_randomized') else 0,
+                data.get('time_spent')
             ))
         
         # Check if they've completed all their assigned image pairs
@@ -762,6 +772,7 @@ def admin_results():
             s.better_identity_match,
             s.identity_confidence,
             s.was_randomized,
+            s.time_spent,
             s.created_at as response_created,
             CASE 
                 WHEN s.better_image = 'A' THEN s.method_a
@@ -840,6 +851,7 @@ def admin_export():
             s.better_identity_match,
             s.identity_confidence,
             s.was_randomized,
+            s.time_spent,
             s.created_at as response_created,
             CASE 
                 WHEN s.better_image = 'A' THEN s.method_a
