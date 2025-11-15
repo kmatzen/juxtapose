@@ -756,14 +756,7 @@ p {
 }
 
 @media (max-width: 480px) {
-    /* Very narrow displays: simplify Likert scale to 2 options (1 and 5 only) */
-    
-    /* Hide middle options (2, 3, 4) */
-    .likert-label:has(input[value="2"]),
-    .likert-label:has(input[value="3"]),
-    .likert-label:has(input[value="4"]) {
-        display: none;
-    }
+    /* Very narrow displays: simplify Likert scale labels */
     
     /* Change label for option 1 to "Least" */
     .likert-label:has(input[value="1"]) span small::before {
@@ -772,6 +765,13 @@ p {
     
     .likert-label:has(input[value="1"]) span small {
         font-size: 0;
+    }
+    
+    /* Hide labels for options 2, 3, 4 */
+    .likert-label:has(input[value="2"]) span small,
+    .likert-label:has(input[value="3"]) span small,
+    .likert-label:has(input[value="4"]) span small {
+        display: none;
     }
     
     /* Change label for option 5 to "Most" */
@@ -786,11 +786,6 @@ p {
     .likert-label:has(input[value="1"]) span small::before,
     .likert-label:has(input[value="5"]) span small::before {
         font-size: 9px;
-    }
-    
-    /* Give remaining options more space */
-    .likert-label {
-        flex: 1;
     }
 }
 
