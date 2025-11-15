@@ -228,6 +228,8 @@ p {
     border-radius: 12px;
     /* Height and overflow controlled dynamically by JavaScript */
     margin-bottom: 20px;
+    overflow-x: hidden; /* Prevent horizontal scroll */
+    overflow-y: auto; /* Allow vertical scroll */
 }
 
 /* Scrollbar styling for visual content section */
