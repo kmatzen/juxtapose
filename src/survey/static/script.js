@@ -432,7 +432,16 @@ async function loadImagePair(index) {
             
             // Reinitialize progressive questions for new image pair
             setTimeout(() => {
+                // Reset to first question
+                currentQuestionIndex = 0;
+                
                 initializeProgressiveQuestions();
+                
+                // Reset scroll position to the first question
+                const questionsContainer = document.querySelector('.questions-container');
+                if (questionsContainer) {
+                    questionsContainer.scrollTop = 0;
+                }
             }, 200);
             
             // Auto-fill in dev mode
