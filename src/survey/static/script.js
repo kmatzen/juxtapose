@@ -5,6 +5,7 @@ let currentImageData = null;
 let totalImagePairs = 30;
 let deviceInfo = {};
 let devMode = false;
+let pairStartTime = null;  // Track when user starts viewing current pair
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async function() {
@@ -396,6 +397,9 @@ async function loadImagePair(index) {
                         surveyForm.style.pointerEvents = 'auto';
                         surveyForm.style.opacity = '1';
                         
+                        // Start timing for this pair (when images are ready and form is enabled)
+                        pairStartTime = Date.now();
+                        
                         // Verify images loaded (don't reveal method names to avoid bias)
                         console.log(`✓ Loaded comparison ${data.id} of ${data.total_pairs}`);
                     }
@@ -494,6 +498,9 @@ async function handleSurveySubmit(event) {
     const formData = new FormData(event.target);
     const surveyResponse = Object.fromEntries(formData.entries());
     
+    // Calculate time spent on this pair (in seconds)
+    const timeSpent = pairStartTime ? (Date.now() - pairStartTime) / 1000 : null;
+    
     // Add the current image data to the response
     const completeResponse = {
         ...surveyResponse,
@@ -506,6 +513,7 @@ async function handleSurveySubmit(event) {
         identity_urls: currentImageData.identity_urls || null,
         mask_url: currentImageData.mask_url || null,
         was_randomized: currentImageData.was_randomized,
+        time_spent: timeSpent,
         image_confidence: parseInt(surveyResponse.image_confidence),
         prompt_confidence: parseInt(surveyResponse.prompt_confidence),
         // Conditionally add mask/identity fields if present
