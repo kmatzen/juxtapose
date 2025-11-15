@@ -949,9 +949,18 @@ function setupAutoAdvance() {
                 if (isQuestionGroupComplete(index)) {
                     // Small delay to let user see their selection
                     setTimeout(() => {
-                        // If we're still on this question, advance to next
-                        if (currentQuestionIndex === index && index < questionSections.length - 1) {
-                            navigateQuestion(1);
+                        // If we're still on this question
+                        if (currentQuestionIndex === index) {
+                            if (index < questionSections.length - 1) {
+                                // Advance to next question
+                                navigateQuestion(1);
+                            } else {
+                                // Last question - scroll to reveal submit button
+                                const submitBtn = document.getElementById('submit-btn');
+                                if (submitBtn) {
+                                    submitBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }
+                            }
                         }
                     }, 500);
                 }
