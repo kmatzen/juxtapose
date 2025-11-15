@@ -305,6 +305,31 @@ def get_config():
         'dev_mode': DEV_MODE
     })
 
+@app.route('/api/check_demographics')
+def check_demographics():
+    """Check if demographics have been submitted for current session"""
+    if 'session_id' not in session:
+        return jsonify({'submitted': False})
+    
+    db = get_db()
+    try:
+        participant = db.execute(
+            'SELECT id FROM participants WHERE session_id = ?',
+            (session['session_id'],)
+        ).fetchone()
+        
+        if not participant:
+            return jsonify({'submitted': False})
+        
+        demo = db.execute(
+            'SELECT id FROM demographics WHERE participant_id = ?',
+            (participant['id'],)
+        ).fetchone()
+        
+        return jsonify({'submitted': demo is not None})
+    finally:
+        db.close()
+
 @app.route('/api/submit_demographics', methods=['POST'])
 def submit_demographics():
     """Submit demographics information"""
