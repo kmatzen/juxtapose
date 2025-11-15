@@ -724,13 +724,18 @@ function scaleVisualContent(availableHeight) {
     const maskImage = visualSection.querySelector('#mask-image');
     
     // Calculate how much space we have for images
-    // Account for padding, margins, text, etc.
-    const nonImageSpace = 150; // Approximate space for text, padding, borders
-    const availableImageSpace = availableHeight - nonImageSpace;
+    // Account for: prompt box (~50px), padding (40px), margins (30px), headers (30px)
+    const promptAndHeaderSpace = 150;
     
-    // The generated images are in a column, so they stack
-    // Each should take roughly half the available image space
-    const maxImageHeight = Math.floor(availableImageSpace / 2.5);
+    // Space for identity and mask images on the left column
+    const leftColumnImageSpace = 200;
+    
+    // Generated images are side-by-side, so they can use most of the available height
+    const availableImageSpace = availableHeight - promptAndHeaderSpace;
+    
+    // Generated images can be quite large now that they're side-by-side
+    // Use about 80% of available space to leave room for boxes/padding
+    const maxImageHeight = Math.floor(availableImageSpace * 0.8);
     
     // Apply max height to generated images
     generatedImages.forEach(img => {
@@ -739,8 +744,8 @@ function scaleVisualContent(availableHeight) {
         img.style.objectFit = 'contain';
     });
     
-    // Scale down identity and mask images proportionally
-    const smallImageHeight = Math.floor(maxImageHeight * 0.6);
+    // Identity and mask images: smaller to fit in left column alongside prompt
+    const smallImageHeight = Math.floor((availableHeight - promptAndHeaderSpace) / 3);
     
     identityImages.forEach(img => {
         img.style.maxHeight = `${smallImageHeight}px`;
