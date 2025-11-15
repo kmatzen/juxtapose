@@ -94,13 +94,16 @@ function collectDeviceInfo() {
         browserVersion = ua.match(/Edg\/(\d+\.\d+)/)?.[1] || '';
     }
     
-    // Detect OS
+    // Detect OS (check iOS/iPadOS first, as they often report as Mac)
     let os = 'Unknown';
-    if (ua.indexOf('Win') > -1) os = 'Windows';
+    const isIOS = /iPad|iPhone|iPod/.test(ua) || 
+                  (ua.indexOf('Mac') > -1 && navigator.maxTouchPoints > 1);
+    
+    if (isIOS) os = 'iOS';
+    else if (ua.indexOf('Android') > -1) os = 'Android';
+    else if (ua.indexOf('Win') > -1) os = 'Windows';
     else if (ua.indexOf('Mac') > -1) os = 'macOS';
     else if (ua.indexOf('Linux') > -1) os = 'Linux';
-    else if (ua.indexOf('Android') > -1) os = 'Android';
-    else if (ua.indexOf('iOS') > -1 || ua.indexOf('iPhone') > -1 || ua.indexOf('iPad') > -1) os = 'iOS';
     
     // Collect device info
     deviceInfo = {
