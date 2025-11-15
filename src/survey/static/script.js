@@ -693,10 +693,21 @@ function setQuestionsHeight() {
     const navHeight = navigationButtons ? navigationButtons.offsetHeight : 0;
     const submitHeight = submitButtonSection ? submitButtonSection.offsetHeight : 0;
     
-    // Add some buffer for margins between elements (one evaluation section's bottom margin)
+    // Add some buffer for margins between elements
     const buffer = 25;
     
     const fixedElementsHeight = paddingTop + borderTop + navHeight + submitHeight + buffer;
+    
+    console.log('setQuestionsHeight measurements:', {
+        sectionHeight,
+        paddingTop,
+        borderTop,
+        navHeight,
+        submitHeight,
+        buffer,
+        fixedElementsHeight,
+        total: sectionHeight + fixedElementsHeight
+    });
     
     const desiredHeight = sectionHeight + fixedElementsHeight;
     
