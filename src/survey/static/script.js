@@ -899,25 +899,24 @@ function setupSubmitValidation() {
     
     if (!submitBtn || !surveyForm) return;
     
-    // Function to check if all required questions are answered
+    // Function to check if all questions are answered
     function validateForm() {
-        // Get all required radio inputs
-        const requiredRadioGroups = {};
-        const allRadios = surveyForm.querySelectorAll('input[type="radio"][required]');
+        // Get ALL radio inputs and group by name
+        const radioGroups = {};
+        const allRadios = surveyForm.querySelectorAll('input[type="radio"]');
         
         allRadios.forEach(radio => {
-            requiredRadioGroups[radio.name] = false;
-        });
-        
-        // Check which groups have a selection
-        allRadios.forEach(radio => {
+            if (!radioGroups[radio.name]) {
+                radioGroups[radio.name] = false;
+            }
             if (radio.checked) {
-                requiredRadioGroups[radio.name] = true;
+                radioGroups[radio.name] = true;
             }
         });
         
-        // All required groups must have a selection
-        const allAnswered = Object.values(requiredRadioGroups).every(answered => answered);
+        // All groups must have a selection
+        const allAnswered = Object.values(radioGroups).length > 0 && 
+                           Object.values(radioGroups).every(answered => answered);
         
         // Enable/disable submit button
         submitBtn.disabled = !allAnswered;
