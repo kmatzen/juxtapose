@@ -756,6 +756,8 @@ function scaleVisualContent(availableHeight) {
     generatedImages.forEach(img => {
         img.style.maxHeight = `${maxImageHeight}px`;
         img.style.maxWidth = `${maxImageWidth}px`;
+        img.style.minWidth = '200px';
+        img.style.minHeight = '200px';
         img.style.width = 'auto';
         img.style.height = 'auto';
         img.style.objectFit = 'contain';
@@ -766,12 +768,16 @@ function scaleVisualContent(availableHeight) {
     
     identityImages.forEach(img => {
         img.style.maxHeight = `${smallImageHeight}px`;
+        img.style.minWidth = '200px';
+        img.style.minHeight = '200px';
         img.style.width = 'auto';
         img.style.objectFit = 'contain';
     });
     
     if (maskImage) {
         maskImage.style.maxHeight = `${smallImageHeight}px`;
+        maskImage.style.minWidth = '200px';
+        maskImage.style.minHeight = '200px';
         maskImage.style.width = 'auto';
         maskImage.style.objectFit = 'contain';
     }
