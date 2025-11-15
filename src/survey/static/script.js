@@ -839,27 +839,7 @@ function isQuestionGroupComplete(questionIndex) {
     return Object.values(radioGroups).every(selected => selected);
 }
 
-function showSubmitButton() {
-    // Hide question navigation
-    document.querySelector('.question-navigation').style.display = 'none';
-    
-    // Hide all questions
-    questionSections.forEach(section => section.classList.remove('active'));
-    
-    // Show submit button
-    const submitBtn = document.getElementById('submit-btn');
-    submitBtn.style.display = 'block';
-    submitBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    
-    // Show completion message
-    const questionsContainer = document.querySelector('.questions-container');
-    questionsContainer.innerHTML = `
-        <div style="text-align: center; padding: 40px; background: #e8f5e9; border-radius: 8px;">
-            <h3 style="color: #2e7d32; margin-bottom: 15px;">✓ All Questions Answered!</h3>
-            <p style="color: #666; margin-bottom: 20px;">Click the button below to submit and continue to the next image pair.</p>
-        </div>
-    `;
-}
+// Submit button is now always visible at the bottom of the questions section
 
 // Initialize progressive questions when survey section loads
 // This is now handled in loadImagePair() to avoid MutationObserver overhead
