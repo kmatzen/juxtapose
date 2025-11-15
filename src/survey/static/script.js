@@ -663,6 +663,9 @@ function initializeProgressiveQuestions() {
     
     // Set up validation for submit button
     setupSubmitValidation();
+    
+    // Set up auto-advance when question group is complete
+    setupAutoAdvance();
 }
 
 function setQuestionsHeight() {
@@ -933,6 +936,28 @@ function setupSubmitValidation() {
     
     // Initial validation
     validateForm();
+}
+
+function setupAutoAdvance() {
+    // Listen for radio button changes and auto-advance when question group is complete
+    questionSections.forEach((section, index) => {
+        const inputs = section.querySelectorAll('input[type="radio"]');
+        
+        inputs.forEach(input => {
+            input.addEventListener('change', () => {
+                // Check if this question group is complete
+                if (isQuestionGroupComplete(index)) {
+                    // Small delay to let user see their selection
+                    setTimeout(() => {
+                        // If we're still on this question, advance to next
+                        if (currentQuestionIndex === index && index < questionSections.length - 1) {
+                            navigateQuestion(1);
+                        }
+                    }, 500);
+                }
+            });
+        });
+    });
 }
 
 // Initialize progressive questions when survey section loads
