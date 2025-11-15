@@ -681,25 +681,31 @@ function setQuestionsHeight() {
     
     // Dynamically measure all the other elements in the questions section
     const questionsSection = document.querySelector('.questions-section');
-    const navigationButtons = document.querySelector('.question-navigation');
+    const questionsContainer = document.querySelector('.questions-container');
     const submitButtonSection = document.getElementById('submit-btn')?.parentElement;
     
-    // Get computed styles for padding/border
+    // Get computed styles for questions-section
     const questionsSectionStyle = questionsSection ? getComputedStyle(questionsSection) : null;
     const paddingTop = questionsSectionStyle ? parseFloat(questionsSectionStyle.paddingTop) : 0;
     const borderTop = questionsSectionStyle ? parseFloat(questionsSectionStyle.borderTopWidth) : 0;
     
+    // Get computed styles for questions-container (which has margin-bottom for nav buttons)
+    const containerStyle = questionsContainer ? getComputedStyle(questionsContainer) : null;
+    const containerMarginBottom = containerStyle ? parseFloat(containerStyle.marginBottom) : 0;
+    const containerPaddingRight = containerStyle ? parseFloat(containerStyle.paddingRight) : 0;
+    
     // Measure actual element heights
     // Note: navigation buttons are position: absolute, so they don't take flow space
-    // The questions-container margin-bottom creates space for them
+    // But questions-container margin-bottom creates space for them
     const submitHeight = submitButtonSection ? submitButtonSection.offsetHeight : 0;
     
-    const fixedElementsHeight = paddingTop + borderTop + submitHeight;
+    const fixedElementsHeight = paddingTop + borderTop + containerMarginBottom + submitHeight;
     
     console.log('setQuestionsHeight measurements:', {
         sectionHeight,
         paddingTop,
         borderTop,
+        containerMarginBottom,
         submitHeight,
         fixedElementsHeight,
         total: sectionHeight + fixedElementsHeight
