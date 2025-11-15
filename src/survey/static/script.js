@@ -15,13 +15,30 @@ document.addEventListener('DOMContentLoaded', async function() {
     setupEventListeners();
 });
 
-// Recalculate heights on window resize
+// Recalculate heights only on orientation change or significant resize
 let resizeTimeout;
+let lastWidth = window.innerWidth;
+let lastHeight = window.innerHeight;
+let lastOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+
 window.addEventListener('resize', () => {
-    // Debounce resize events
     clearTimeout(resizeTimeout);
     resizeTimeout = setTimeout(() => {
-        if (questionSections.length > 0) {
+        if (questionSections.length === 0) return;
+        
+        const currentWidth = window.innerWidth;
+        const currentHeight = window.innerHeight;
+        const currentOrientation = currentWidth > currentHeight ? 'landscape' : 'portrait';
+        
+        // Only recalculate if orientation changed or significant width change (not height!)
+        // Height changes from mobile chrome hiding/showing should be ignored
+        const widthChange = Math.abs(currentWidth - lastWidth);
+        const orientationChanged = currentOrientation !== lastOrientation;
+        
+        if (orientationChanged || widthChange > 100) {
+            lastWidth = currentWidth;
+            lastHeight = currentHeight;
+            lastOrientation = currentOrientation;
             setQuestionsHeight();
         }
     }, 250);
@@ -118,12 +135,18 @@ function collectDeviceInfo() {
         viewport_height: window.innerHeight
     };
     
-    // Display info to user
-    document.getElementById('user-browser').textContent = `${browser} ${browserVersion}`;
-    document.getElementById('user-os').textContent = os;
-    document.getElementById('user-screen').textContent = `${screen.width} × ${screen.height}px`;
-    document.getElementById('user-pixel-ratio').textContent = `${window.devicePixelRatio || 1}x`;
-    document.getElementById('user-color').textContent = screen.colorDepth;
+    // Display info to user (only if elements exist - they're only on demographics page)
+    const browserElement = document.getElementById('user-browser');
+    const osElement = document.getElementById('user-os');
+    const screenElement = document.getElementById('user-screen');
+    const pixelRatioElement = document.getElementById('user-pixel-ratio');
+    const colorElement = document.getElementById('user-color');
+    
+    if (browserElement) browserElement.textContent = `${browser} ${browserVersion}`;
+    if (osElement) osElement.textContent = os;
+    if (screenElement) screenElement.textContent = `${screen.width} × ${screen.height}px`;
+    if (pixelRatioElement) pixelRatioElement.textContent = `${window.devicePixelRatio || 1}x`;
+    if (colorElement) colorElement.textContent = screen.colorDepth;
 }
 
 function setupEventListeners() {
@@ -717,168 +740,179 @@ function initializeProgressiveQuestions() {
     setupAutoAdvance();
 }
 
-function setQuestionsHeight() {
-    // Measure the height of one evaluation section
-    if (questionSections.length === 0) return;
+function measureLayout() {
+    // Gather all measurements in one place - fail fast if critical elements missing
+    const measurements = {
+        // Critical elements
+        questionsSection: document.querySelector('.questions-section'),
+        questionsContainer: document.querySelector('.questions-container'),
+        visualSection: document.querySelector('.visual-content-section'),
+        container: document.querySelector('.container'),
+        progressContainer: document.querySelector('.progress-container'),
+        
+        // Question elements
+        firstQuestion: questionSections[0],
+        submitButton: document.getElementById('submit-btn')?.parentElement,
+        
+        // Visual elements
+        promptBox: document.querySelector('.prompt-box'),
+        sectionTitles: document.querySelectorAll('.section-title'),
+        conditioningSections: document.querySelectorAll('.conditioning-section'),
+        generatedImagesGrid: document.querySelector('.generated-images-grid'),
+        generatedImageBoxes: document.querySelectorAll('.generated-image-box'),
+        
+        // Viewport
+        vh: window.innerHeight,
+        vw: window.innerWidth
+    };
     
-    const firstSection = questionSections[0];
-    
-    // Wait for content to be fully rendered
-    if (!firstSection || firstSection.offsetHeight === 0) {
-        // Retry after a short delay
+    // Check if we're ready to measure
+    if (!measurements.firstQuestion || measurements.firstQuestion.offsetHeight === 0) {
         setTimeout(setQuestionsHeight, 100);
-        return;
+        return null;
     }
     
-    const sectionHeight = firstSection.offsetHeight;
+    // Detect orientation
+    measurements.isLandscape = measurements.vw > measurements.vh;
+    measurements.isMobile = measurements.vw <= 768;
+    measurements.isMobileLandscape = measurements.isMobile && measurements.isLandscape;
     
-    // Dynamically measure all the other elements in the questions section
-    const questionsSection = document.querySelector('.questions-section');
-    const questionsContainer = document.querySelector('.questions-container');
-    const submitButtonSection = document.getElementById('submit-btn')?.parentElement;
+    // Measure question section components
+    const qsStyle = getComputedStyle(measurements.questionsSection);
+    measurements.questionHeight = measurements.firstQuestion.offsetHeight;
+    measurements.questionPaddingTop = parseFloat(qsStyle.paddingTop);
+    measurements.questionPaddingBottom = parseFloat(qsStyle.paddingBottom);
+    measurements.questionBorderTop = parseFloat(qsStyle.borderTopWidth);
+    measurements.questionBorderBottom = parseFloat(qsStyle.borderBottomWidth);
     
-    // Get computed styles for questions-section
-    const questionsSectionStyle = questionsSection ? getComputedStyle(questionsSection) : null;
-    const paddingTop = questionsSectionStyle ? parseFloat(questionsSectionStyle.paddingTop) : 0;
-    const borderTop = questionsSectionStyle ? parseFloat(questionsSectionStyle.borderTopWidth) : 0;
+    const qcStyle = getComputedStyle(measurements.questionsContainer);
+    measurements.containerPaddingTop = parseFloat(qcStyle.paddingTop);
+    measurements.containerPaddingBottom = parseFloat(qcStyle.paddingBottom);
+    measurements.containerMarginBottom = parseFloat(qcStyle.marginBottom);
     
-    // Get computed styles for questions-container (which has margin-bottom for nav buttons)
-    const containerStyle = questionsContainer ? getComputedStyle(questionsContainer) : null;
-    const containerMarginBottom = containerStyle ? parseFloat(containerStyle.marginBottom) : 0;
-    const containerPaddingRight = containerStyle ? parseFloat(containerStyle.paddingRight) : 0;
-    
-    // Measure actual element heights
-    // Note: navigation buttons are position: absolute, so they don't take flow space
-    // But questions-container margin-bottom creates space for them
-    const submitHeight = submitButtonSection ? submitButtonSection.offsetHeight : 0;
-    
-    const fixedElementsHeight = paddingTop + borderTop + containerMarginBottom + submitHeight;
-    
-    console.log('setQuestionsHeight measurements:', {
-        sectionHeight,
-        paddingTop,
-        borderTop,
-        containerMarginBottom,
-        submitHeight,
-        fixedElementsHeight,
-        total: sectionHeight + fixedElementsHeight
-    });
-    
-    const desiredHeight = sectionHeight + fixedElementsHeight;
-    
-    // Get viewport height
-    const vh = window.innerHeight;
-    const vw = window.innerWidth;
-    
-    // Detect landscape orientation on mobile
-    const isLandscape = vw > vh;
-    const isMobile = vw <= 768;
-    const isMobileLandscape = isMobile && isLandscape;
-    
-    // Adjust constraints based on orientation
-    let maxHeight, minHeight;
-    if (isMobileLandscape) {
-        // In mobile landscape, use more flexible constraints
-        maxHeight = vh * 0.4;  // Allow visual content more space
-        minHeight = Math.min(200, vh * 0.35);  // Reduce minimum
+    // Measure submit button with its margins
+    if (measurements.submitButton) {
+        measurements.submitHeight = measurements.submitButton.offsetHeight;
+        const submitStyle = getComputedStyle(measurements.submitButton);
+        measurements.submitMarginTop = parseFloat(submitStyle.marginTop);
+        measurements.submitMarginBottom = parseFloat(submitStyle.marginBottom);
     } else {
-        // Portrait or desktop
-        maxHeight = vh * 0.5;
-        minHeight = 300;
+        measurements.submitHeight = 0;
+        measurements.submitMarginTop = 0;
+        measurements.submitMarginBottom = 0;
     }
     
-    const finalHeight = Math.min(Math.max(desiredHeight, minHeight), maxHeight);
+    // Measure main container and progress
+    const cStyle = getComputedStyle(measurements.container);
+    measurements.mainContainerPaddingTop = parseFloat(cStyle.paddingTop);
+    measurements.mainContainerPaddingBottom = parseFloat(cStyle.paddingBottom);
+    measurements.progressHeight = measurements.progressContainer.offsetHeight;
     
-    // Set the questions section height (already have reference from above)
-    if (questionsSection) {
-        questionsSection.style.height = `${finalHeight}px`;
-    }
+    // Measure visual section margins
+    const vStyle = getComputedStyle(measurements.visualSection);
+    measurements.visualMarginTop = parseFloat(vStyle.marginTop);
+    measurements.visualMarginBottom = parseFloat(vStyle.marginBottom);
     
-    // Calculate available space for visual content section
-    const container = document.querySelector('.container');
-    const progressContainer = document.querySelector('.progress-container');
+    // Measure prompt and header space
+    measurements.promptHeight = measurements.promptBox ? measurements.promptBox.offsetHeight : 0;
+    measurements.titlesHeight = 0;
+    measurements.sectionTitles.forEach(t => measurements.titlesHeight += t.offsetHeight);
     
-    // Adjust overhead based on orientation
-    let containerPadding, margins;
-    if (isMobileLandscape) {
-        // In landscape, reduce overhead estimates
-        containerPadding = 40; // Tighter padding
-        margins = 20; // Smaller margins
+    if (measurements.conditioningSections.length > 0) {
+        const csStyle = getComputedStyle(measurements.conditioningSections[0]);
+        measurements.conditioningMargins = parseFloat(csStyle.marginTop) + parseFloat(csStyle.marginBottom);
     } else {
-        containerPadding = 80; // Container padding (40px top + 40px bottom)
-        margins = 40; // Margins and gaps
+        measurements.conditioningMargins = 0;
     }
     
-    const progressHeight = progressContainer ? progressContainer.offsetHeight : 60;
-    
-    let availableHeight = vh - finalHeight - progressHeight - containerPadding - margins;
-    
-    // Ensure minimum height for visual content to show mask + generated images
-    // Adjust minimum based on orientation
-    const minVisualHeight = isMobileLandscape ? 350 : 280;
-    
-    // If calculated height is too small, reduce questions section to make room
-    if (availableHeight < minVisualHeight) {
-        const deficit = minVisualHeight - availableHeight;
-        // In landscape, be more aggressive - shrink questions to 60% of minimum if needed
-        const minQuestionsFactor = isMobileLandscape ? 0.6 : 0.8;
-        const adjustedQuestionsHeight = Math.max(finalHeight - deficit, minHeight * minQuestionsFactor);
+    // Measure image grid dimensions
+    if (measurements.generatedImagesGrid && measurements.generatedImageBoxes.length > 0) {
+        measurements.gridWidth = measurements.generatedImagesGrid.offsetWidth;
+        const gStyle = getComputedStyle(measurements.generatedImagesGrid);
+        measurements.gridGap = parseFloat(gStyle.gap);
         
-        if (questionsSection) {
-            questionsSection.style.height = `${adjustedQuestionsHeight}px`;
-        }
-        
-        // Recalculate available height with adjusted questions section
-        availableHeight = vh - adjustedQuestionsHeight - progressHeight - containerPadding - margins;
+        const boxStyle = getComputedStyle(measurements.generatedImageBoxes[0]);
+        measurements.boxPaddingLeft = parseFloat(boxStyle.paddingLeft);
+        measurements.boxPaddingRight = parseFloat(boxStyle.paddingRight);
+        measurements.boxBorderLeft = parseFloat(boxStyle.borderLeftWidth);
+        measurements.boxBorderRight = parseFloat(boxStyle.borderRightWidth);
+    } else {
+        // Set defaults if grid not measured
+        measurements.gridWidth = 0;
+        measurements.gridGap = 0;
+        measurements.boxPaddingLeft = 0;
+        measurements.boxPaddingRight = 0;
+        measurements.boxBorderLeft = 0;
+        measurements.boxBorderRight = 0;
     }
     
-    // Scale the visual content section to fit
-    scaleVisualContent(availableHeight);
+    return measurements;
 }
 
-function scaleVisualContent(availableHeight) {
-    const visualSection = document.querySelector('.visual-content-section');
-    if (!visualSection) return;
+function setQuestionsHeight() {
+    if (questionSections.length === 0) return;
     
-    // Set max-height on each column independently for independent scrolling
+    const questionsSection = document.querySelector('.questions-section');
+    if (!questionsSection) return;
+    
+    // Measure the height of ONE question
+    const firstQuestion = questionSections[0];
+    if (!firstQuestion) return;
+    
+    const oneQuestionHeight = firstQuestion.offsetHeight;
+    
+    // Set max-height to 150% of one question
+    const finalHeight = Math.floor(oneQuestionHeight * 1.5);
+    questionsSection.style.height = 'auto';
+    questionsSection.style.maxHeight = `${finalHeight}px`;
+    
+    // Get measurements for visual section
+    const m = measureLayout();
+    if (!m) return;
+    
+    // Calculate space left for visual
+    const mainContainerPadding = m.mainContainerPaddingTop + m.mainContainerPaddingBottom;
+    const visualMargins = m.visualMarginTop + m.visualMarginBottom;
+    const overhead = m.progressHeight + mainContainerPadding + visualMargins;
+    const availableVisualHeight = m.vh - finalHeight - overhead;
+    
+    // Update cached viewport
+    lastWidth = m.vw;
+    lastHeight = m.vh;
+    lastOrientation = m.isLandscape ? 'landscape' : 'portrait';
+    
+    scaleVisualContent(availableVisualHeight, m);
+}
+
+function scaleVisualContent(availableHeight, m) {
+    // Set column heights with minimums
     const contextColumn = document.querySelector('.context-column');
     const generatedImagesColumn = document.querySelector('.generated-images-column');
     
+    // Ensure minimum height for scrollable areas
+    const minColumnHeight = m.isMobileLandscape ? 250 : 200;
+    const finalHeight = Math.max(availableHeight, minColumnHeight);
+    
     if (contextColumn) {
-        contextColumn.style.maxHeight = `${availableHeight}px`;
+        contextColumn.style.maxHeight = `${finalHeight}px`;
+        contextColumn.style.minHeight = `${minColumnHeight}px`;
     }
     if (generatedImagesColumn) {
-        generatedImagesColumn.style.maxHeight = `${availableHeight}px`;
+        generatedImagesColumn.style.maxHeight = `${finalHeight}px`;
+        generatedImagesColumn.style.minHeight = `${minColumnHeight}px`;
     }
     
-    // Get all images in the visual section
-    const generatedImages = visualSection.querySelectorAll('.generated-image');
-    const identityImages = visualSection.querySelectorAll('.identity-image, .identity-stacked-image');
-    const maskImage = visualSection.querySelector('#mask-image');
-    
-    // Calculate how much space we have for images
-    // Account for: prompt box (~50px), padding (40px), margins (30px), headers (30px)
-    const promptAndHeaderSpace = 150;
-    
-    // Generated images are side-by-side, so they can use most of the available height
+    // Calculate space for images
+    const promptAndHeaderSpace = m.promptHeight + m.titlesHeight + m.conditioningMargins + 40;
     const availableImageSpace = availableHeight - promptAndHeaderSpace;
-    
-    // Calculate max height for generated images
     const maxImageHeight = Math.floor(availableImageSpace * 0.8);
     
-    // Calculate max width for generated images
-    // Right column is 55% of visual section width
-    // Get the actual visual section width
-    const visualSectionWidth = visualSection.offsetWidth;
-    const rightColumnWidth = visualSectionWidth * 0.55;
+    // Calculate image width from grid measurements
+    const imageBoxOverhead = m.boxPaddingLeft + m.boxPaddingRight + m.boxBorderLeft + m.boxBorderRight;
+    const maxImageWidth = m.gridWidth ? Math.floor((m.gridWidth - m.gridGap) / 2 - imageBoxOverhead) : 400;
     
-    // Each image box gets ~half the right column width, accounting for gap and padding
-    // gap: 15px, box padding: 24px (12px each side), border: 6px (3px each side)
-    const imageBoxOverhead = 30; // padding + border per box
-    const gap = 15;
-    const maxImageWidth = Math.floor((rightColumnWidth - gap) / 2 - imageBoxOverhead);
-    
-    // Apply both width and height constraints to generated images
+    // Apply to generated images
+    const generatedImages = m.visualSection.querySelectorAll('.generated-image');
     generatedImages.forEach(img => {
         img.style.maxHeight = `${maxImageHeight}px`;
         img.style.maxWidth = `${maxImageWidth}px`;
@@ -889,8 +923,10 @@ function scaleVisualContent(availableHeight) {
         img.style.objectFit = 'contain';
     });
     
-    // Identity and mask images: smaller to fit in left column alongside prompt
-    const smallImageHeight = Math.floor((availableHeight - promptAndHeaderSpace) / 3);
+    // Apply to identity and mask images
+    const smallImageHeight = Math.floor(availableImageSpace / 3);
+    const identityImages = m.visualSection.querySelectorAll('.identity-image, .identity-stacked-image');
+    const maskImage = m.visualSection.querySelector('#mask-image');
     
     identityImages.forEach(img => {
         img.style.maxHeight = `${smallImageHeight}px`;
