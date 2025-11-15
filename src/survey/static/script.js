@@ -59,8 +59,10 @@ async function checkDemographicsSubmitted() {
                 demographicsSection.classList.remove('active');
                 surveySection.classList.add('active');
                 
-                // Load the first image pair
-                await loadImagePair(0);
+                // Resume from where user left off
+                // completed_pairs tells us how many pairs are done, so load the next one
+                const nextPairIndex = data.completed_pairs || 0;
+                await loadImagePair(nextPairIndex);
             }
         }
     } catch (error) {
