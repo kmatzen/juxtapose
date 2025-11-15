@@ -679,14 +679,24 @@ function setQuestionsHeight() {
     
     const sectionHeight = firstSection.offsetHeight;
     
-    // Account for all fixed elements in the questions section:
-    // - questions-section padding-top: 20px
-    // - questions-section border-top: 2px
-    // - navigation buttons height: ~50px
-    // - submit button section: ~60px (button + margins)
-    // - questions-container margin-bottom: 80px (space for nav buttons)
-    // - extra spacing: 20px
-    const fixedElementsHeight = 20 + 2 + 50 + 60 + 80 + 20; // ~232px
+    // Dynamically measure all the other elements in the questions section
+    const questionsSection = document.querySelector('.questions-section');
+    const navigationButtons = document.querySelector('.question-navigation');
+    const submitButtonSection = document.getElementById('submit-btn')?.parentElement;
+    
+    // Get computed styles for padding/border
+    const questionsSectionStyle = questionsSection ? getComputedStyle(questionsSection) : null;
+    const paddingTop = questionsSectionStyle ? parseFloat(questionsSectionStyle.paddingTop) : 0;
+    const borderTop = questionsSectionStyle ? parseFloat(questionsSectionStyle.borderTopWidth) : 0;
+    
+    // Measure actual element heights
+    const navHeight = navigationButtons ? navigationButtons.offsetHeight : 0;
+    const submitHeight = submitButtonSection ? submitButtonSection.offsetHeight : 0;
+    
+    // Add some buffer for margins between elements (one evaluation section's bottom margin)
+    const buffer = 25;
+    
+    const fixedElementsHeight = paddingTop + borderTop + navHeight + submitHeight + buffer;
     
     const desiredHeight = sectionHeight + fixedElementsHeight;
     
@@ -699,8 +709,7 @@ function setQuestionsHeight() {
     
     const finalHeight = Math.min(Math.max(desiredHeight, minHeight), maxHeight);
     
-    // Set the questions section height
-    const questionsSection = document.querySelector('.questions-section');
+    // Set the questions section height (already have reference from above)
     if (questionsSection) {
         questionsSection.style.height = `${finalHeight}px`;
     }
