@@ -741,112 +741,50 @@ function initializeProgressiveQuestions() {
 }
 
 function measureLayout() {
-    // Gather all measurements in one place - fail fast if critical elements missing
-    const measurements = {
-        // Critical elements
-        questionsSection: document.querySelector('.questions-section'),
-        questionsContainer: document.querySelector('.questions-container'),
-        visualSection: document.querySelector('.visual-content-section'),
-        container: document.querySelector('.container'),
-        progressContainer: document.querySelector('.progress-container'),
-        
-        // Question elements
-        firstQuestion: questionSections[0],
-        submitButton: document.getElementById('submit-btn')?.parentElement,
-        
-        // Visual elements
-        promptBox: document.querySelector('.prompt-box'),
-        sectionTitles: document.querySelectorAll('.section-title'),
-        conditioningSections: document.querySelectorAll('.conditioning-section'),
-        generatedImagesGrid: document.querySelector('.generated-images-grid'),
-        generatedImageBoxes: document.querySelectorAll('.generated-image-box'),
-        
-        // Viewport
-        vh: window.innerHeight,
-        vw: window.innerWidth
-    };
+    const container = document.querySelector('.container');
+    const progressContainer = document.querySelector('.progress-container');
+    const visualSection = document.querySelector('.visual-content-section');
+    const promptBox = visualSection?.querySelector('.prompt-box');
+    const sectionTitles = visualSection?.querySelectorAll('.section-title');
+    const conditioningSections = visualSection?.querySelectorAll('.conditioning-section');
     
-    // Check if we're ready to measure
-    if (!measurements.firstQuestion || measurements.firstQuestion.offsetHeight === 0) {
-        setTimeout(setQuestionsHeight, 100);
-        return null;
-    }
+    const vh = window.innerHeight;
+    const vw = window.innerWidth;
+    const isLandscape = vw > vh;
+    const isMobile = vw <= 768;
+    const isMobileLandscape = isMobile && isLandscape;
     
-    // Detect orientation
-    measurements.isLandscape = measurements.vw > measurements.vh;
-    measurements.isMobile = measurements.vw <= 768;
-    measurements.isMobileLandscape = measurements.isMobile && measurements.isLandscape;
-    
-    // Measure question section components
-    const qsStyle = getComputedStyle(measurements.questionsSection);
-    measurements.questionHeight = measurements.firstQuestion.offsetHeight;
-    measurements.questionPaddingTop = parseFloat(qsStyle.paddingTop);
-    measurements.questionPaddingBottom = parseFloat(qsStyle.paddingBottom);
-    measurements.questionBorderTop = parseFloat(qsStyle.borderTopWidth);
-    measurements.questionBorderBottom = parseFloat(qsStyle.borderBottomWidth);
-    
-    const qcStyle = getComputedStyle(measurements.questionsContainer);
-    measurements.containerPaddingTop = parseFloat(qcStyle.paddingTop);
-    measurements.containerPaddingBottom = parseFloat(qcStyle.paddingBottom);
-    measurements.containerMarginBottom = parseFloat(qcStyle.marginBottom);
-    
-    // Measure submit button with its margins
-    if (measurements.submitButton) {
-        measurements.submitHeight = measurements.submitButton.offsetHeight;
-        const submitStyle = getComputedStyle(measurements.submitButton);
-        measurements.submitMarginTop = parseFloat(submitStyle.marginTop);
-        measurements.submitMarginBottom = parseFloat(submitStyle.marginBottom);
-    } else {
-        measurements.submitHeight = 0;
-        measurements.submitMarginTop = 0;
-        measurements.submitMarginBottom = 0;
-    }
-    
-    // Measure main container and progress
-    const cStyle = getComputedStyle(measurements.container);
-    measurements.mainContainerPaddingTop = parseFloat(cStyle.paddingTop);
-    measurements.mainContainerPaddingBottom = parseFloat(cStyle.paddingBottom);
-    measurements.progressHeight = measurements.progressContainer.offsetHeight;
+    // Measure container padding
+    const cStyle = getComputedStyle(container);
+    const mainContainerPaddingTop = parseFloat(cStyle.paddingTop);
+    const mainContainerPaddingBottom = parseFloat(cStyle.paddingBottom);
     
     // Measure visual section margins
-    const vStyle = getComputedStyle(measurements.visualSection);
-    measurements.visualMarginTop = parseFloat(vStyle.marginTop);
-    measurements.visualMarginBottom = parseFloat(vStyle.marginBottom);
+    const vStyle = getComputedStyle(visualSection);
+    const visualMarginTop = parseFloat(vStyle.marginTop);
+    const visualMarginBottom = parseFloat(vStyle.marginBottom);
     
-    // Measure prompt and header space
-    measurements.promptHeight = measurements.promptBox ? measurements.promptBox.offsetHeight : 0;
-    measurements.titlesHeight = 0;
-    measurements.sectionTitles.forEach(t => measurements.titlesHeight += t.offsetHeight);
+    // Measure progress height
+    const progressHeight = progressContainer.offsetHeight;
     
-    if (measurements.conditioningSections.length > 0) {
-        const csStyle = getComputedStyle(measurements.conditioningSections[0]);
-        measurements.conditioningMargins = parseFloat(csStyle.marginTop) + parseFloat(csStyle.marginBottom);
-    } else {
-        measurements.conditioningMargins = 0;
+    // Measure prompt and headers for visual section
+    let promptHeight = promptBox ? promptBox.offsetHeight : 0;
+    let titlesHeight = 0;
+    if (sectionTitles) sectionTitles.forEach(t => titlesHeight += t.offsetHeight);
+    
+    let conditioningMargins = 0;
+    if (conditioningSections && conditioningSections.length > 0) {
+        const csStyle = getComputedStyle(conditioningSections[0]);
+        conditioningMargins = parseFloat(csStyle.marginTop) + parseFloat(csStyle.marginBottom);
     }
     
-    // Measure image grid dimensions
-    if (measurements.generatedImagesGrid && measurements.generatedImageBoxes.length > 0) {
-        measurements.gridWidth = measurements.generatedImagesGrid.offsetWidth;
-        const gStyle = getComputedStyle(measurements.generatedImagesGrid);
-        measurements.gridGap = parseFloat(gStyle.gap);
-        
-        const boxStyle = getComputedStyle(measurements.generatedImageBoxes[0]);
-        measurements.boxPaddingLeft = parseFloat(boxStyle.paddingLeft);
-        measurements.boxPaddingRight = parseFloat(boxStyle.paddingRight);
-        measurements.boxBorderLeft = parseFloat(boxStyle.borderLeftWidth);
-        measurements.boxBorderRight = parseFloat(boxStyle.borderRightWidth);
-    } else {
-        // Set defaults if grid not measured
-        measurements.gridWidth = 0;
-        measurements.gridGap = 0;
-        measurements.boxPaddingLeft = 0;
-        measurements.boxPaddingRight = 0;
-        measurements.boxBorderLeft = 0;
-        measurements.boxBorderRight = 0;
-    }
-    
-    return measurements;
+    return {
+        vh, vw, isLandscape, isMobile, isMobileLandscape,
+        visualSection,
+        mainContainerPaddingTop, mainContainerPaddingBottom,
+        visualMarginTop, visualMarginBottom, progressHeight,
+        promptHeight, titlesHeight, conditioningMargins
+    };
 }
 
 function setQuestionsHeight() {
@@ -907,9 +845,9 @@ function scaleVisualContent(availableHeight, m) {
     const availableImageSpace = availableHeight - promptAndHeaderSpace;
     const maxImageHeight = Math.floor(availableImageSpace * 0.8);
     
-    // Calculate image width from grid measurements
-    const imageBoxOverhead = m.boxPaddingLeft + m.boxPaddingRight + m.boxBorderLeft + m.boxBorderRight;
-    const maxImageWidth = m.gridWidth ? Math.floor((m.gridWidth - m.gridGap) / 2 - imageBoxOverhead) : 400;
+    // Image boxes are sized by CSS flex: 1 1 0, so images just need to fit within their containers
+    // Use a generous max-width - the flex containers handle the actual sizing
+    const maxImageWidth = 800;
     
     // Apply to generated images
     const generatedImages = m.visualSection.querySelectorAll('.generated-image');

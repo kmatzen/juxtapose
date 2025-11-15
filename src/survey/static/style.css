@@ -221,8 +221,8 @@ p {
 /* TOP SECTION: Visual Content (Context + Generated Images) */
 .visual-content-section {
     display: grid;
-    grid-template-columns: 45% 55%;
-    gap: 25px;
+    grid-template-columns: 45fr 55fr;
+    gap: 20px;
     padding: 20px;
     background: #f8f9fa;
     border-radius: 12px;
@@ -305,8 +305,8 @@ p {
     border-radius: 8px;
     padding: 12px;
     transition: all 0.3s ease;
-    flex: 0 1 auto; /* Shrink to fit content */
-    max-width: calc(50% - 8px); /* Don't exceed half width */
+    flex: 1 1 0; /* Take equal space */
+    min-width: 0; /* Allow flex shrinking */
     /* Size controlled dynamically by JavaScript */
 }
 
@@ -458,49 +458,6 @@ p {
         border-radius: 50%;
         font-size: 18px;
     }
-}
-
-.image-box {
-    background: #fff;
-    border: 2px solid #e0e0e0;
-    border-radius: 8px;
-    padding: 15px;
-    transition: all 0.3s ease;
-    position: relative;
-    min-height: 300px;
-}
-
-.image-box:hover {
-    border-color: #4A90E2;
-    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.15);
-}
-
-.image-box h3 {
-    color: #4A90E2;
-    margin-bottom: 15px;
-    font-size: 18px;
-    text-align: center;
-}
-
-.survey-image {
-    width: 100%;
-    height: auto;
-    border-radius: 4px;
-    display: block;
-    max-height: 500px;
-    object-fit: contain;
-    background: #f8f9fa;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.survey-image:hover {
-    transform: scale(1.02);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-}
-
-.survey-image:active {
-    transform: scale(0.98);
 }
 
 /* Loading Indicator */
@@ -690,16 +647,17 @@ p {
 }
 
 .radio-label {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    padding: 6px 10px;
+    justify-content: center;
+    padding: 10px 15px;
     border: 2px solid #e0e0e0;
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.3s ease;
     font-size: 13px;
     white-space: nowrap;
-    min-height: 40px;
+    line-height: 1;
 }
 
 .radio-label:hover {
@@ -739,6 +697,11 @@ p {
     .generated-image-box {
         width: 100%;
         max-width: 100%;
+    }
+    
+    .generated-image {
+        max-height: 250px !important;
+        max-width: 100% !important;
     }
     
     /* Keep radio buttons and Likert scales on one line, reduce size to fit */
@@ -1307,8 +1270,8 @@ p {
 /* Survey Footer */
 .survey-footer {
     text-align: center;
-    padding: 20px;
-    margin-top: 40px;
+    padding: 10px;
+    margin-top: 10px;
     font-size: 14px;
     color: rgba(255, 255, 255, 0.95);
 }
