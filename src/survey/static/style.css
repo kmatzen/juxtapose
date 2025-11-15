@@ -276,8 +276,8 @@ p {
     border-radius: 8px;
     padding: 12px;
     transition: all 0.3s ease;
-    flex: 1 1 calc(50% - 8px); /* Side by side, accounting for gap */
-    min-width: 200px; /* Minimum width before wrapping */
+    flex: 0 1 auto; /* Shrink to fit content */
+    max-width: calc(50% - 8px); /* Don't exceed half width */
     /* Size controlled dynamically by JavaScript */
 }
 
