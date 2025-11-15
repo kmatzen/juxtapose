@@ -177,13 +177,11 @@
                             <div class="conditioning-section">
                                 <div id="identity-section" class="conditioning-box">
                                     <h3>Identity Reference Images</h3>
-                                    <p class="conditioning-note">The generated images should preserve the identity features from these reference images.</p>
                                     <div id="identity-images" class="identity-images-container"></div>
                                 </div>
                                 
                                 <div id="mask-section" class="conditioning-box">
                                     <h3>Spatial Mask</h3>
-                                    <p class="conditioning-note">The generated images should follow the spatial layout indicated by this mask (different colors represent different regions).</p>
                                     <div class="mask-image-container">
                                         <img id="mask-image" src="" alt="Spatial Mask" class="mask-image">
                                     </div>
@@ -407,7 +405,7 @@
                     
                     <!-- Submit Button -->
                     <div style="text-align: center; margin-top: 20px; padding-bottom: 20px;">
-                        <button type="submit" class="btn btn-primary" id="submit-btn">Next Image Pair</button>
+                        <button type="submit" class="btn btn-primary" id="submit-btn" disabled>→</button>
                     </div>
                 </div><!-- end questions-section -->
             </form>
