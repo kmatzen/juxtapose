@@ -797,7 +797,7 @@ def admin_login():
         
         if password == ADMIN_PASSWORD:
             session['admin_authenticated'] = True
-            session.permanent = True  # Enable session timeout
+            session.permanent = True  # Enable 2-hour timeout for admin sessions
             
             # Security: Audit successful login
             audit_log('ADMIN_LOGIN_SUCCESS', {'ip': ip})

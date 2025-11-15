@@ -28,7 +28,9 @@ The survey application implements multiple layers of security to protect against
 - `SESSION_COOKIE_SECURE`: Cookies only sent over HTTPS (production)
 - `SESSION_COOKIE_HTTPONLY`: Prevents JavaScript access to session cookies
 - `SESSION_COOKIE_SAMESITE='Lax'`: Prevents CSRF attacks
-- `PERMANENT_SESSION_LIFETIME`: 2-hour timeout
+- `PERMANENT_SESSION_LIFETIME`: 2-hour timeout (admin sessions only)
+
+**Note**: Regular survey participants have sessions that last until browser close (no timeout). Only admin sessions have the 2-hour inactivity timeout. This ensures users can complete surveys at their own pace without losing progress.
 
 ### 2. **CSRF (Cross-Site Request Forgery) Protection**
 
