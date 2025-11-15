@@ -223,9 +223,7 @@ p {
     padding: 20px;
     background: #f8f9fa;
     border-radius: 12px;
-    /* max-height set dynamically by JavaScript based on remaining space */
-    min-height: 300px;
-    overflow-y: auto;
+    /* Height and overflow controlled dynamically by JavaScript */
     margin-bottom: 20px;
 }
 
@@ -273,7 +271,7 @@ p {
     border-radius: 8px;
     padding: 12px;
     transition: all 0.3s ease;
-    max-width: 500px; /* Limit image size */
+    /* Size controlled dynamically by JavaScript */
 }
 
 .generated-image-box:hover {

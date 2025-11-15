@@ -697,11 +697,62 @@ function setQuestionsHeight() {
         questionsSection.style.height = `${finalHeight}px`;
     }
     
-    // Adjust the visual content section to take remaining space
+    // Calculate available space for visual content section
+    const container = document.querySelector('.container');
+    const progressContainer = document.querySelector('.progress-container');
+    const containerPadding = 80; // Container padding (40px top + 40px bottom)
+    const progressHeight = progressContainer ? progressContainer.offsetHeight : 60;
+    const margins = 40; // Margins and gaps
+    
+    const availableHeight = vh - finalHeight - progressHeight - containerPadding - margins;
+    
+    // Scale the visual content section to fit
+    scaleVisualContent(availableHeight);
+}
+
+function scaleVisualContent(availableHeight) {
     const visualSection = document.querySelector('.visual-content-section');
-    if (visualSection) {
-        const remainingHeight = vh - finalHeight - 200; // 200px for header, margins, padding
-        visualSection.style.maxHeight = `${remainingHeight}px`;
+    if (!visualSection) return;
+    
+    // Set the height constraint
+    visualSection.style.height = `${availableHeight}px`;
+    visualSection.style.maxHeight = `${availableHeight}px`;
+    visualSection.style.overflow = 'hidden';
+    
+    // Get all images in the visual section
+    const generatedImages = visualSection.querySelectorAll('.generated-image');
+    const identityImages = visualSection.querySelectorAll('.identity-image, .identity-stacked-image');
+    const maskImage = visualSection.querySelector('#mask-image');
+    
+    // Calculate how much space we have for images
+    // Account for padding, margins, text, etc.
+    const nonImageSpace = 150; // Approximate space for text, padding, borders
+    const availableImageSpace = availableHeight - nonImageSpace;
+    
+    // The generated images are in a column, so they stack
+    // Each should take roughly half the available image space
+    const maxImageHeight = Math.floor(availableImageSpace / 2.5);
+    
+    // Apply max height to generated images
+    generatedImages.forEach(img => {
+        img.style.maxHeight = `${maxImageHeight}px`;
+        img.style.width = 'auto';
+        img.style.objectFit = 'contain';
+    });
+    
+    // Scale down identity and mask images proportionally
+    const smallImageHeight = Math.floor(maxImageHeight * 0.6);
+    
+    identityImages.forEach(img => {
+        img.style.maxHeight = `${smallImageHeight}px`;
+        img.style.width = 'auto';
+        img.style.objectFit = 'contain';
+    });
+    
+    if (maskImage) {
+        maskImage.style.maxHeight = `${smallImageHeight}px`;
+        maskImage.style.width = 'auto';
+        maskImage.style.objectFit = 'contain';
     }
 }
 
