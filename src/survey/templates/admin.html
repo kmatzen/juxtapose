@@ -10,7 +10,7 @@
     <div class="admin-container">
         <h1>Survey Administration</h1>
         
-        <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr);">
+        <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
             <div class="stat-card">
                 <div class="stat-number" id="total-responses">0</div>
                 <div class="stat-label">Total Participants</div>
@@ -18,6 +18,10 @@
             <div class="stat-card">
                 <div class="stat-number" id="avg-confidence" style="font-size: 1.5em;">0 / 0</div>
                 <div class="stat-label">Avg Confidence (Image / Prompt)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="avg-time" style="font-size: 1.5em;">-</div>
+                <div class="stat-label">Avg Time per Pair (seconds)</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number" id="method-prefs-image" style="font-size: 14px; line-height: 1.4;">Loading...</div>
@@ -81,6 +85,12 @@
                     ? (data.reduce((sum, r) => sum + (r.prompt_confidence || 0), 0) / data.length).toFixed(1)
                     : 0;
                 
+                // Calculate average time spent (only for responses with time data)
+                const responsesWithTime = data.filter(r => r.time_spent != null);
+                const avgTime = responsesWithTime.length > 0
+                    ? (responsesWithTime.reduce((sum, r) => sum + r.time_spent, 0) / responsesWithTime.length).toFixed(1)
+                    : '-';
+                
                 // Display method preferences for image quality
                 const imageSummary = Object.keys(methodImagePrefs).map(method => 
                     `${method}: ${methodImagePrefs[method]}`
@@ -94,6 +104,7 @@
                 document.getElementById('method-prefs-image').textContent = imageSummary;
                 document.getElementById('method-prefs-prompt').textContent = promptSummary;
                 document.getElementById('avg-confidence').textContent = avgImageConf + ' / ' + avgPromptConf;
+                document.getElementById('avg-time').textContent = avgTime;
                 
                 // Render current view
                 renderTable();
@@ -197,6 +208,7 @@
                         <th>UI Choice (Identity)</th>
                         <th>Preferred Method (Identity)</th>
                         <th>Identity Conf</th>
+                        <th>Time (s)</th>
                     </tr>
                 `;
                 
@@ -219,6 +231,7 @@
                         <td>${row.better_identity_match || '-'}</td>
                         <td><strong>${row.preferred_method_identity || '-'}</strong></td>
                         <td>${row.identity_confidence || '-'}</td>
+                        <td>${row.time_spent != null ? row.time_spent.toFixed(1) : '-'}</td>
                     </tr>
                 `).join('');
             }
