@@ -37,6 +37,21 @@
 
         <button class="btn btn-primary" onclick="location.href='/admin/logout'" style="margin-bottom: 10px;">Logout</button>
 
+        <div style="margin-bottom: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px; border: 2px solid #e74c3c;">
+            <h3 style="margin-top: 0; color: #e74c3c;">⚠️ Delete User Data</h3>
+            <p style="margin-bottom: 15px; color: #333;">Permanently delete all records associated with an email address. This action cannot be undone.</p>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <input 
+                    type="email" 
+                    id="delete-email" 
+                    placeholder="user@example.com" 
+                    style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
+                />
+                <button class="btn btn-primary" onclick="deleteByEmail()" style="background: #e74c3c; white-space: nowrap;">Delete Records</button>
+            </div>
+            <div id="delete-message" style="margin-top: 10px; display: none;"></div>
+        </div>
+
         <div style="margin-bottom: 20px;">
             <button class="btn btn-primary" onclick="toggleView()">Toggle View</button>
             <span id="view-mode" style="margin-left: 10px; font-weight: 600; color: white;">Demographics View</span>
@@ -239,6 +254,55 @@
 
         function exportCSV() {
             window.location.href = '/api/admin/export';
+        }
+
+        async function deleteByEmail() {
+            const emailInput = document.getElementById('delete-email');
+            const messageDiv = document.getElementById('delete-message');
+            const email = emailInput.value.trim();
+            
+            if (!email) {
+                messageDiv.style.display = 'block';
+                messageDiv.style.color = '#e74c3c';
+                messageDiv.textContent = 'Please enter an email address.';
+                return;
+            }
+            
+            if (!confirm(`Are you sure you want to permanently delete ALL records associated with "${email}"?\n\nThis will delete:\n- Participant information\n- Demographics data\n- All survey responses\n\nThis action CANNOT be undone!`)) {
+                return;
+            }
+            
+            try {
+                messageDiv.style.display = 'block';
+                messageDiv.style.color = '#666';
+                messageDiv.textContent = 'Deleting...';
+                
+                const response = await fetch('/api/admin/delete_by_email', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    messageDiv.style.color = '#52c41a';
+                    messageDiv.textContent = `✓ Successfully deleted ${result.participants_deleted} participant(s), ${result.demographics_deleted} demographics record(s), and ${result.responses_deleted} survey response(s) for "${result.email}".`;
+                    emailInput.value = '';
+                    
+                    // Reload the results table
+                    await loadResults();
+                    renderTable();
+                } else {
+                    messageDiv.style.color = '#e74c3c';
+                    messageDiv.textContent = `Error: ${result.error}`;
+                }
+            } catch (error) {
+                messageDiv.style.color = '#e74c3c';
+                messageDiv.textContent = `Error: ${error.message}`;
+            }
         }
 
         // Load results on page load
