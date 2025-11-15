@@ -694,6 +694,8 @@ p {
     cursor: pointer;
     transition: all 0.3s ease;
     font-size: 13px;
+    white-space: nowrap;
+    min-height: 40px;
 }
 
 .radio-label:hover {
@@ -739,11 +741,13 @@ p {
     .radio-label {
         padding: 8px 10px;
         font-size: 12px;
+        min-height: 36px;
     }
     
     .likert-label span {
         padding: 8px 4px;
         font-size: 11px;
+        min-height: 50px;
     }
     
     .likert-label span small {
@@ -777,6 +781,7 @@ p {
     transition: all 0.3s ease;
     gap: 2px;
     font-size: 13px;
+    white-space: nowrap;
 }
 
 .likert-label span small {
