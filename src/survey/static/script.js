@@ -690,21 +690,17 @@ function setQuestionsHeight() {
     const borderTop = questionsSectionStyle ? parseFloat(questionsSectionStyle.borderTopWidth) : 0;
     
     // Measure actual element heights
-    const navHeight = navigationButtons ? navigationButtons.offsetHeight : 0;
+    // Note: navigation buttons are position: absolute, so they don't take flow space
+    // The questions-container margin-bottom creates space for them
     const submitHeight = submitButtonSection ? submitButtonSection.offsetHeight : 0;
     
-    // Add some buffer for margins between elements
-    const buffer = 25;
-    
-    const fixedElementsHeight = paddingTop + borderTop + navHeight + submitHeight + buffer;
+    const fixedElementsHeight = paddingTop + borderTop + submitHeight;
     
     console.log('setQuestionsHeight measurements:', {
         sectionHeight,
         paddingTop,
         borderTop,
-        navHeight,
         submitHeight,
-        buffer,
         fixedElementsHeight,
         total: sectionHeight + fixedElementsHeight
     });
