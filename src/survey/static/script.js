@@ -797,9 +797,19 @@ function setQuestionsHeight() {
     // Calculate available space for visual content section
     const container = document.querySelector('.container');
     const progressContainer = document.querySelector('.progress-container');
-    const containerPadding = 80; // Container padding (40px top + 40px bottom)
+    
+    // Adjust overhead based on orientation
+    let containerPadding, margins;
+    if (isMobileLandscape) {
+        // In landscape, reduce overhead estimates
+        containerPadding = 40; // Tighter padding
+        margins = 20; // Smaller margins
+    } else {
+        containerPadding = 80; // Container padding (40px top + 40px bottom)
+        margins = 40; // Margins and gaps
+    }
+    
     const progressHeight = progressContainer ? progressContainer.offsetHeight : 60;
-    const margins = 40; // Margins and gaps
     
     const availableHeight = vh - finalHeight - progressHeight - containerPadding - margins;
     
