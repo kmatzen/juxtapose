@@ -194,23 +194,24 @@ p {
 .prompt-box {
     background: #f8f9fa;
     border-left: 4px solid #4A90E2;
-    padding: 20px;
-    margin-bottom: 20px;
+    padding: 12px;
+    margin-bottom: 15px;
     border-radius: 4px;
 }
 
 .prompt-box h3 {
     color: #4A90E2;
-    margin-bottom: 10px;
-    font-size: 16px;
+    margin-bottom: 6px;
+    font-size: 12px;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
 }
 
 .prompt-box p {
     margin: 0;
     color: #333;
-    font-size: 18px;
+    font-size: 13px;
+    line-height: 1.4;
 }
 
 /* ==================================================================
@@ -257,13 +258,15 @@ p {
 }
 
 .generated-images-column h3 {
-    margin-bottom: 15px;
+    margin-bottom: 10px;
     color: #4A90E2;
+    font-size: 13px;
 }
 
 .generated-images-grid {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: wrap;
     gap: 15px;
 }
 
@@ -273,6 +276,8 @@ p {
     border-radius: 8px;
     padding: 12px;
     transition: all 0.3s ease;
+    flex: 1 1 calc(50% - 8px); /* Side by side, accounting for gap */
+    min-width: 200px; /* Minimum width before wrapping */
     /* Size controlled dynamically by JavaScript */
 }
 
@@ -282,9 +287,9 @@ p {
 }
 
 .generated-image-box h4 {
-    margin: 0 0 8px 0;
+    margin: 0 0 6px 0;
     color: #4A90E2;
-    font-size: 16px;
+    font-size: 13px;
 }
 
 .generated-image {
@@ -511,8 +516,8 @@ p {
 
 .conditioning-box h3 {
     color: #856404;
-    font-size: 16px;
-    margin-bottom: 8px;
+    font-size: 12px;
+    margin-bottom: 6px;
 }
 
 .conditioning-note {
