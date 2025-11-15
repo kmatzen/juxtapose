@@ -811,7 +811,24 @@ function setQuestionsHeight() {
     
     const progressHeight = progressContainer ? progressContainer.offsetHeight : 60;
     
-    const availableHeight = vh - finalHeight - progressHeight - containerPadding - margins;
+    let availableHeight = vh - finalHeight - progressHeight - containerPadding - margins;
+    
+    // Ensure minimum height for visual content to show mask + generated images
+    // Minimum: image height (200px) + headers/padding (~80px) = 280px
+    const minVisualHeight = 280;
+    
+    // If calculated height is too small, reduce questions section to make room
+    if (availableHeight < minVisualHeight) {
+        const deficit = minVisualHeight - availableHeight;
+        const adjustedQuestionsHeight = Math.max(finalHeight - deficit, minHeight * 0.8);
+        
+        if (questionsSection) {
+            questionsSection.style.height = `${adjustedQuestionsHeight}px`;
+        }
+        
+        // Recalculate available height with adjusted questions section
+        availableHeight = vh - adjustedQuestionsHeight - progressHeight - containerPadding - margins;
+    }
     
     // Scale the visual content section to fit
     scaleVisualContent(availableHeight);
