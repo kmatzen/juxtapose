@@ -307,7 +307,7 @@ def get_config():
 
 @app.route('/api/check_demographics')
 def check_demographics():
-    """Check if demographics have been submitted for current session"""
+    """Check if demographics have been submitted for current session and get progress"""
     if 'session_id' not in session:
         return jsonify({'submitted': False})
     
@@ -322,11 +322,31 @@ def check_demographics():
             return jsonify({'submitted': False})
         
         demo = db.execute(
-            'SELECT id FROM demographics WHERE participant_id = ?',
+            'SELECT id, email FROM demographics WHERE participant_id = ?',
             (participant['id'],)
         ).fetchone()
         
-        return jsonify({'submitted': demo is not None})
+        if not demo:
+            return jsonify({'submitted': False})
+        
+        # Get how many pairs have been completed
+        completed_count = db.execute('''
+            SELECT COUNT(*) as count FROM survey_responses 
+            WHERE participant_id = ?
+                AND better_image IS NOT NULL
+                AND image_confidence IS NOT NULL
+                AND better_prompt_match IS NOT NULL
+                AND prompt_confidence IS NOT NULL
+                AND better_mask_match IS NOT NULL
+                AND mask_confidence IS NOT NULL
+                AND better_identity_match IS NOT NULL
+                AND identity_confidence IS NOT NULL
+        ''', (participant['id'],)).fetchone()
+        
+        return jsonify({
+            'submitted': True,
+            'completed_pairs': completed_count['count'] if completed_count else 0
+        })
     finally:
         db.close()
 
