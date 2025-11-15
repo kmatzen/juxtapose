@@ -226,10 +226,8 @@ p {
     padding: 20px;
     background: #f8f9fa;
     border-radius: 12px;
-    /* Height and overflow controlled dynamically by JavaScript */
+    /* Height controlled dynamically by JavaScript */
     margin-bottom: 20px;
-    overflow-x: hidden; /* Prevent horizontal scroll */
-    overflow-y: auto; /* Allow vertical scroll */
 }
 
 /* Scrollbar styling for visual content section */
@@ -253,10 +251,39 @@ p {
 
 .context-column {
     /* Prompt, identity, mask */
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* Height controlled dynamically by JavaScript */
 }
 
 .generated-images-column {
     /* Generated images A & B */
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* Height controlled dynamically by JavaScript */
+}
+
+/* Scrollbar styling for columns */
+.context-column::-webkit-scrollbar,
+.generated-images-column::-webkit-scrollbar {
+    width: 8px;
+}
+
+.context-column::-webkit-scrollbar-track,
+.generated-images-column::-webkit-scrollbar-track {
+    background: #e0e0e0;
+    border-radius: 4px;
+}
+
+.context-column::-webkit-scrollbar-thumb,
+.generated-images-column::-webkit-scrollbar-thumb {
+    background: #4A90E2;
+    border-radius: 4px;
+}
+
+.context-column::-webkit-scrollbar-thumb:hover,
+.generated-images-column::-webkit-scrollbar-thumb:hover {
+    background: #357ABD;
 }
 
 .generated-images-column h3 {
