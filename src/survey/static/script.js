@@ -728,20 +728,30 @@ function scaleVisualContent(availableHeight) {
     // Account for: prompt box (~50px), padding (40px), margins (30px), headers (30px)
     const promptAndHeaderSpace = 150;
     
-    // Space for identity and mask images on the left column
-    const leftColumnImageSpace = 200;
-    
     // Generated images are side-by-side, so they can use most of the available height
     const availableImageSpace = availableHeight - promptAndHeaderSpace;
     
-    // Generated images can be quite large now that they're side-by-side
-    // Use about 80% of available space to leave room for boxes/padding
+    // Calculate max height for generated images
     const maxImageHeight = Math.floor(availableImageSpace * 0.8);
     
-    // Apply max height to generated images
+    // Calculate max width for generated images
+    // Right column is 55% of visual section width
+    // Get the actual visual section width
+    const visualSectionWidth = visualSection.offsetWidth;
+    const rightColumnWidth = visualSectionWidth * 0.55;
+    
+    // Each image box gets ~half the right column width, accounting for gap and padding
+    // gap: 15px, box padding: 24px (12px each side), border: 6px (3px each side)
+    const imageBoxOverhead = 30; // padding + border per box
+    const gap = 15;
+    const maxImageWidth = Math.floor((rightColumnWidth - gap) / 2 - imageBoxOverhead);
+    
+    // Apply both width and height constraints to generated images
     generatedImages.forEach(img => {
         img.style.maxHeight = `${maxImageHeight}px`;
+        img.style.maxWidth = `${maxImageWidth}px`;
         img.style.width = 'auto';
+        img.style.height = 'auto';
         img.style.objectFit = 'contain';
     });
     
