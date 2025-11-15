@@ -756,7 +756,30 @@ p {
 }
 
 @media (max-width: 480px) {
-    /* Very narrow displays: simplify Likert scale labels */
+    /* Very narrow displays: simplify all button labels */
+    
+    /* Simplify A/B/Equal buttons */
+    .radio-label:has(input[value="A"])::after {
+        content: "A";
+        font-size: 12px;
+    }
+    
+    .radio-label:has(input[value="B"])::after {
+        content: "B";
+        font-size: 12px;
+    }
+    
+    .radio-label:has(input[value="equal"])::after {
+        content: "=";
+        font-size: 14px;
+    }
+    
+    .radio-label:has(input[value="A"]),
+    .radio-label:has(input[value="B"]),
+    .radio-label:has(input[value="equal"]) {
+        font-size: 0;
+        padding: 10px 15px;
+    }
     
     /* Change label for option 1 to "Least" */
     .likert-label:has(input[value="1"]) span small::before {
