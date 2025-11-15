@@ -234,22 +234,29 @@ def index():
     ).fetchone()
     
     if participant:
-        # Get the number of pairs assigned to this user (from session or default)
-        user_pairs_count = session.get('user_pairs_count', min(len(IMAGE_PAIRS), 30 if not DEV_MODE else 3))
-        
-        # Check if they've completed all their assigned questions
-        response_count = db.execute(
-            'SELECT COUNT(*) as count FROM survey_responses WHERE participant_id = ?',
+        # Get user's email to check for completed pairs
+        demo = db.execute(
+            'SELECT email FROM demographics WHERE participant_id = ?',
             (participant['id'],)
         ).fetchone()
         db.close()
         
-        if response_count and response_count['count'] >= user_pairs_count:
-            # In dev mode, allow restarting with ?new=true parameter
-            if DEV_MODE and force_new:
-                return render_template('index.html')
-            # Show thank you page if completed
-            return render_template('thank_you.html', already_submitted=True, dev_mode=DEV_MODE)
+        if demo and demo['email']:
+            # Check how many pairs they've completed (fully answered)
+            completed_pair_ids = get_completed_pair_ids_for_email(demo['email'])
+            # Check how many pairs are available total
+            total_available_pairs = len(IMAGE_PAIRS)
+            # In dev mode, limit to 3; in prod, limit to 30
+            max_pairs = 3 if DEV_MODE else 30
+            expected_pairs = min(total_available_pairs, max_pairs)
+            
+            # If they've completed all available pairs (or reached the limit), show thank you
+            if len(completed_pair_ids) >= expected_pairs:
+                # In dev mode, allow restarting with ?new=true parameter
+                if DEV_MODE and force_new:
+                    return render_template('index.html')
+                # Show thank you page if completed
+                return render_template('thank_you.html', already_submitted=True, dev_mode=DEV_MODE)
     else:
         db.close()
     
@@ -409,26 +416,93 @@ def submit_demographics():
     finally:
         db.close()
 
+def get_completed_pair_ids_for_email(email):
+    """Get list of pair IDs that have been fully completed by this email address.
+    A pair is considered complete only if all 8 questions have been answered
+    (4 choice questions + 4 confidence questions)."""
+    if not email:
+        return []
+    
+    db = get_db()
+    try:
+        # Get all participant IDs for this email
+        participant_ids = db.execute('''
+            SELECT p.id 
+            FROM participants p
+            JOIN demographics d ON p.id = d.participant_id
+            WHERE d.email = ?
+        ''', (email,)).fetchall()
+        
+        if not participant_ids:
+            return []
+        
+        participant_id_list = [p['id'] for p in participant_ids]
+        
+        # Get image_pair_ids where all 8 fields are non-null
+        # (Each pair has 1 row with 8 fields: 4 choices + 4 confidence ratings)
+        placeholders = ','.join('?' * len(participant_id_list))
+        completed_pairs = db.execute(f'''
+            SELECT image_pair_id
+            FROM survey_responses
+            WHERE participant_id IN ({placeholders})
+                AND better_image IS NOT NULL
+                AND image_confidence IS NOT NULL
+                AND better_prompt_match IS NOT NULL
+                AND prompt_confidence IS NOT NULL
+                AND better_mask_match IS NOT NULL
+                AND mask_confidence IS NOT NULL
+                AND better_identity_match IS NOT NULL
+                AND identity_confidence IS NOT NULL
+        ''', participant_id_list).fetchall()
+        
+        return [row['image_pair_id'] for row in completed_pairs]
+    finally:
+        db.close()
+
 @app.route('/api/get_image_pair/<int:pair_index>')
 def get_image_pair(pair_index):
     """Get a specific image pair"""
     # Initialize user's randomized pair list if not already done
     # OR if DEV_MODE has changed since session was created
     if 'user_image_pairs' not in session or session.get('session_dev_mode') != DEV_MODE:
+        # Get the user's email from demographics (if they've submitted it)
+        user_email = None
+        if 'session_id' in session:
+            db = get_db()
+            try:
+                demo = db.execute('''
+                    SELECT d.email 
+                    FROM demographics d
+                    JOIN participants p ON d.participant_id = p.id
+                    WHERE p.session_id = ?
+                    ORDER BY d.id DESC
+                    LIMIT 1
+                ''', (session['session_id'],)).fetchone()
+                if demo:
+                    user_email = demo['email']
+            finally:
+                db.close()
+        
+        # Get list of completed pair IDs for this email
+        completed_pair_ids = get_completed_pair_ids_for_email(user_email) if user_email else []
+        
+        # Filter out completed pairs from available pairs
+        available_pairs = [p for p in IMAGE_PAIRS if p['id'] not in completed_pair_ids]
+        
         # In dev mode, use first 3 pairs; in production, randomly sample up to 30
         max_pairs = 3 if DEV_MODE else 30
         
         # If we have fewer pairs than max, use all of them
-        num_pairs = min(len(IMAGE_PAIRS), max_pairs)
+        num_pairs = min(len(available_pairs), max_pairs)
         
         # Randomly sample and shuffle pairs for this user
-        if len(IMAGE_PAIRS) <= num_pairs:
-            # Use all pairs, but in random order
-            user_pairs = IMAGE_PAIRS.copy()
+        if len(available_pairs) <= num_pairs:
+            # Use all available pairs, but in random order
+            user_pairs = available_pairs.copy()
             random.shuffle(user_pairs)
         else:
             # Randomly sample without replacement
-            user_pairs = random.sample(IMAGE_PAIRS, num_pairs)
+            user_pairs = random.sample(available_pairs, num_pairs)
         
         # Store the shuffled pair list in session (store just the IDs to keep session small)
         session['user_image_pairs'] = [pair['id'] for pair in user_pairs]
