@@ -669,6 +669,14 @@ function setQuestionsHeight() {
     if (questionSections.length === 0) return;
     
     const firstSection = questionSections[0];
+    
+    // Wait for content to be fully rendered
+    if (!firstSection || firstSection.offsetHeight === 0) {
+        // Retry after a short delay
+        setTimeout(setQuestionsHeight, 100);
+        return;
+    }
+    
     const sectionHeight = firstSection.offsetHeight;
     
     // Add some padding for comfortable viewing
