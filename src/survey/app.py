@@ -14,16 +14,20 @@ from flask_wtf.csrf import CSRFProtect, generate_csrf
 
 app = Flask(__name__)
 
+# Security: Detect production environment
+IS_PRODUCTION = os.path.exists('/data')  # Fly.io mounts persistent volume at /data
+
 # Security: Require strong SECRET_KEY in production
 SECRET_KEY = os.environ.get('SECRET_KEY')
 if not SECRET_KEY:
-    if os.environ.get('FLASK_ENV') == 'production' or os.path.exists('/data'):
+    if IS_PRODUCTION:
         raise ValueError("SECRET_KEY environment variable must be set in production!")
     SECRET_KEY = 'dev-secret-key-change-in-production'
 app.secret_key = SECRET_KEY
 
 # Security: Session configuration
-app.config['SESSION_COOKIE_SECURE'] = not (os.environ.get('FLASK_ENV') == 'development')  # HTTPS only in production
+# Only require HTTPS cookies in production
+app.config['SESSION_COOKIE_SECURE'] = IS_PRODUCTION  # HTTPS only in production
 app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)  # Session timeout
@@ -45,11 +49,11 @@ ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')  # Change this in 
 DEV_MODE = os.environ.get('DEV_MODE', 'false').lower() == 'true'  # Set DEV_MODE=true for testing
 
 # Security: Warn if weak admin password in production
-if ADMIN_PASSWORD == 'admin123' and (os.environ.get('FLASK_ENV') == 'production' or os.path.exists('/data')):
+if ADMIN_PASSWORD == 'admin123' and IS_PRODUCTION:
     print("WARNING: Using default admin password! Set ADMIN_PASSWORD environment variable!")
 
 # Audit log file
-AUDIT_LOG_FILE = '/data/audit.log' if os.path.exists('/data') else 'audit.log'
+AUDIT_LOG_FILE = '/data/audit.log' if IS_PRODUCTION else 'audit.log'
 
 # Referral codes - Set valid codes via environment variable (comma-separated) or in code
 # If empty, no referral code is required
@@ -66,7 +70,7 @@ if not REFERRAL_CODES:
 REQUIRE_REFERRAL = bool(REFERRAL_CODES) and not DEV_MODE
 
 # Use /data for persistent storage on Fly.io, otherwise local directory
-DATABASE = '/data/survey.db' if os.path.exists('/data') else 'survey.db'
+DATABASE = '/data/survey.db' if IS_PRODUCTION else 'survey.db'
 
 # Image pairs configuration file
 IMAGE_PAIRS_FILE = os.environ.get('IMAGE_PAIRS_FILE', 'image_pairs.txt')
@@ -184,7 +188,7 @@ def set_security_headers(response):
     response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     # Only set HSTS in production (Fly.io handles HTTPS)
-    if os.path.exists('/data'):
+    if IS_PRODUCTION:
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     return response
 
