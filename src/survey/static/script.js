@@ -1062,19 +1062,17 @@ function setQuestionsHeight() {
 }
 
 function scaleVisualContent(availableHeight, m) {
-    // Set visual content section height
+    // Visual section now flows naturally without height constraints
     const visualSection = m.visualSection;
-    const minVisualHeight = m.isMobileLandscape ? 250 : 300;
-    const finalHeight = Math.max(availableHeight, minVisualHeight);
     
     if (visualSection) {
-        visualSection.style.maxHeight = `${finalHeight}px`;
-        visualSection.style.minHeight = `${minVisualHeight}px`;
+        visualSection.style.maxHeight = 'none';
+        visualSection.style.minHeight = 'auto';
     }
     
-    // Calculate space for images
+    // Calculate space for images based on viewport
     const promptAndHeaderSpace = m.promptHeight + m.titlesHeight + m.conditioningMargins + 40;
-    const availableImageSpace = availableHeight - promptAndHeaderSpace;
+    const availableImageSpace = m.vh * 0.5; // Use 50% of viewport for images
     const maxImageHeight = Math.floor(availableImageSpace * 0.8);
     
     // Apply to tile images (generated images and mask in three-tile-grid)

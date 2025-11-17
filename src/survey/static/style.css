@@ -228,27 +228,7 @@ p {
     border-radius: 12px;
     /* Height controlled dynamically by JavaScript */
     margin-bottom: 20px;
-    overflow-y: auto;
-    overflow-x: hidden;
-}
-
-/* Scrollbar styling for visual content section */
-.visual-content-section::-webkit-scrollbar {
-    width: 8px;
-}
-
-.visual-content-section::-webkit-scrollbar-track {
-    background: #e0e0e0;
-    border-radius: 4px;
-}
-
-.visual-content-section::-webkit-scrollbar-thumb {
-    background: #4A90E2;
-    border-radius: 4px;
-}
-
-.visual-content-section::-webkit-scrollbar-thumb:hover {
-    background: #357ABD;
+    overflow: visible;
 }
 
 /* THREE TILE GRID: Image A, Mask, Image B */
