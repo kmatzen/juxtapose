@@ -48,6 +48,9 @@ limiter = Limiter(
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')  # Change this in production
 DEV_MODE = os.environ.get('DEV_MODE', 'false').lower() == 'true'  # Set DEV_MODE=true for testing
 
+# Session versioning - increment this when session structure changes
+SESSION_VERSION = 2  # Increment this to invalidate old sessions
+
 # Layout Configuration: Order of tiles in the three-tile grid
 # Options: 'AMB' (A, Mask, B) or 'MAB' (Mask, A, B)
 TILE_LAYOUT = os.environ.get('TILE_LAYOUT', 'MAB').upper()  # Set TILE_LAYOUT=AMB for image-mask-image layout
@@ -57,6 +60,9 @@ if TILE_LAYOUT not in ['AMB', 'MAB']:
 
 # Question Configuration: Enable/disable specific evaluation questions
 ENABLE_PROMPT_QUESTION = os.environ.get('ENABLE_PROMPT_QUESTION', 'false').lower() == 'true'  # Set ENABLE_PROMPT_QUESTION=true to enable
+
+# Display Configuration: Show/hide the text prompt
+SHOW_PROMPT = os.environ.get('SHOW_PROMPT', 'false').lower() == 'true'  # Set SHOW_PROMPT=true to display prompt text
 
 # Security: Warn if weak admin password in production
 if ADMIN_PASSWORD == 'admin123' and IS_PRODUCTION:
@@ -207,6 +213,27 @@ def audit_log(action, details, user_ip=None):
         # Never let audit logging break the app
         print(f"Audit logging error: {e}")
 
+# Session validation: Check for stale sessions
+@app.before_request
+def validate_session():
+    """Validate session version and clear if stale"""
+    # Skip validation for static files
+    if request.path.startswith('/static/'):
+        return
+    
+    # Skip validation in testing mode
+    if app.config.get('TESTING'):
+        return
+    
+    # Check session version
+    if 'session_id' in session:
+        session_version = session.get('version')
+        if session_version != SESSION_VERSION:
+            # Session is stale (either old without version or wrong version) - clear it
+            print(f"[INFO] Clearing stale session (version {session_version} != {SESSION_VERSION})")
+            session.clear()
+            # Don't redirect here, just clear - the route will handle it
+
 # Security: HTTP Security Headers
 @app.after_request
 def set_security_headers(response):
@@ -334,6 +361,7 @@ def index():
     """Home page - check referral code and if user has already submitted"""
     if 'session_id' not in session:
         session['session_id'] = str(uuid.uuid4())
+        session['version'] = SESSION_VERSION
     
     # Check if referral code is required and validated
     if REQUIRE_REFERRAL and not session.get('referral_validated'):
@@ -375,7 +403,7 @@ def index():
                 if DEV_MODE and force_new:
                     if DEV_MODE:
                         print(f"[DEBUG] Showing survey (force_new)")
-                    return render_template('index.html', tile_layout=TILE_LAYOUT, enable_prompt_question=ENABLE_PROMPT_QUESTION)
+                    return render_template('index.html', tile_layout=TILE_LAYOUT, enable_prompt_question=ENABLE_PROMPT_QUESTION, show_prompt=SHOW_PROMPT)
                 # Show thank you page if completed
                 if DEV_MODE:
                     print(f"[DEBUG] Showing thank you page (survey complete)")
@@ -389,7 +417,7 @@ def index():
     else:
         db.close()
     
-    return render_template('index.html', tile_layout=TILE_LAYOUT, enable_prompt_question=ENABLE_PROMPT_QUESTION)
+    return render_template('index.html', tile_layout=TILE_LAYOUT, enable_prompt_question=ENABLE_PROMPT_QUESTION, show_prompt=SHOW_PROMPT)
 
 @app.route('/referral', methods=['GET', 'POST'])
 def referral():
@@ -504,6 +532,7 @@ def tutorial():
     """Show tutorial mode - interactive walkthrough using real survey interface"""
     if 'session_id' not in session:
         session['session_id'] = str(uuid.uuid4())
+        session['version'] = SESSION_VERSION
     
     # Check if user should be here
     if not session.get('referral_validated', False):
@@ -530,7 +559,7 @@ def tutorial():
     session['tutorial_mode'] = True
     
     # Render the survey page in tutorial mode
-    return render_template('index.html', tile_layout=TILE_LAYOUT, enable_prompt_question=ENABLE_PROMPT_QUESTION, tutorial_mode=True)
+    return render_template('index.html', tile_layout=TILE_LAYOUT, enable_prompt_question=ENABLE_PROMPT_QUESTION, show_prompt=SHOW_PROMPT, tutorial_mode=True)
 
 @app.route('/api/complete_tutorial', methods=['POST'])
 @csrf.exempt  # Exempt from CSRF - protected by session

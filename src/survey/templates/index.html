@@ -222,11 +222,13 @@
             <form id="survey-form">
                 <!-- TOP SECTION: Visual Content -->
                 <div class="visual-content-section">
+                    {% if show_prompt %}
                     <!-- Prompt - Full Width -->
                     <div class="prompt-box">
                         <h3>Text Prompt</h3>
                         <p id="prompt-text">Loading...</p>
                     </div>
+                    {% endif %}
                     
                     <!-- Identity Images - Full Width -->
                     <div id="identity-section" class="conditioning-box">
@@ -528,6 +530,10 @@
         <p>Questions or concerns? Contact <a href="mailto:survey-x7qp@adobe.com">survey-x7qp@adobe.com</a></p>
     </footer>
 
+    <script>
+        // Configuration from server
+        window.SHOW_PROMPT = {{ 'true' if show_prompt else 'false' }};
+    </script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
