@@ -348,21 +348,25 @@ def index():
             max_pairs = 3 if DEV_MODE else 30
             expected_pairs = min(total_available_pairs, max_pairs)
             
-            print(f"[DEBUG] Index route check: email={demo['email']}, completed={len(completed_pair_ids)}, expected={expected_pairs}, tutorial_complete={session.get('tutorial_completed', False)}")
+            if DEV_MODE:
+                print(f"[DEBUG] Index route check: email={demo['email']}, completed={len(completed_pair_ids)}, expected={expected_pairs}, tutorial_complete={session.get('tutorial_completed', False)}")
             
             # If they've completed all available pairs (or reached the limit), show thank you
             if len(completed_pair_ids) >= expected_pairs:
                 # In dev mode, allow restarting with ?new=true parameter
                 if DEV_MODE and force_new:
-                    print(f"[DEBUG] Showing survey (force_new)")
+                    if DEV_MODE:
+                        print(f"[DEBUG] Showing survey (force_new)")
                     return render_template('index.html', tile_layout=TILE_LAYOUT, enable_prompt_question=ENABLE_PROMPT_QUESTION)
                 # Show thank you page if completed
-                print(f"[DEBUG] Showing thank you page (survey complete)")
+                if DEV_MODE:
+                    print(f"[DEBUG] Showing thank you page (survey complete)")
                 return render_template('thank_you.html', already_submitted=True, dev_mode=DEV_MODE)
             
             # Demographics completed, check if tutorial completed
             if not session.get('tutorial_completed', False):
-                print(f"[DEBUG] Redirecting to tutorial")
+                if DEV_MODE:
+                    print(f"[DEBUG] Redirecting to tutorial")
                 return redirect(url_for('tutorial'))
     else:
         db.close()
@@ -393,17 +397,89 @@ def referral():
 def reset_session():
     """Reset session - useful for dev/testing or shared computers"""
     if DEV_MODE:
-        session.clear()
-        return redirect(url_for('referral') if REQUIRE_REFERRAL else url_for('index'))
+        # In dev mode, immediately reset without confirmation
+        return reset_session_logic()
     else:
         # In production, show styled confirmation page
         return render_template('reset_session_confirm.html')
 
+def reset_session_logic():
+    """Core logic for resetting session and deleting user data"""
+    email_to_delete = None
+    print(f"[INFO] Reset session requested")
+    
+    if 'session_id' in session:
+        print(f"[INFO] Found session_id: {session['session_id']}")
+        db = get_db()
+        try:
+            # Get participant and their email
+            participant = db.execute(
+                'SELECT id FROM participants WHERE session_id = ?',
+                (session['session_id'],)
+            ).fetchone()
+            
+            if participant:
+                print(f"[INFO] Found participant: {participant['id']}")
+                demo = db.execute(
+                    'SELECT email FROM demographics WHERE participant_id = ?',
+                    (participant['id'],)
+                ).fetchone()
+                
+                if demo:
+                    email_to_delete = demo['email']
+                    
+                    print(f"[INFO] Resetting session and deleting data for: {email_to_delete}")
+                    
+                    # Delete all data for this email (all participants/sessions with this email)
+                    # Get all participant IDs for this email
+                    all_participants = db.execute('''
+                        SELECT p.id FROM participants p
+                        JOIN demographics d ON p.id = d.participant_id
+                        WHERE d.email = ?
+                    ''', (email_to_delete,)).fetchall()
+                    
+                    participant_ids = [p['id'] for p in all_participants]
+                    
+                    if participant_ids:
+                        # Delete survey responses
+                        placeholders = ','.join('?' * len(participant_ids))
+                        deleted_responses = db.execute(f'DELETE FROM survey_responses WHERE participant_id IN ({placeholders})', participant_ids)
+                        print(f"[INFO] Deleted {deleted_responses.rowcount} survey responses")
+                        
+                        # Delete demographics
+                        deleted_demographics = db.execute(f'DELETE FROM demographics WHERE participant_id IN ({placeholders})', participant_ids)
+                        print(f"[INFO] Deleted {deleted_demographics.rowcount} demographics records")
+                        
+                        # Delete participants
+                        deleted_participants = db.execute(f'DELETE FROM participants WHERE id IN ({placeholders})', participant_ids)
+                        print(f"[INFO] Deleted {deleted_participants.rowcount} participant records")
+                        
+                        db.commit()
+                        
+                        print(f"[INFO] Reset complete for {email_to_delete}")
+                    else:
+                        print(f"[WARNING] No participant records found for {email_to_delete}")
+                else:
+                    print(f"[WARNING] Participant found but no demographics record")
+            else:
+                print(f"[WARNING] No participant found for session_id: {session['session_id']}")
+        except Exception as e:
+            print(f"[ERROR] Error during session reset: {e}")
+            db.rollback()
+        finally:
+            db.close()
+    else:
+        print(f"[WARNING] No session_id in session")
+    
+    # Clear the session
+    session.clear()
+    print(f"[INFO] Session cleared, redirecting to start")
+    return redirect(url_for('referral') if REQUIRE_REFERRAL else url_for('index'))
+
 @app.route('/reset_session_confirm', methods=['POST'])
 def reset_session_confirm():
-    """Confirm session reset"""
-    session.clear()
-    return redirect(url_for('referral') if REQUIRE_REFERRAL else url_for('index'))
+    """Confirm session reset - calls the reset logic"""
+    return reset_session_logic()
 
 @app.route('/tutorial')
 def tutorial():
@@ -855,7 +931,8 @@ def submit_survey():
         if demo and demo['email']:
             completed_pair_ids = get_completed_pair_ids_for_email(demo['email'])
             completed = len(completed_pair_ids) >= user_pairs_count
-            print(f"[DEBUG] Submit check: email={demo['email']}, completed_pairs={len(completed_pair_ids)}, user_pairs_count={user_pairs_count}, completed={completed}")
+            if DEV_MODE:
+                print(f"[DEBUG] Submit check: email={demo['email']}, completed_pairs={len(completed_pair_ids)}, user_pairs_count={user_pairs_count}, completed={completed}")
         else:
             completed = False
         
