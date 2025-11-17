@@ -1352,29 +1352,82 @@ p {
 
 #tutorial-banner .tutorial-content {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 20px;
     padding: 15px 30px;
     max-width: 1400px;
     margin: 0 auto;
+    position: relative;
+    min-height: 70px;
 }
 
-.tutorial-step-indicator {
+.tutorial-progress {
     flex-shrink: 0;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
     display: flex;
     align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    font-size: 18px;
+    gap: 12px;
+    margin-bottom: 15px;
+}
+
+.tutorial-progress-circle {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+}
+
+.circular-chart {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.circle-bg {
+    opacity: 1;
+}
+
+.circle-fill {
+    transform: rotate(-90deg);
+    transform-origin: center;
+    transition: stroke-dasharray 0.3s ease;
+}
+
+.circle-checkmark {
+    stroke: white;
+    opacity: 0;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    transform-origin: center;
+}
+
+.circle-checkmark.show {
+    opacity: 1;
+    animation: checkmarkPop 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes checkmarkPop {
+    0% {
+        transform: scale(0);
+        opacity: 0;
+    }
+    50% {
+        transform: scale(1.2);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.tutorial-progress-text {
+    font-size: 14px;
+    font-weight: 500;
+    opacity: 0.9;
+    white-space: nowrap;
 }
 
 #tutorial-banner .tutorial-text {
     flex: 1;
     min-width: 0;
+    padding-right: 140px;
 }
 
 #tutorial-banner h3 {
@@ -1394,7 +1447,9 @@ p {
 #tutorial-banner .tutorial-buttons {
     display: flex;
     gap: 10px;
-    flex-shrink: 0;
+    position: absolute;
+    right: 30px;
+    top: 15px;
 }
 
 #tutorial-banner .btn-tutorial {
@@ -1449,13 +1504,27 @@ p {
         flex-direction: column;
         align-items: flex-start;
         gap: 12px;
-        padding: 12px 15px;
+        padding: 50px 15px 12px 15px;
+        min-height: 120px;
     }
     
-    .tutorial-step-indicator {
+    .tutorial-progress {
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    
+    .tutorial-progress-circle {
         width: 32px;
         height: 32px;
-        font-size: 16px;
+    }
+    
+    .tutorial-progress-text {
+        font-size: 12px;
+    }
+    
+    #tutorial-banner .tutorial-text {
+        padding-right: 0;
+        width: 100%;
     }
     
     #tutorial-banner h3 {
@@ -1467,8 +1536,12 @@ p {
     }
     
     #tutorial-banner .tutorial-buttons {
-        width: 100%;
-        justify-content: flex-end;
+        right: 15px;
+        top: 15px;
+    }
+    
+    #tutorial-banner .tutorial-text {
+        padding-right: 0;
     }
 }
 
