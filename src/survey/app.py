@@ -348,13 +348,22 @@ def index():
             max_pairs = 3 if DEV_MODE else 30
             expected_pairs = min(total_available_pairs, max_pairs)
             
+            print(f"[DEBUG] Index route check: email={demo['email']}, completed={len(completed_pair_ids)}, expected={expected_pairs}, tutorial_complete={session.get('tutorial_completed', False)}")
+            
             # If they've completed all available pairs (or reached the limit), show thank you
             if len(completed_pair_ids) >= expected_pairs:
                 # In dev mode, allow restarting with ?new=true parameter
                 if DEV_MODE and force_new:
+                    print(f"[DEBUG] Showing survey (force_new)")
                     return render_template('index.html', tile_layout=TILE_LAYOUT, enable_prompt_question=ENABLE_PROMPT_QUESTION)
                 # Show thank you page if completed
+                print(f"[DEBUG] Showing thank you page (survey complete)")
                 return render_template('thank_you.html', already_submitted=True, dev_mode=DEV_MODE)
+            
+            # Demographics completed, check if tutorial completed
+            if not session.get('tutorial_completed', False):
+                print(f"[DEBUG] Redirecting to tutorial")
+                return redirect(url_for('tutorial'))
     else:
         db.close()
     
@@ -395,6 +404,46 @@ def reset_session_confirm():
     """Confirm session reset"""
     session.clear()
     return redirect(url_for('referral') if REQUIRE_REFERRAL else url_for('index'))
+
+@app.route('/tutorial')
+def tutorial():
+    """Show tutorial mode - interactive walkthrough using real survey interface"""
+    if 'session_id' not in session:
+        session['session_id'] = str(uuid.uuid4())
+    
+    # Check if user should be here
+    if not session.get('referral_validated', False):
+        return redirect(url_for('referral'))
+    
+    # Check if demographics completed
+    demographics_completed = False
+    if 'session_id' in session:
+        conn = get_db()
+        c = conn.cursor()
+        # Join participants and demographics tables using session_id
+        c.execute('''
+            SELECT d.id FROM demographics d
+            JOIN participants p ON d.participant_id = p.id
+            WHERE p.session_id = ?
+        ''', (session['session_id'],))
+        demographics_completed = c.fetchone() is not None
+        conn.close()
+    
+    if not demographics_completed:
+        return redirect(url_for('index'))
+    
+    # Render the survey page in tutorial mode
+    return render_template('index.html', tile_layout=TILE_LAYOUT, enable_prompt_question=ENABLE_PROMPT_QUESTION, tutorial_mode=True)
+
+@app.route('/api/complete_tutorial', methods=['POST'])
+@csrf.exempt  # Exempt from CSRF - protected by session
+def complete_tutorial():
+    """Mark tutorial as completed"""
+    if 'session_id' not in session:
+        return jsonify({'error': 'No session'}), 400
+    
+    session['tutorial_completed'] = True
+    return jsonify({'ok': True})
 
 @app.route('/api/config')
 def get_config():
@@ -584,22 +633,32 @@ def get_completed_pair_ids_for_email(email):
         
         participant_id_list = [p['id'] for p in participant_ids]
         
-        # Get image_pair_ids where all 8 fields are non-null
-        # (Each pair has 1 row with 8 fields: 4 choices + 4 confidence ratings)
+        # Get image_pair_ids where required fields are non-null
+        # Base requirements: better_image, image_confidence, mask, identity
+        # Conditional: prompt match/confidence only if enabled
         placeholders = ','.join('?' * len(participant_id_list))
-        completed_pairs = db.execute(f'''
+        
+        # Build query based on enabled questions
+        query = f'''
             SELECT image_pair_id
             FROM survey_responses
             WHERE participant_id IN ({placeholders})
                 AND better_image IS NOT NULL
                 AND image_confidence IS NOT NULL
-                AND better_prompt_match IS NOT NULL
-                AND prompt_confidence IS NOT NULL
                 AND better_mask_match IS NOT NULL
                 AND mask_confidence IS NOT NULL
                 AND better_identity_match IS NOT NULL
                 AND identity_confidence IS NOT NULL
-        ''', participant_id_list).fetchall()
+        '''
+        
+        # Only require prompt fields if the prompt question is enabled
+        if ENABLE_PROMPT_QUESTION:
+            query += '''
+                AND better_prompt_match IS NOT NULL
+                AND prompt_confidence IS NOT NULL
+            '''
+        
+        completed_pairs = db.execute(query, participant_id_list).fetchall()
         
         return [row['image_pair_id'] for row in completed_pairs]
     finally:
@@ -784,14 +843,22 @@ def submit_survey():
         
         # Check if they've completed all their assigned image pairs
         user_pairs_count = session.get('user_pairs_count', min(len(IMAGE_PAIRS), 30 if not DEV_MODE else 3))
-        response_count = db.execute(
-            'SELECT COUNT(*) as count FROM survey_responses WHERE participant_id = ?',
-            (participant['id'],)
-        ).fetchone()
         
         db.commit()
         
-        completed = response_count['count'] >= user_pairs_count
+        # Get user's email to check completed pairs
+        demo = db.execute(
+            'SELECT email FROM demographics WHERE participant_id = ?',
+            (participant['id'],)
+        ).fetchone()
+        
+        if demo and demo['email']:
+            completed_pair_ids = get_completed_pair_ids_for_email(demo['email'])
+            completed = len(completed_pair_ids) >= user_pairs_count
+            print(f"[DEBUG] Submit check: email={demo['email']}, completed_pairs={len(completed_pair_ids)}, user_pairs_count={user_pairs_count}, completed={completed}")
+        else:
+            completed = False
+        
         return jsonify({'success': True, 'completed': completed})
     except Exception as e:
         db.rollback()

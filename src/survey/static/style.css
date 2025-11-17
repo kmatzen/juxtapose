@@ -1308,3 +1308,150 @@ p {
     color: #ffeb3b;
 }
 
+/* ========================================================================
+   TUTORIAL MODE BANNER
+   ======================================================================== */
+
+#tutorial-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10000;
+    background: linear-gradient(135deg, #6a1b9a 0%, #8e24aa 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+#tutorial-banner .tutorial-content {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 15px 30px;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.tutorial-step-indicator {
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 18px;
+}
+
+#tutorial-banner .tutorial-text {
+    flex: 1;
+    min-width: 0;
+}
+
+#tutorial-banner h3 {
+    margin: 0 0 5px 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: white;
+}
+
+#tutorial-banner p {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.95);
+}
+
+#tutorial-banner .tutorial-buttons {
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+#tutorial-banner .btn-tutorial {
+    padding: 8px 20px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+#tutorial-banner .btn-tutorial:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+#tutorial-banner .btn-tutorial-primary {
+    background: white;
+    color: #6a1b9a;
+}
+
+#tutorial-banner .btn-tutorial-primary:hover {
+    background: #f0f0f0;
+}
+
+.tutorial-highlight {
+    box-shadow: 0 0 0 4px #6a1b9a, 0 0 0 8px rgba(106, 27, 154, 0.3) !important;
+    border-radius: 8px;
+    animation: pulse 2s infinite;
+}
+
+/* Don't change positioning for already positioned elements */
+.tutorial-highlight:not([style*="position"]):not(.question-navigation) {
+    position: relative;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 4px #6a1b9a, 0 0 0 8px rgba(106, 27, 154, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 0 4px #6a1b9a, 0 0 0 12px rgba(106, 27, 154, 0.5);
+    }
+}
+
+/* Responsive tutorial banner */
+@media (max-width: 768px) {
+    #tutorial-banner .tutorial-content {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 12px 15px;
+    }
+    
+    .tutorial-step-indicator {
+        width: 32px;
+        height: 32px;
+        font-size: 16px;
+    }
+    
+    #tutorial-banner h3 {
+        font-size: 16px;
+    }
+    
+    #tutorial-banner p {
+        font-size: 13px;
+    }
+    
+    #tutorial-banner .tutorial-buttons {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}
+
