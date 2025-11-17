@@ -7,6 +7,58 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+    {% if tutorial_mode %}
+    <!-- Tutorial Mode Banner (Fixed to top) -->
+    <div id="tutorial-banner" style="display: none;">
+        <div class="tutorial-content">
+            <div class="tutorial-progress">
+                <div class="tutorial-progress-circle">
+                    <svg viewBox="0 0 36 36" class="circular-chart">
+                        <path class="circle-bg"
+                            d="M18 2.0845
+                               a 15.9155 15.9155 0 0 1 0 31.831
+                               a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none"
+                            stroke="rgba(255, 255, 255, 0.2)"
+                            stroke-width="3"
+                        />
+                        <path class="circle-fill" id="tutorial-progress-circle"
+                            d="M18 2.0845
+                               a 15.9155 15.9155 0 0 1 0 31.831
+                               a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none"
+                            stroke="white"
+                            stroke-width="3"
+                            stroke-dasharray="0, 100"
+                        />
+                        <!-- Checkmark that appears when complete -->
+                        <path class="circle-checkmark" id="tutorial-checkmark"
+                            d="M12 18 L16 22 L24 14"
+                            fill="none"
+                            stroke="white"
+                            stroke-width="2.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            opacity="0"
+                        />
+                    </svg>
+                </div>
+            </div>
+            <div class="tutorial-text">
+                <h3 id="tutorial-title"></h3>
+                <p id="tutorial-text"></p>
+            </div>
+            <div class="tutorial-buttons">
+                <button class="btn-tutorial btn-tutorial-primary" onclick="nextTutorialStep()">Next</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Initialize tutorial mode
+        window.TUTORIAL_MODE = true;
+    </script>
+    {% endif %}
+
     <div class="container">
         <div class="progress-container">
             <div class="survey-progress" id="survey-progress" style="display: none;">
@@ -475,58 +527,6 @@
     <footer class="survey-footer">
         <p>Questions or concerns? Contact <a href="mailto:survey-x7qp@adobe.com">survey-x7qp@adobe.com</a></p>
     </footer>
-
-    {% if tutorial_mode %}
-    <!-- Tutorial Mode Banner -->
-    <div id="tutorial-banner" style="display: none;">
-        <div class="tutorial-content">
-            <div class="tutorial-progress">
-                <div class="tutorial-progress-circle">
-                    <svg viewBox="0 0 36 36" class="circular-chart">
-                        <path class="circle-bg"
-                            d="M18 2.0845
-                               a 15.9155 15.9155 0 0 1 0 31.831
-                               a 15.9155 15.9155 0 0 1 0 -31.831"
-                            fill="none"
-                            stroke="rgba(255, 255, 255, 0.2)"
-                            stroke-width="3"
-                        />
-                        <path class="circle-fill" id="tutorial-progress-circle"
-                            d="M18 2.0845
-                               a 15.9155 15.9155 0 0 1 0 31.831
-                               a 15.9155 15.9155 0 0 1 0 -31.831"
-                            fill="none"
-                            stroke="white"
-                            stroke-width="3"
-                            stroke-dasharray="0, 100"
-                        />
-                        <!-- Checkmark that appears when complete -->
-                        <path class="circle-checkmark" id="tutorial-checkmark"
-                            d="M12 18 L16 22 L24 14"
-                            fill="none"
-                            stroke="white"
-                            stroke-width="2.5"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            opacity="0"
-                        />
-                    </svg>
-                </div>
-            </div>
-            <div class="tutorial-text">
-                <h3 id="tutorial-title"></h3>
-                <p id="tutorial-text"></p>
-            </div>
-            <div class="tutorial-buttons">
-                <button class="btn-tutorial btn-tutorial-primary" onclick="nextTutorialStep()">Next</button>
-            </div>
-        </div>
-    </div>
-    <script>
-        // Initialize tutorial mode
-        window.TUTORIAL_MODE = true;
-    </script>
-    {% endif %}
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>

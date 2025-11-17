@@ -14,7 +14,7 @@ body {
 }
 
 .container {
-    max-width: 600px; /* Default narrow width for forms */
+    max-width: 1100px; /* Default narrow width for forms */
     width: 95%;
     margin: 0 auto;
     background: white;
@@ -24,6 +24,11 @@ body {
     transition: max-width 0.3s ease;
 }
 
+@media (max-width: 768px) {
+    .container {
+        width: 100%;
+    }
+}
 
 /* Progress Container */
 .progress-container {
@@ -1312,8 +1317,10 @@ p {
 #tutorial-banner {
     position: fixed;
     top: 0;
-    left: 0;
-    right: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 1100px; /* Match container */
+    width: 95%; /* Match container */
     z-index: 10000;
     background: linear-gradient(135deg, #6a1b9a 0%, #8e24aa 100%);
     color: white;
@@ -1321,7 +1328,23 @@ p {
     animation: slideDown 0.3s ease-out;
 }
 
+/* Match container width on mobile */
+@media (max-width: 768px) {
+    #tutorial-banner {
+        width: 100%;
+    }
+}
+
 @keyframes slideDown {
+    from {
+        transform: translateX(-50%) translateY(-100%);
+    }
+    to {
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+@keyframes slideDownMobile {
     from {
         transform: translateY(-100%);
     }
@@ -1334,9 +1357,7 @@ p {
     display: flex;
     align-items: flex-start;
     gap: 20px;
-    padding: 15px 30px;
-    max-width: 1400px;
-    margin: 0 auto;
+    padding: 20px;
     position: relative;
     min-height: 70px;
 }
@@ -1426,8 +1447,8 @@ p {
 #tutorial-banner .tutorial-buttons {
     display: flex;
     gap: 10px;
-    right: 30px;
-    top: 15px;
+    flex-shrink: 0;
+    align-items: center;
 }
 
 #tutorial-banner .btn-tutorial {
