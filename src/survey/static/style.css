@@ -357,7 +357,6 @@ p {
 .questions-container .evaluation-section {
     display: block; /* All visible, user scrolls through them */
     margin-bottom: 25px;
-    scroll-margin-top: 15px; /* Space when scrolling to section */
 }
 
 .questions-container .evaluation-section:last-child {
