@@ -801,7 +801,9 @@ const IDENTITY_COLORS = [
     [255, 0, 255],    // 4: Magenta
     [0, 255, 255],    // 5: Cyan
     [255, 128, 0],    // 6: Orange
-    // Add more colors as needed
+    [128, 0, 255],    // 7: Purple
+    [0, 128, 255],    // 8: Light Blue
+    [128, 128, 128]   // 9: Gray
 ];
 
 function processMaskForOverlays(maskImg) {
