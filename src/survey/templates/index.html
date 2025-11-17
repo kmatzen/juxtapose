@@ -471,6 +471,28 @@
         <p>Questions or concerns? Contact <a href="mailto:survey-x7qp@adobe.com">survey-x7qp@adobe.com</a></p>
     </footer>
 
+    {% if tutorial_mode %}
+    <!-- Tutorial Mode Banner -->
+    <div id="tutorial-banner" style="display: none;">
+        <div class="tutorial-content">
+            <div class="tutorial-step-indicator">
+                <span id="tutorial-step-number"></span>
+            </div>
+            <div class="tutorial-text">
+                <h3 id="tutorial-title"></h3>
+                <p id="tutorial-text"></p>
+            </div>
+            <div class="tutorial-buttons">
+                <button class="btn-tutorial btn-tutorial-primary" onclick="nextTutorialStep()">Next</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Initialize tutorial mode
+        window.TUTORIAL_MODE = true;
+    </script>
+    {% endif %}
+
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
