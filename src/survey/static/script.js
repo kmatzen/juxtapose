@@ -1504,17 +1504,17 @@ if (window.TUTORIAL_MODE) {
         },
         {
             title: "Question 1: Overall Quality",
-            text: "<strong>Which image looks better overall (quality, aesthetics, coherence)?</strong><br><br>Click on each of Image A and Image B to view them larger and judge the general quality. Look for blurriness, artifacts, and harmonization.",
+            text: "<strong>Which image looks better overall (quality, aesthetics, coherence)?</strong><br>Click on each of Image A and Image B to view them larger and judge the general quality. Look for blurriness, artifacts, and harmonization.",
             highlight: "#quality-evaluation"
         },
         {
             title: "Question 2: Mask Structure",
-            text: "<strong>Which image better follows the structure defined by the mask?</strong><br><br>Hover over each of the identity images which will overlay corresponding masks on both Image A and Image B. Judge which one follows the structure of the mask better.",
+            text: "<strong>Which image better follows the structure defined by the mask?</strong><br>Hover over each of the identity images which will overlay corresponding masks on both Image A and Image B. Judge which one follows the structure of the mask better.",
             highlight: "#mask-evaluation"
         },
         {
             title: "Question 3: Identity Preservation",
-            text: "<strong>Which image better preserves the identity features from the reference images?</strong><br><br>Hover over each of the reference images which will overlay corresponding masks on both Image A and Image B. Compare the identity of the subject in the selected areas with the corresponding reference image. If a chosen area doesn't contain the corresponding reference, it should be penalized.",
+            text: "<strong>Which image better preserves the identity features from the reference images?</strong><br>Hover over each of the reference images which will overlay corresponding masks on both Image A and Image B. Compare the identity of the subject in the selected areas with the corresponding reference image. If a chosen area doesn't contain the corresponding reference, it should be penalized.",
             highlight: "#identity-evaluation"
         },
         {

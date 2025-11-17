@@ -50,10 +50,10 @@ DEV_MODE = os.environ.get('DEV_MODE', 'false').lower() == 'true'  # Set DEV_MODE
 
 # Layout Configuration: Order of tiles in the three-tile grid
 # Options: 'AMB' (A, Mask, B) or 'MAB' (Mask, A, B)
-TILE_LAYOUT = os.environ.get('TILE_LAYOUT', 'AMB').upper()  # Set TILE_LAYOUT=MAB for mask-first layout
+TILE_LAYOUT = os.environ.get('TILE_LAYOUT', 'MAB').upper()  # Set TILE_LAYOUT=AMB for image-mask-image layout
 if TILE_LAYOUT not in ['AMB', 'MAB']:
-    print(f"WARNING: Invalid TILE_LAYOUT '{TILE_LAYOUT}'. Using default 'AMB'. Valid options: AMB, MAB")
-    TILE_LAYOUT = 'AMB'
+    print(f"WARNING: Invalid TILE_LAYOUT '{TILE_LAYOUT}'. Using default 'MAB'. Valid options: AMB, MAB")
+    TILE_LAYOUT = 'MAB'
 
 # Question Configuration: Enable/disable specific evaluation questions
 ENABLE_PROMPT_QUESTION = os.environ.get('ENABLE_PROMPT_QUESTION', 'false').lower() == 'true'  # Set ENABLE_PROMPT_QUESTION=true to enable
@@ -82,17 +82,18 @@ REQUIRE_REFERRAL = bool(REFERRAL_CODES) and not DEV_MODE
 # Use /data for persistent storage on Fly.io, otherwise local directory
 DATABASE = '/data/survey.db' if IS_PRODUCTION else 'survey.db'
 
-# Image pairs configuration file
+# Image pairs configuration files
 IMAGE_PAIRS_FILE = os.environ.get('IMAGE_PAIRS_FILE', 'image_pairs.txt')
+TUTORIAL_PAIRS_FILE = os.environ.get('TUTORIAL_PAIRS_FILE', 'tutorial_image_pair.txt')
 
-def load_image_pairs():
-    """Load image pairs from text file"""
+def load_image_pairs_from_file(file_path_relative, start_id=1):
+    """Load image pairs from a text file"""
     pairs = []
-    pair_id = 1
+    pair_id = start_id
     
     # Get the path relative to the app root (parent of src/)
     base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    file_path = os.path.join(base_path, IMAGE_PAIRS_FILE)
+    file_path = os.path.join(base_path, file_path_relative)
     
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -126,13 +127,13 @@ def load_image_pairs():
                 pair_id += 1
         
         if not pairs:
-            raise ValueError(f"No valid image pairs found in {IMAGE_PAIRS_FILE}")
+            raise ValueError(f"No valid image pairs found in {file_path_relative}")
         
-        print(f"✓ Loaded {len(pairs)} image pairs from {IMAGE_PAIRS_FILE}")
+        print(f"✓ Loaded {len(pairs)} image pairs from {file_path_relative}")
         return pairs
         
     except FileNotFoundError:
-        print(f"ERROR: {IMAGE_PAIRS_FILE} not found at {file_path}")
+        print(f"ERROR: {file_path_relative} not found at {file_path}")
         print("Creating sample file with 3 placeholder pairs...")
         
         # Create a sample file with helpful instructions
@@ -148,14 +149,31 @@ def load_image_pairs():
         
         print(f"✓ Created {file_path} with sample data")
         # Recursively call to load the newly created file
-        return load_image_pairs()
+        return load_image_pairs_from_file(file_path_relative, start_id)
     
     except Exception as e:
-        print(f"ERROR loading {IMAGE_PAIRS_FILE}: {e}")
+        print(f"ERROR loading {file_path_relative}: {e}")
         raise
+
+def load_image_pairs():
+    """Load main survey image pairs"""
+    return load_image_pairs_from_file(IMAGE_PAIRS_FILE, start_id=1)
+
+def load_tutorial_pair():
+    """Load tutorial image pair"""
+    try:
+        pairs = load_image_pairs_from_file(TUTORIAL_PAIRS_FILE, start_id=0)
+        if pairs:
+            return pairs[0]  # Return just the first (and only) tutorial pair
+        return None
+    except Exception as e:
+        print(f"Warning: Could not load tutorial pair: {e}")
+        # Fall back to first regular image pair if tutorial pair not available
+        return IMAGE_PAIRS[0] if IMAGE_PAIRS else None
 
 # Load image pairs on startup
 IMAGE_PAIRS = load_image_pairs()
+TUTORIAL_PAIR = load_tutorial_pair()
 
 # Run database migrations before initializing
 try:
@@ -508,6 +526,9 @@ def tutorial():
     if not demographics_completed:
         return redirect(url_for('index'))
     
+    # Set tutorial mode flag in session
+    session['tutorial_mode'] = True
+    
     # Render the survey page in tutorial mode
     return render_template('index.html', tile_layout=TILE_LAYOUT, enable_prompt_question=ENABLE_PROMPT_QUESTION, tutorial_mode=True)
 
@@ -519,6 +540,7 @@ def complete_tutorial():
         return jsonify({'error': 'No session'}), 400
     
     session['tutorial_completed'] = True
+    session['tutorial_mode'] = False  # Exit tutorial mode
     return jsonify({'ok': True})
 
 @app.route('/api/config')
@@ -743,6 +765,15 @@ def get_completed_pair_ids_for_email(email):
 @app.route('/api/get_image_pair/<int:pair_index>')
 def get_image_pair(pair_index):
     """Get a specific image pair"""
+    # If user is in tutorial mode and requesting the first pair, return the tutorial pair
+    if session.get('tutorial_mode', False) and pair_index == 0:
+        if TUTORIAL_PAIR:
+            return jsonify(TUTORIAL_PAIR)
+        # Fall back to first regular pair if tutorial pair not available
+        if IMAGE_PAIRS:
+            return jsonify(IMAGE_PAIRS[0])
+        return jsonify({'error': 'No image pairs available'}), 404
+    
     # Initialize user's randomized pair list if not already done
     # OR if DEV_MODE has changed since session was created
     if 'user_image_pairs' not in session or session.get('session_dev_mode') != DEV_MODE:
