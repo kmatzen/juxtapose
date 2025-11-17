@@ -1505,17 +1505,20 @@ if (window.TUTORIAL_MODE) {
         {
             title: "Question 1: Overall Quality",
             text: "<strong>Which image looks better overall (quality, aesthetics, coherence)?</strong><br>Click on each of Image A and Image B to view them larger and judge the general quality. Look for blurriness, artifacts, and harmonization.",
-            highlight: "#quality-evaluation"
+            highlight: ".questions-container",
+            scrollToWithin: "#quality-evaluation"
         },
         {
             title: "Question 2: Mask Structure",
             text: "<strong>Which image better follows the structure defined by the mask?</strong><br>Hover over each of the identity images which will overlay corresponding masks on both Image A and Image B. Judge which one follows the structure of the mask better.",
-            highlight: "#mask-evaluation"
+            highlight: ".questions-container",
+            scrollToWithin: "#mask-evaluation"
         },
         {
             title: "Question 3: Identity Preservation",
             text: "<strong>Which image better preserves the identity features from the reference images?</strong><br>Hover over each of the reference images which will overlay corresponding masks on both Image A and Image B. Compare the identity of the subject in the selected areas with the corresponding reference image. If a chosen area doesn't contain the corresponding reference, it should be penalized.",
-            highlight: "#identity-evaluation"
+            highlight: ".questions-container",
+            scrollToWithin: "#identity-evaluation"
         },
         {
             title: "Ready to Begin",
@@ -1560,6 +1563,7 @@ if (window.TUTORIAL_MODE) {
         if (tutorialSteps[step].highlight) {
             const elements = document.querySelectorAll(tutorialSteps[step].highlight);
             const highlightParent = tutorialSteps[step].highlightParent;
+            const scrollToWithin = tutorialSteps[step].scrollToWithin;
             
             if (elements.length > 0) {
                 elements.forEach(element => {
@@ -1569,35 +1573,44 @@ if (window.TUTORIAL_MODE) {
                     }
                 });
                 
-                // Scroll to the first element with offset for the banner
-                const firstElement = highlightParent ? elements[0].closest('.tile-box') : elements[0];
-                if (firstElement) {
+                // Determine which element to scroll to
+                let scrollTarget;
+                if (scrollToWithin) {
+                    // If scrollToWithin is specified, scroll to that element instead
+                    const scrollToElement = document.querySelector(scrollToWithin);
+                    scrollTarget = scrollToElement || elements[0];
+                } else {
+                    // Otherwise scroll to the highlighted element
+                    scrollTarget = highlightParent ? elements[0].closest('.tile-box') : elements[0];
+                }
+                
+                if (scrollTarget) {
                     setTimeout(() => {
                         // Check if element is inside a scrollable container (like .questions-container)
-                        const scrollContainer = firstElement.closest('.questions-container');
+                        const scrollContainer = scrollTarget.closest('.questions-container');
                         
                         if (scrollContainer) {
-                            // Scroll within the container to reveal the question
+                            // Scroll within the container to reveal the target
+                            // Use same calculation as navigateQuestion() for consistency
                             const containerRect = scrollContainer.getBoundingClientRect();
-                            const elementRectInContainer = firstElement.getBoundingClientRect();
-                            const relativeTop = elementRectInContainer.top - containerRect.top;
-                            const scrollOffset = 20; // Small offset from top of container
+                            const targetRect = scrollTarget.getBoundingClientRect();
+                            const scrollOffset = targetRect.top - containerRect.top + scrollContainer.scrollTop;
                             
                             scrollContainer.scrollTo({
-                                top: scrollContainer.scrollTop + relativeTop - scrollOffset,
+                                top: scrollOffset,
+                                behavior: 'smooth'
+                            });
+                        } else {
+                            // Scroll main window to element
+                            const elementRect = scrollTarget.getBoundingClientRect();
+                            const absoluteElementTop = elementRect.top + window.pageYOffset;
+                            const bannerHeight = banner.offsetHeight;
+                            const offset = 100; // Extra space above the element
+                            window.scrollTo({
+                                top: absoluteElementTop - bannerHeight - offset,
                                 behavior: 'smooth'
                             });
                         }
-                        
-                        // Also scroll the main window to ensure the container is visible
-                        const elementRect = firstElement.getBoundingClientRect();
-                        const absoluteElementTop = elementRect.top + window.pageYOffset;
-                        const bannerHeight = banner.offsetHeight;
-                        const offset = 100; // Extra space above the element
-                        window.scrollTo({
-                            top: absoluteElementTop - bannerHeight - offset,
-                            behavior: 'smooth'
-                        });
                     }, 100);
                 }
             }
