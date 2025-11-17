@@ -1332,49 +1332,49 @@ if (window.TUTORIAL_MODE) {
     let currentTutorialStep = 0;
     const tutorialSteps = [
         {
-            title: "Welcome to the Survey Tutorial!",
-            text: "This interactive tutorial will guide you through the survey interface using real examples. Your responses won't be saved. Click 'Next' to continue.",
+            title: "Before You Begin",
+            text: "Let's walk through how this survey works. We'll show you each part of the interface using a real example. Click 'Next' to continue.",
             highlight: null
         },
         {
             title: "Text Prompt",
-            text: "This is the text description that was used to generate the images. It tells you what should appear in the generated images.",
+            text: "This is the text description that was used to generate the images below. It describes what should appear in the generated images.",
             highlight: ".prompt-box"
         },
         {
             title: "Identity Reference Images",
-            text: "These are the specific people or objects that should appear in the generated images. Notice each has a colored border - this matches colored regions in the spatial mask below.",
+            text: "These show the specific people or objects that should appear in the generated images. Notice the colored borders - these match colored regions in the spatial mask.",
             highlight: "#identity-section"
         },
         {
             title: "Spatial Mask",
-            text: "This mask shows WHERE each identity should be placed in the image. Each colored region corresponds to one identity image (matched by border color).",
+            text: "This mask shows where each identity should be positioned. Each colored region corresponds to one identity image above (matched by border color).",
             highlight: ".mask-tile"
         },
         {
-            title: "Interactive Hover Feature ✨",
-            text: "Try hovering your mouse over any identity image! You'll see the corresponding regions light up in Images A and B. This helps you check if identities are in the right places.",
+            title: "Hover to Inspect",
+            text: "Hover your mouse over any identity image to see the corresponding region highlighted in Images A and B below. This helps you verify placement.",
             highlight: "#identity-images"
         },
         {
             title: "Generated Images",
-            text: "These are the two AI-generated images you'll be comparing. Image A and Image B were created using different methods.",
+            text: "These are two AI-generated images created using different methods. Your task is to compare them based on the criteria below.",
             highlight: "#image-a, #image-b",
             highlightParent: true  // Highlight the parent tile-box containers
         },
         {
-            title: "Evaluation Questions",
-            text: "Below the images, you'll answer questions about which image is better. For each question, select your choice (A, B, or Equal) and rate your confidence (1-5).",
+            title: "Your Evaluation",
+            text: "For each question, select which image is better (A, B, or Equal) and rate your confidence from 1 (least confident) to 5 (most confident).",
             highlight: ".questions-container"
         },
         {
-            title: "Navigation",
-            text: "Use the up/down arrows on the right to scroll through questions. Once all questions are answered, click the arrow at the bottom to move to the next image pair.",
+            title: "Navigating Questions",
+            text: "Use the arrows on the right to scroll through questions. Once all are answered, click the arrow at the bottom to continue to the next pair.",
             highlight: ".question-navigation, #submit-btn"
         },
         {
-            title: "Ready to Practice!",
-            text: "Now try it yourself! Fill out all the questions on this page (your answers won't be saved). Once you complete all questions, click the arrow at the bottom, then you'll start the real survey.",
+            title: "Try It Now",
+            text: "Complete all questions on this page for practice. Once finished, click the arrow button below to begin the survey.",
             highlight: "#submit-btn"
         }
     ];
