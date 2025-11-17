@@ -517,6 +517,19 @@ p {
     filter: brightness(1.1);
 }
 
+/* Keyboard focus indicator for accessibility */
+.identity-image:focus {
+    outline: 3px solid #4A90E2;
+    outline-offset: 3px;
+    transform: scale(1.05);
+}
+
+/* Only show outline for keyboard navigation (not mouse clicks) */
+.identity-image:focus:not(:focus-visible) {
+    outline: none;
+    transform: none;
+}
+
 /* ========================================================================
    COLOR CODING FOR IDENTITY IMAGES - Update to match spatial mask colors
    Each identity gets a unique color that corresponds to a region in the mask

@@ -426,14 +426,19 @@
                     </div><!-- end questions-container -->
                     
                     <!-- Question Navigation -->
-                    <div class="question-navigation">
-                        <button type="button" class="btn" id="prev-question-btn" disabled title="Previous Question">↑</button>
-                        <button type="button" class="btn" id="next-question-btn" title="Next Question">↓</button>
+                    <div class="question-navigation" role="navigation" aria-label="Question navigation">
+                        <button type="button" class="btn" id="prev-question-btn" disabled 
+                                title="Previous Question" 
+                                aria-label="Scroll to previous question">↑</button>
+                        <button type="button" class="btn" id="next-question-btn" 
+                                title="Next Question" 
+                                aria-label="Scroll to next question">↓</button>
                     </div>
                     
                     <!-- Submit Button -->
                     <div style="text-align: center; margin-top: 20px; padding-bottom: 20px;">
-                        <button type="submit" class="btn btn-primary" id="submit-btn" disabled>→</button>
+                        <button type="submit" class="btn btn-primary" id="submit-btn" disabled 
+                                aria-label="Submit answers and continue to next image pair">→</button>
                     </div>
                 </div><!-- end questions-section -->
             </form>
