@@ -716,7 +716,7 @@ def get_completed_pair_ids_for_email(email):
         
         # Build query based on enabled questions
         query = f'''
-            SELECT image_pair_id
+            SELECT DISTINCT image_pair_id
             FROM survey_responses
             WHERE participant_id IN ({placeholders})
                 AND better_image IS NOT NULL
