@@ -46,7 +46,7 @@ describe('Tutorial Banner UI', () => {
             <div id="tutorial-banner" style="display: block;">
                 <div class="tutorial-content">
                     <div class="tutorial-step-indicator">
-                        <span id="current-step">1</span> / <span id="total-steps">9</span>
+                        <span id="current-step">1</span> / <span id="total-steps">12</span>
                     </div>
                     <h3 id="tutorial-title">Tutorial Title</h3>
                     <p id="tutorial-text">Tutorial description text.</p>
@@ -77,7 +77,7 @@ describe('Tutorial Banner UI', () => {
         const totalSteps = document.getElementById('total-steps');
         expect(currentStep).toBeTruthy();
         expect(totalSteps).toBeTruthy();
-        expect(totalSteps.textContent).toBe('9');
+        expect(totalSteps.textContent).toBe('12');
     });
 
     test('tutorial has navigation buttons', () => {
@@ -109,7 +109,7 @@ describe('Tutorial Banner UI', () => {
 
 describe('Tutorial Step Navigation', () => {
     let currentStep = 1;
-    const totalSteps = 9;
+    const totalSteps = 12;
 
     beforeEach(() => {
         currentStep = 1;
