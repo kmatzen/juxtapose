@@ -124,8 +124,8 @@ const IDENTITY_COLORS = [
 
 ## Notes
 
-- The spatial mask tile container itself has an orange accent border (separate from region colors)
-- If you want to change the mask tile container styling, update the `.tile-box.mask-tile` rules around line 285 in the CSS
-- Default border color for unmatched indices is gray (`#999`)
+- The spatial mask tile container uses the same gold/yellow theme as the identity reference boxes for visual consistency
+- If you want to change the mask tile container styling, update the `.tile-box.mask-tile` rules around line 263 in the CSS
+- Default border color for unmatched identity indices is gray (`#999`)
 - Hover overlays require proper CORS headers on mask images; if unavailable, the feature silently disables
 

@@ -256,30 +256,24 @@ p {
 }
 
 /* ========================================================================
-   COLOR CODING FOR SPATIAL MASK - Update these colors as needed
-   Note: This is the container styling for the mask tile
-   The actual mask image has colored regions that correspond to identity colors
+   COLOR CODING FOR SPATIAL MASK
+   Note: Matches the gold/yellow theme used for identity reference boxes
    ======================================================================== */
 
-/* Current placeholder: Orange accent on mask tile container */
 .tile-box.mask-tile {
-    border-color: #FF6B35;  /* Main border color (accent, not mask region color) */
-    border-width: 4px;
-    background: #FFF5F2;  /* Light background tint */
+    border-color: #ffc107;  /* Gold border - matches identity box */
+    border-width: 3px;
+    background: #fff8e1;  /* Light yellow background - matches identity box */
 }
 
 .tile-box.mask-tile:hover {
-    border-color: #E55A2B;  /* Hover border color */
-    box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);  /* Hover shadow */
+    border-color: #e0a800;  /* Darker gold on hover */
+    box-shadow: 0 4px 12px rgba(255, 193, 7, 0.4);  /* Gold shadow */
 }
 
 .tile-box.mask-tile h4 {
-    color: #FF6B35;  /* Title text color */
+    color: #856404;  /* Dark gold title - matches identity box */
 }
-
-/* Note: The spatial mask image itself contains colored regions.
-   Each region color should match the corresponding identity image border color.
-   See the identity image color coding section for the list of colors. */
 
 .tile-box h4 {
     margin: 0 0 10px 0;
