@@ -35,3 +35,8 @@ Thumbs.db
 .env
 .env.local
 
+node_modules
+htmlcov
+coverage
+.coverage
+audit.log
