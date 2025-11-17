@@ -24,24 +24,6 @@ body {
     transition: max-width 0.3s ease;
 }
 
-/* Expand container when survey section is active (but narrower than before) */
-.container:has(#survey-section.active) {
-    max-width: 1100px;
-}
-
-@media (max-width: 1200px) {
-    .container {
-        width: 90%;
-        padding: 30px;
-    }
-}
-
-@media (max-width: 768px) {
-    .container {
-        width: 100%;
-        padding: 20px;
-    }
-}
 
 /* Progress Container */
 .progress-container {
