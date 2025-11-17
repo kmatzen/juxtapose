@@ -355,6 +355,8 @@ async function loadImagePair(index) {
             // Reset hover handlers flag for new image pair
             hoverHandlersSetup = false;
             binaryMasks = {};
+            activeOverlayIndex = null; // Reset touch overlay state
+            touchStartPos = null;
             
             // Remove any existing overlays from previous image pair
             const oldOverlays = document.querySelectorAll('.mask-overlay');
@@ -761,6 +763,8 @@ function displayConditioningInputs(data) {
 // Global storage for binary masks extracted from spatial mask
 let binaryMasks = {};
 let hoverHandlersSetup = false; // Flag to prevent duplicate setup
+let activeOverlayIndex = null; // Track which overlay is shown on touch devices
+let touchStartPos = null; // Track touch start position to detect scrolls
 
 // Color mapping for identity regions (RGB values)
 const IDENTITY_COLORS = [
@@ -848,6 +852,7 @@ function setupIdentityHoverHandlers() {
     identityImages.forEach(img => {
         const index = parseInt(img.getAttribute('data-identity-index'));
         
+        // Desktop: hover events
         img.addEventListener('mouseenter', () => {
             showMaskOverlay(index);
         });
@@ -855,7 +860,89 @@ function setupIdentityHoverHandlers() {
         img.addEventListener('mouseleave', () => {
             hideMaskOverlay();
         });
+        
+        // Mobile: track touch start position
+        img.addEventListener('touchstart', (e) => {
+            touchStartPos = {
+                x: e.touches[0].clientX,
+                y: e.touches[0].clientY
+            };
+        }, { passive: true });
+        
+        // Mobile: toggle overlay on tap (not scroll)
+        img.addEventListener('touchend', (e) => {
+            if (!touchStartPos) return;
+            
+            // Check if finger moved significantly (scroll vs tap)
+            const touchEndPos = {
+                x: e.changedTouches[0].clientX,
+                y: e.changedTouches[0].clientY
+            };
+            const distance = Math.sqrt(
+                Math.pow(touchEndPos.x - touchStartPos.x, 2) +
+                Math.pow(touchEndPos.y - touchStartPos.y, 2)
+            );
+            
+            // If movement < 10px, treat as tap
+            if (distance < 10) {
+                // Prevent lightbox from opening on identity images
+                e.preventDefault();
+                
+                if (activeOverlayIndex === index) {
+                    // Tapping same image again - hide
+                    hideMaskOverlay();
+                    activeOverlayIndex = null;
+                } else {
+                    // Show this overlay
+                    showMaskOverlay(index);
+                    activeOverlayIndex = index;
+                }
+            }
+            
+            touchStartPos = null;
+        });
+        
+        // Add visual feedback
+        img.style.cursor = 'pointer';
     });
+    
+    // Hide overlay when tapping elsewhere (but not when scrolling)
+    let docTouchStart = null;
+    
+    document.addEventListener('touchstart', (e) => {
+        docTouchStart = {
+            x: e.touches[0].clientX,
+            y: e.touches[0].clientY
+        };
+    }, { passive: true });
+    
+    document.addEventListener('touchend', (e) => {
+        if (!docTouchStart || activeOverlayIndex === null) return;
+        
+        // Don't dismiss if tapped on an identity image
+        if (e.target.closest('.identity-image')) {
+            docTouchStart = null;
+            return;
+        }
+        
+        // Check if it was a tap (not scroll)
+        const touchEndPos = {
+            x: e.changedTouches[0].clientX,
+            y: e.changedTouches[0].clientY
+        };
+        const distance = Math.sqrt(
+            Math.pow(touchEndPos.x - docTouchStart.x, 2) +
+            Math.pow(touchEndPos.y - docTouchStart.y, 2)
+        );
+        
+        // Only dismiss on tap (< 10px movement)
+        if (distance < 10) {
+            hideMaskOverlay();
+            activeOverlayIndex = null;
+        }
+        
+        docTouchStart = null;
+    }, { passive: true });
     
     hoverHandlersSetup = true;
 }
@@ -1352,8 +1439,8 @@ if (window.TUTORIAL_MODE) {
             highlight: ".mask-tile"
         },
         {
-            title: "Hover to Inspect",
-            text: "Hover your mouse over any identity image to see the corresponding region highlighted in Images A and B below. This helps you verify placement.",
+            title: "Inspect Regions",
+            text: "Hover (or tap on mobile) any identity image to see the corresponding region highlighted in Images A and B below. Tap again to dismiss on mobile.",
             highlight: "#identity-images"
         },
         {
@@ -1370,7 +1457,7 @@ if (window.TUTORIAL_MODE) {
         {
             title: "Navigating Questions",
             text: "Use the arrows on the right to scroll through questions. Once all are answered, click the arrow at the bottom to continue to the next pair.",
-            highlight: ".question-navigation, #submit-btn"
+            highlight: ".question-navigation"
         },
         {
             title: "Try It Now",
