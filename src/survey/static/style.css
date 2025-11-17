@@ -277,11 +277,13 @@ p {
 
 /* ========================================================================
    COLOR CODING FOR SPATIAL MASK - Update these colors as needed
+   Note: This is the container styling for the mask tile
+   The actual mask image has colored regions that correspond to identity colors
    ======================================================================== */
 
-/* Current placeholder: Orange theme */
+/* Current placeholder: Orange accent on mask tile container */
 .tile-box.mask-tile {
-    border-color: #FF6B35;  /* Main border color */
+    border-color: #FF6B35;  /* Main border color (accent, not mask region color) */
     border-width: 4px;
     background: #FFF5F2;  /* Light background tint */
 }
@@ -295,32 +297,9 @@ p {
     color: #FF6B35;  /* Title text color */
 }
 
-/* Alternative color schemes (uncomment to use):
-
-   Yellow/Gold theme:
-   border-color: #FFB800;
-   background: #FFFBF0;
-   hover border-color: #E6A600;
-   shadow: rgba(255, 184, 0, 0.4)
-
-   Purple theme:
-   border-color: #9B59B6;
-   background: #F8F4FB;
-   hover border-color: #8E44AD;
-   shadow: rgba(155, 89, 182, 0.4)
-
-   Teal theme:
-   border-color: #00BFA5;
-   background: #F0FFFC;
-   hover border-color: #00A68C;
-   shadow: rgba(0, 191, 165, 0.4)
-
-   Red theme:
-   border-color: #E74C3C;
-   background: #FEF5F4;
-   hover border-color: #C0392B;
-   shadow: rgba(231, 76, 60, 0.4)
-*/
+/* Note: The spatial mask image itself contains colored regions.
+   Each region color should match the corresponding identity image border color.
+   See the identity image color coding section for the list of colors. */
 
 .tile-box h4 {
     margin: 0 0 10px 0;
@@ -540,7 +519,7 @@ p {
     height: 120px;
     object-fit: cover;
     border-radius: 6px;
-    border: 2px solid #ffc107;
+    border: 4px solid #999; /* Default gray if no color match */
     cursor: pointer;
     transition: transform 0.2s;
 }
@@ -548,6 +527,48 @@ p {
 .identity-image:hover {
     transform: scale(1.05);
 }
+
+/* ========================================================================
+   COLOR CODING FOR IDENTITY IMAGES - Update to match spatial mask colors
+   Each identity gets a unique color that corresponds to a region in the mask
+   ======================================================================== */
+
+/* Actual colors matching spatial mask regions */
+.identity-image[data-identity-index="0"] {
+    border-color: #FF0000;  /* Red - RGB(255, 0, 0) - matches first mask region */
+}
+
+.identity-image[data-identity-index="1"] {
+    border-color: #00FF00;  /* Green - RGB(0, 255, 0) - matches second mask region */
+}
+
+.identity-image[data-identity-index="2"] {
+    border-color: #0000FF;  /* Blue - RGB(0, 0, 255) - matches third mask region */
+}
+
+.identity-image[data-identity-index="3"] {
+    border-color: #FFFF00;  /* Yellow - RGB(255, 255, 0) - matches fourth mask region */
+}
+
+.identity-image[data-identity-index="4"] {
+    border-color: #FF00FF;  /* Magenta - RGB(255, 0, 255) - matches fifth mask region */
+}
+
+.identity-image[data-identity-index="5"] {
+    border-color: #00FFFF;  /* Cyan - RGB(0, 255, 255) - matches sixth mask region */
+}
+
+.identity-image[data-identity-index="6"] {
+    border-color: #FF8000;  /* Orange - RGB(255, 128, 0) - matches seventh mask region */
+}
+
+.identity-image[data-identity-index="7"] {
+    border-color: #6BCF7F;  /* Green - matches eighth mask region */
+}
+
+/* Add more indices as needed following the same pattern:
+   .identity-image[data-identity-index="8"] { border-color: #YOUR_COLOR; }
+*/
 
 .mask-image-container {
     display: flex;

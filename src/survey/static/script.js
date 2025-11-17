@@ -684,6 +684,8 @@ function displayConditioningInputs(data) {
             slicedImg.src = canvas.toDataURL();
             slicedImg.alt = `Identity ${i + 1}`;
             slicedImg.className = 'identity-image';
+            // Add color coding data attribute (colors will match spatial mask regions)
+            slicedImg.setAttribute('data-identity-index', i);
             slicedImg.onclick = () => openLightbox(slicedImg.src, `Identity Reference ${i + 1}`);
             identityContainer.appendChild(slicedImg);
         }
