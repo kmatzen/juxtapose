@@ -296,6 +296,11 @@ function fillSurveyForm() {
     }
     logMsg += `, Mask ${betterMask} (conf ${maskConf}), Identity ${betterIdentity} (conf ${identityConf})`;
     debugLog(logMsg);
+    
+    // Trigger form validation to enable submit button
+    if (window.triggerFormValidation) {
+        window.triggerFormValidation();
+    }
 }
 
 async function handleDemographicsSubmit(event) {
