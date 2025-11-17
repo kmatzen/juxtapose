@@ -876,44 +876,36 @@ function createOverlay(targetImg, mask, identityIndex) {
     overlay.style.left = offsetLeft + 'px';
     overlay.style.top = offsetTop + 'px';
     
-    // Size overlay to match image display size
-    overlay.width = targetImg.clientWidth;
-    overlay.height = targetImg.clientHeight;
+    // Create canvas at FULL MASK RESOLUTION for sharp edges
+    overlay.width = mask.width;
+    overlay.height = mask.height;
+    
+    // Scale down with CSS to match display size (browser handles smooth scaling)
     overlay.style.width = targetImg.clientWidth + 'px';
     overlay.style.height = targetImg.clientHeight + 'px';
     
     const ctx = overlay.getContext('2d');
     ctx.clearRect(0, 0, overlay.width, overlay.height);
     
-    // Scale mask to overlay size
-    const scaleX = overlay.width / mask.width;
-    const scaleY = overlay.height / mask.height;
-    
     // Get identity color for highlighting
     const color = IDENTITY_COLORS[identityIndex] || [255, 255, 255];
     
-    // Create overlay effect
+    // Create overlay effect at full resolution
     const overlayData = ctx.createImageData(overlay.width, overlay.height);
     const pixels = overlayData.data;
     
-    for (let y = 0; y < overlay.height; y++) {
-        for (let x = 0; x < overlay.width; x++) {
-            // Map back to mask coordinates
-            const maskX = Math.floor(x / scaleX);
-            const maskY = Math.floor(y / scaleY);
-            const maskIndex = maskY * mask.width + maskX;
-            
-            const pixelIndex = (y * overlay.width + x) * 4;
-            
-            if (mask.data[maskIndex] > 0) {
-                // Highlight this region with semi-transparent color
-                pixels[pixelIndex] = color[0];     // R
-                pixels[pixelIndex + 1] = color[1]; // G
-                pixels[pixelIndex + 2] = color[2]; // B
-                pixels[pixelIndex + 3] = 100;      // Alpha (semi-transparent)
-            } else {
-                pixels[pixelIndex + 3] = 0; // Fully transparent
-            }
+    // Direct 1:1 mapping - no scaling needed
+    for (let i = 0; i < mask.data.length; i++) {
+        const pixelIndex = i * 4;
+        
+        if (mask.data[i] > 0) {
+            // Highlight this region with semi-transparent color
+            pixels[pixelIndex] = color[0];     // R
+            pixels[pixelIndex + 1] = color[1]; // G
+            pixels[pixelIndex + 2] = color[2]; // B
+            pixels[pixelIndex + 3] = 100;      // Alpha (semi-transparent)
+        } else {
+            pixels[pixelIndex + 3] = 0; // Fully transparent
         }
     }
     
