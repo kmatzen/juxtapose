@@ -565,12 +565,16 @@ p {
 }
 
 .identity-image[data-identity-index="7"] {
-    border-color: #6BCF7F;  /* Green - matches eighth mask region */
+    border-color: #8000FF;  /* Purple - RGB(128, 0, 255) - matches eighth mask region */
 }
 
-/* Add more indices as needed following the same pattern:
-   .identity-image[data-identity-index="8"] { border-color: #YOUR_COLOR; }
-*/
+.identity-image[data-identity-index="8"] {
+    border-color: #0080FF;  /* Light Blue - RGB(0, 128, 255) - matches ninth mask region */
+}
+
+.identity-image[data-identity-index="9"] {
+    border-color: #808080;  /* Gray - RGB(128, 128, 128) - matches tenth mask region */
+}
 
 .mask-image-container {
     display: flex;
