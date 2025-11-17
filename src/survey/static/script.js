@@ -878,6 +878,10 @@ function setupIdentityHoverHandlers() {
     identityImages.forEach(img => {
         const index = parseInt(img.getAttribute('data-identity-index'));
         
+        // Add ARIA attributes for screen readers
+        img.setAttribute('role', 'button');
+        img.setAttribute('aria-label', `Identity ${index + 1} - Hover or tap to highlight corresponding region in generated images`);
+        
         // Desktop: hover events
         img.addEventListener('mouseenter', () => {
             showMaskOverlay(index);
@@ -1477,7 +1481,7 @@ if (window.TUTORIAL_MODE) {
         },
         {
             title: "Inspect Regions",
-            text: "Hover (or tap on mobile) any identity image to see the corresponding region highlighted in Images A and B below. Tap again to dismiss on mobile.",
+            text: "Hover over or tap any identity image to see the corresponding region highlighted in Images A and B below. This helps you verify placement.",
             highlight: "#identity-images"
         },
         {
