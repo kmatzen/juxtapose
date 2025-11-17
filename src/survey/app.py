@@ -768,10 +768,14 @@ def get_image_pair(pair_index):
     # If user is in tutorial mode and requesting the first pair, return the tutorial pair
     if session.get('tutorial_mode', False) and pair_index == 0:
         if TUTORIAL_PAIR:
-            return jsonify(TUTORIAL_PAIR)
+            tutorial_pair = TUTORIAL_PAIR.copy()
+            tutorial_pair['total_pairs'] = 1  # Only one tutorial pair
+            return jsonify(tutorial_pair)
         # Fall back to first regular pair if tutorial pair not available
         if IMAGE_PAIRS:
-            return jsonify(IMAGE_PAIRS[0])
+            fallback_pair = IMAGE_PAIRS[0].copy()
+            fallback_pair['total_pairs'] = 1
+            return jsonify(fallback_pair)
         return jsonify({'error': 'No image pairs available'}), 404
     
     # Initialize user's randomized pair list if not already done
