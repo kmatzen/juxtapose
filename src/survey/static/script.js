@@ -12,7 +12,6 @@ const CONFIG = {
     MOBILE_BREAKPOINT_PX: 768,      // Width threshold for mobile layout
     
     // Timing
-    TUTORIAL_LOAD_DELAY_MS: 1000,   // Delay before showing tutorial
     AUTO_FILL_DELAY_MS: 500,        // Delay before auto-filling forms in dev mode
     IMAGE_PRELOAD_DELAY_MS: 100     // Delay before auto-filling survey in dev mode
 };
@@ -537,18 +536,16 @@ async function loadImagePair(index) {
             }
             
             // Reinitialize progressive questions for new image pair
-            setTimeout(() => {
-                // Reset to first question
-                currentQuestionIndex = 0;
-                
-                initializeProgressiveQuestions();
-                
-                // Reset scroll position to the first question
-                const questionsContainer = document.querySelector('.questions-container');
-                if (questionsContainer) {
-                    questionsContainer.scrollTop = 0;
-                }
-            }, 200);
+            // Reset to first question
+            currentQuestionIndex = 0;
+            
+            initializeProgressiveQuestions();
+            
+            // Reset scroll position to the first question
+            const questionsContainer = document.querySelector('.questions-container');
+            if (questionsContainer) {
+                questionsContainer.scrollTop = 0;
+            }
             
             // Auto-fill in dev mode
             if (devMode) {
@@ -1585,33 +1582,31 @@ if (window.TUTORIAL_MODE) {
                 }
                 
                 if (scrollTarget) {
-                    setTimeout(() => {
-                        // Check if element is inside a scrollable container (like .questions-container)
-                        const scrollContainer = scrollTarget.closest('.questions-container');
+                    // Check if element is inside a scrollable container (like .questions-container)
+                    const scrollContainer = scrollTarget.closest('.questions-container');
+                    
+                    if (scrollContainer) {
+                        // Scroll within the container to reveal the target
+                        // Use same calculation as navigateQuestion() for consistency
+                        const containerRect = scrollContainer.getBoundingClientRect();
+                        const targetRect = scrollTarget.getBoundingClientRect();
+                        const scrollOffset = targetRect.top - containerRect.top + scrollContainer.scrollTop;
                         
-                        if (scrollContainer) {
-                            // Scroll within the container to reveal the target
-                            // Use same calculation as navigateQuestion() for consistency
-                            const containerRect = scrollContainer.getBoundingClientRect();
-                            const targetRect = scrollTarget.getBoundingClientRect();
-                            const scrollOffset = targetRect.top - containerRect.top + scrollContainer.scrollTop;
-                            
-                            scrollContainer.scrollTo({
-                                top: scrollOffset,
-                                behavior: 'smooth'
-                            });
-                        } else {
-                            // Scroll main window to element
-                            const elementRect = scrollTarget.getBoundingClientRect();
-                            const absoluteElementTop = elementRect.top + window.pageYOffset;
-                            const bannerHeight = banner.offsetHeight;
-                            const offset = 100; // Extra space above the element
-                            window.scrollTo({
-                                top: absoluteElementTop - bannerHeight - offset,
-                                behavior: 'smooth'
-                            });
-                        }
-                    }, 100);
+                        scrollContainer.scrollTo({
+                            top: scrollOffset,
+                            behavior: 'smooth'
+                        });
+                    } else {
+                        // Scroll main window to element
+                        const elementRect = scrollTarget.getBoundingClientRect();
+                        const absoluteElementTop = elementRect.top + window.pageYOffset;
+                        const bannerHeight = banner.offsetHeight;
+                        const offset = 100; // Extra space above the element
+                        window.scrollTo({
+                            top: absoluteElementTop - bannerHeight - offset,
+                            behavior: 'smooth'
+                        });
+                    }
                 }
             }
         }
@@ -1680,9 +1675,7 @@ if (window.TUTORIAL_MODE) {
             });
         }
         
-        // Wait for first image pair to load
-        setTimeout(() => {
-            showTutorialStep(0);
-        }, CONFIG.TUTORIAL_LOAD_DELAY_MS);
+        // Show tutorial immediately - images will load with indicators
+        showTutorialStep(0);
     });
 }
