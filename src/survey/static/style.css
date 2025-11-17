@@ -275,6 +275,53 @@ p {
     box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
 }
 
+/* ========================================================================
+   COLOR CODING FOR SPATIAL MASK - Update these colors as needed
+   ======================================================================== */
+
+/* Current placeholder: Orange theme */
+.tile-box.mask-tile {
+    border-color: #FF6B35;  /* Main border color */
+    border-width: 4px;
+    background: #FFF5F2;  /* Light background tint */
+}
+
+.tile-box.mask-tile:hover {
+    border-color: #E55A2B;  /* Hover border color */
+    box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);  /* Hover shadow */
+}
+
+.tile-box.mask-tile h4 {
+    color: #FF6B35;  /* Title text color */
+}
+
+/* Alternative color schemes (uncomment to use):
+
+   Yellow/Gold theme:
+   border-color: #FFB800;
+   background: #FFFBF0;
+   hover border-color: #E6A600;
+   shadow: rgba(255, 184, 0, 0.4)
+
+   Purple theme:
+   border-color: #9B59B6;
+   background: #F8F4FB;
+   hover border-color: #8E44AD;
+   shadow: rgba(155, 89, 182, 0.4)
+
+   Teal theme:
+   border-color: #00BFA5;
+   background: #F0FFFC;
+   hover border-color: #00A68C;
+   shadow: rgba(0, 191, 165, 0.4)
+
+   Red theme:
+   border-color: #E74C3C;
+   background: #FEF5F4;
+   hover border-color: #C0392B;
+   shadow: rgba(231, 76, 60, 0.4)
+*/
+
 .tile-box h4 {
     margin: 0 0 10px 0;
     color: #4A90E2;
