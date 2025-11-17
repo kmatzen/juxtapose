@@ -220,14 +220,16 @@ p {
 
 /* TOP SECTION: Visual Content (Context + Generated Images) */
 .visual-content-section {
-    display: grid;
-    grid-template-columns: 45fr 55fr;
-    gap: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
     padding: 20px;
     background: #f8f9fa;
     border-radius: 12px;
     /* Height controlled dynamically by JavaScript */
     margin-bottom: 20px;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 /* Scrollbar styling for visual content section */
@@ -249,88 +251,58 @@ p {
     background: #357ABD;
 }
 
-.context-column {
-    /* Prompt, identity, mask */
-    overflow-y: auto;
-    overflow-x: hidden;
-    /* Height controlled dynamically by JavaScript */
-}
-
-.generated-images-column {
-    /* Generated images A & B */
-    overflow-y: auto;
-    overflow-x: hidden;
-    /* Height controlled dynamically by JavaScript */
-}
-
-/* Scrollbar styling for columns */
-.context-column::-webkit-scrollbar,
-.generated-images-column::-webkit-scrollbar {
-    width: 8px;
-}
-
-.context-column::-webkit-scrollbar-track,
-.generated-images-column::-webkit-scrollbar-track {
-    background: #e0e0e0;
-    border-radius: 4px;
-}
-
-.context-column::-webkit-scrollbar-thumb,
-.generated-images-column::-webkit-scrollbar-thumb {
-    background: #4A90E2;
-    border-radius: 4px;
-}
-
-.context-column::-webkit-scrollbar-thumb:hover,
-.generated-images-column::-webkit-scrollbar-thumb:hover {
-    background: #357ABD;
-}
-
-.generated-images-column h3 {
-    margin-bottom: 10px;
-    color: #4A90E2;
-    font-size: 13px;
-}
-
-.generated-images-grid {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
+/* THREE TILE GRID: Image A, Mask, Image B */
+.three-tile-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
     gap: 15px;
+    width: 100%;
 }
 
-.generated-image-box {
+.tile-box {
     background: #fff;
     border: 3px solid #4A90E2;
     border-radius: 8px;
     padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     transition: all 0.3s ease;
-    flex: 1 1 0; /* Take equal space */
-    min-width: 0; /* Allow flex shrinking */
-    /* Size controlled dynamically by JavaScript */
 }
 
-.generated-image-box:hover {
+.tile-box:hover {
     border-color: #357ABD;
     box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
 }
 
-.generated-image-box h4 {
-    margin: 0 0 6px 0;
+.tile-box h4 {
+    margin: 0 0 10px 0;
     color: #4A90E2;
     font-size: 13px;
+    text-align: center;
+    width: 100%;
 }
 
-.generated-image {
+.tile-image-container {
     width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+.tile-image {
+    max-width: 100%;
+    max-height: 400px;
+    width: auto;
     height: auto;
     border-radius: 4px;
-    display: block;
     cursor: pointer;
-    transition: transform 0.2s;
+    transition: transform 0.2s ease;
+    object-fit: contain;
 }
 
-.generated-image:hover {
+.tile-image:hover {
     transform: scale(1.01);
 }
 
@@ -432,13 +404,6 @@ p {
 }
 
 /* Responsive */
-@media (max-width: 1024px) {
-    .visual-content-section {
-        grid-template-columns: 1fr;
-        /* Height dynamically calculated by JavaScript */
-    }
-}
-
 @media (max-width: 768px) {
     .visual-content-section {
         padding: 15px;
@@ -689,17 +654,12 @@ p {
 }
 
 @media (max-width: 768px) {
-    /* Stack generated images vertically on narrow displays */
-    .generated-images-grid {
-        flex-direction: column;
+    /* Stack three tiles vertically on narrow displays */
+    .three-tile-grid {
+        grid-template-columns: 1fr;
     }
     
-    .generated-image-box {
-        width: 100%;
-        max-width: 100%;
-    }
-    
-    .generated-image {
+    .tile-image {
         max-height: 250px !important;
         max-width: 100% !important;
     }

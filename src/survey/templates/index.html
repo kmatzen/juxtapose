@@ -170,46 +170,65 @@
             <form id="survey-form">
                 <!-- TOP SECTION: Visual Content -->
                 <div class="visual-content-section">
-                    <!-- Left: Context (Prompt, Identity, Mask) -->
-                    <div class="context-column">
-                        <!-- Prompt -->
-                        <div class="prompt-box">
-                            <h3>Text Prompt</h3>
-                            <p id="prompt-text">Loading...</p>
-                        </div>
-                        
-                        <!-- Conditioning Inputs (Identity & Mask) -->
-                        <div id="conditioning-container">
-                            <div class="conditioning-section">
-                                <div id="identity-section" class="conditioning-box">
-                                    <h3>Identity Reference Images</h3>
-                                    <div id="identity-images" class="identity-images-container"></div>
-                                </div>
-                                
-                                <div id="mask-section" class="conditioning-box">
-                                    <h3>Spatial Mask</h3>
-                                    <div class="mask-image-container">
-                                        <img id="mask-image" src="" alt="Spatial Mask" class="mask-image">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    <!-- Prompt - Full Width -->
+                    <div class="prompt-box">
+                        <h3>Text Prompt</h3>
+                        <p id="prompt-text">Loading...</p>
                     </div>
-
-                    <!-- Right: Generated Images -->
-                    <div class="generated-images-column">
-                        <h3 class="section-title">Generated Images</h3>
-                        <div class="generated-images-grid">
-                            <div class="generated-image-box">
+                    
+                    <!-- Identity Images - Full Width -->
+                    <div id="identity-section" class="conditioning-box">
+                        <h3>Identity Reference Images</h3>
+                        <div id="identity-images" class="identity-images-container"></div>
+                    </div>
+                    
+                    <!-- Three Tiles: Configurable Order -->
+                    <div class="three-tile-grid">
+                        {% if tile_layout == 'MAB' %}
+                            <!-- Layout: Mask, A, B -->
+                            <div class="tile-box">
+                                <h4>Spatial Mask</h4>
+                                <div class="tile-image-container">
+                                    <img id="mask-image" src="" alt="Spatial Mask" class="tile-image">
+                                </div>
+                            </div>
+                            
+                            <div class="tile-box">
                                 <h4>Image A</h4>
-                                <img id="image-a" src="" alt="Image A" class="generated-image">
+                                <div class="tile-image-container">
+                                    <img id="image-a" src="" alt="Image A" class="tile-image">
+                                </div>
                             </div>
-
-                            <div class="generated-image-box">
+                            
+                            <div class="tile-box">
                                 <h4>Image B</h4>
-                                <img id="image-b" src="" alt="Image B" class="generated-image">
+                                <div class="tile-image-container">
+                                    <img id="image-b" src="" alt="Image B" class="tile-image">
+                                </div>
                             </div>
-                        </div>
+                        {% else %}
+                            <!-- Layout: A, Mask, B (default) -->
+                            <div class="tile-box">
+                                <h4>Image A</h4>
+                                <div class="tile-image-container">
+                                    <img id="image-a" src="" alt="Image A" class="tile-image">
+                                </div>
+                            </div>
+                            
+                            <div class="tile-box">
+                                <h4>Spatial Mask</h4>
+                                <div class="tile-image-container">
+                                    <img id="mask-image" src="" alt="Spatial Mask" class="tile-image">
+                                </div>
+                            </div>
+                            
+                            <div class="tile-box">
+                                <h4>Image B</h4>
+                                <div class="tile-image-container">
+                                    <img id="image-b" src="" alt="Image B" class="tile-image">
+                                </div>
+                            </div>
+                        {% endif %}
                     </div>
                 </div>
 
