@@ -1494,24 +1494,38 @@ if (window.TUTORIAL_MODE) {
         },
         {
             title: "Your Evaluation",
-            text: "For each question, select which image is better (A, B, or Equal) and rate your confidence from 1 (least confident) to 5 (most confident).",
+            text: "You'll answer three questions comparing Images A and B. For each question, select which image is better (A, B, or Equal) and rate your confidence from 1 (least confident) to 5 (most confident).",
             highlight: ".questions-container"
         },
         {
             title: "Navigating Questions",
-            text: "Use the arrows on the right to scroll through questions. Once all are answered, click the arrow at the bottom to continue to the next pair.",
+            text: "Use the arrows on the right to scroll through questions. As you complete each question, the page will automatically advance. Once all are answered, click the arrow at the bottom to continue to the next pair.",
             highlight: ".question-navigation"
         },
         {
-            title: "Try It Now",
-            text: "Complete all questions on this page for practice. Once finished, click the arrow button below to begin the survey.",
+            title: "Question 1: Overall Quality",
+            text: "<strong>Which image looks better overall (quality, aesthetics, coherence)?</strong><br><br>Click on each of Image A and Image B to view them larger and judge the general quality. Look for blurriness, artifacts, and harmonization.",
+            highlight: "#quality-evaluation"
+        },
+        {
+            title: "Question 2: Mask Structure",
+            text: "<strong>Which image better follows the structure defined by the mask?</strong><br><br>Hover over each of the identity images which will overlay corresponding masks on both Image A and Image B. Judge which one follows the structure of the mask better.",
+            highlight: "#mask-evaluation"
+        },
+        {
+            title: "Question 3: Identity Preservation",
+            text: "<strong>Which image better preserves the identity features from the reference images?</strong><br><br>Hover over each of the reference images which will overlay corresponding masks on both Image A and Image B. Compare the identity of the subject in the selected areas with the corresponding reference image. If a chosen area doesn't contain the corresponding reference, it should be penalized.",
+            highlight: "#identity-evaluation"
+        },
+        {
+            title: "Ready to Begin",
+            text: "Complete all questions on this page for practice. Once finished, click the arrow button at the bottom to begin the actual survey.",
             highlight: "#submit-btn"
         }
     ];
 
     function showTutorialStep(step) {
         const banner = document.getElementById('tutorial-banner');
-        const stepNumber = document.getElementById('tutorial-step-number');
         const title = document.getElementById('tutorial-title');
         const text = document.getElementById('tutorial-text');
         
@@ -1521,9 +1535,26 @@ if (window.TUTORIAL_MODE) {
         });
         
         // Set content
-        stepNumber.textContent = `${step + 1}/${tutorialSteps.length}`;
         title.textContent = tutorialSteps[step].title;
-        text.textContent = tutorialSteps[step].text;
+        text.innerHTML = tutorialSteps[step].text; // Use innerHTML to support HTML formatting
+        
+        // Update progress circle (SVG pie chart)
+        const progressCircle = document.getElementById('tutorial-progress-circle');
+        const checkmark = document.getElementById('tutorial-checkmark');
+        if (progressCircle) {
+            const progressPercent = ((step + 1) / tutorialSteps.length) * 100;
+            // SVG circle has circumference of 100, so we can use percentage directly
+            progressCircle.setAttribute('stroke-dasharray', `${progressPercent}, 100`);
+            
+            // Show checkmark when complete
+            if (checkmark) {
+                if (progressPercent >= 100) {
+                    checkmark.classList.add('show');
+                } else {
+                    checkmark.classList.remove('show');
+                }
+            }
+        }
         
         // Highlight element(s) if specified
         if (tutorialSteps[step].highlight) {
@@ -1542,6 +1573,23 @@ if (window.TUTORIAL_MODE) {
                 const firstElement = highlightParent ? elements[0].closest('.tile-box') : elements[0];
                 if (firstElement) {
                     setTimeout(() => {
+                        // Check if element is inside a scrollable container (like .questions-container)
+                        const scrollContainer = firstElement.closest('.questions-container');
+                        
+                        if (scrollContainer) {
+                            // Scroll within the container to reveal the question
+                            const containerRect = scrollContainer.getBoundingClientRect();
+                            const elementRectInContainer = firstElement.getBoundingClientRect();
+                            const relativeTop = elementRectInContainer.top - containerRect.top;
+                            const scrollOffset = 20; // Small offset from top of container
+                            
+                            scrollContainer.scrollTo({
+                                top: scrollContainer.scrollTop + relativeTop - scrollOffset,
+                                behavior: 'smooth'
+                            });
+                        }
+                        
+                        // Also scroll the main window to ensure the container is visible
                         const elementRect = firstElement.getBoundingClientRect();
                         const absoluteElementTop = elementRect.top + window.pageYOffset;
                         const bannerHeight = banner.offsetHeight;
