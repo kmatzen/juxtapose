@@ -341,6 +341,7 @@ p {
     pointer-events: none;
     z-index: 10;
     border-radius: 4px;
+    image-rendering: auto; /* Smooth scaling for high-res canvas */
 }
 
 /* BOTTOM SECTION: Questions (Progressive Flow) */
