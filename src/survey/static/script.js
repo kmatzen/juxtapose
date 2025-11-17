@@ -393,7 +393,10 @@ async function loadImagePair(index) {
             oldOverlays.forEach(overlay => overlay.remove());
             
             // Update UI
-            document.getElementById('prompt-text').textContent = data.prompt;
+            const promptText = document.getElementById('prompt-text');
+            if (promptText) {
+                promptText.textContent = data.prompt;
+            }
             
             // Handle identity and mask conditioning
             displayConditioningInputs(data);
@@ -1462,17 +1465,24 @@ if (window.TUTORIAL_MODE) {
     window.tutorialCompleted = false;
     
     let currentTutorialStep = 0;
-    const tutorialSteps = [
+    const baseTutorialSteps = [
         {
             title: "Before You Begin",
             text: "Let's walk through how this survey works. We'll show you each part of the interface using a real example. Click 'Next' to continue.",
             highlight: null
         },
-        {
+    ];
+    
+    // Add prompt step only if enabled
+    if (window.SHOW_PROMPT) {
+        baseTutorialSteps.push({
             title: "Text Prompt",
             text: "This is the text description that was used to generate the images below. It describes what should appear in the generated images.",
             highlight: ".prompt-box"
-        },
+        });
+    }
+    
+    baseTutorialSteps.push(
         {
             title: "Identity Reference Images",
             text: "These show the specific people or objects that should appear in the generated images. Notice the colored borders - these match colored regions in the spatial mask.",
@@ -1527,7 +1537,10 @@ if (window.TUTORIAL_MODE) {
             text: "Complete all questions on this page for practice. Once finished, click the arrow button at the bottom to begin the actual survey.",
             highlight: "#submit-btn"
         }
-    ];
+    );
+    
+    // Assign the constructed steps array
+    const tutorialSteps = baseTutorialSteps;
 
     function showTutorialStep(step) {
         const banner = document.getElementById('tutorial-banner');
