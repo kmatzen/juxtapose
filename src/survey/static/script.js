@@ -359,6 +359,14 @@ async function loadImagePair(index) {
             currentImageData = data;
             currentImageIndex = index;
             
+            // Reset hover handlers flag for new image pair
+            hoverHandlersSetup = false;
+            binaryMasks = {};
+            
+            // Remove any existing overlays from previous image pair
+            const oldOverlays = document.querySelectorAll('.mask-overlay');
+            oldOverlays.forEach(overlay => overlay.remove());
+            
             // Update UI
             document.getElementById('prompt-text').textContent = data.prompt;
             
@@ -398,6 +406,12 @@ async function loadImagePair(index) {
             // Preload images before showing them
             const imgALoader = new Image();
             const imgBLoader = new Image();
+            
+            // Enable CORS for canvas access (for hover overlays)
+            imgALoader.crossOrigin = 'anonymous';
+            imgBLoader.crossOrigin = 'anonymous';
+            imageA.crossOrigin = 'anonymous';
+            imageB.crossOrigin = 'anonymous';
             
             let aLoaded = false;
             let bLoaded = false;
@@ -689,6 +703,12 @@ function displayConditioningInputs(data) {
             slicedImg.onclick = () => openLightbox(slicedImg.src, `Identity Reference ${i + 1}`);
             identityContainer.appendChild(slicedImg);
         }
+        
+        // Now that identity images are in the DOM, set up hover handlers
+        // (but only if binary masks have been processed)
+        if (Object.keys(binaryMasks).length > 0) {
+            setupIdentityHoverHandlers();
+        }
     };
     stackedImg.onerror = () => {
         console.error('Failed to load identity image:', identityUrl);
@@ -698,8 +718,214 @@ function displayConditioningInputs(data) {
     
     // Display mask image
     const maskImg = document.getElementById('mask-image');
+    maskImg.crossOrigin = 'anonymous'; // Enable CORS for canvas access
     maskImg.src = data.mask_url;
     maskImg.onclick = () => openLightbox(data.mask_url, 'Spatial Mask');
+    
+    // Process mask for hover overlays once it loads
+    maskImg.onload = () => {
+        processMaskForOverlays(maskImg);
+    };
+}
+
+// Global storage for binary masks extracted from spatial mask
+let binaryMasks = {};
+let hoverHandlersSetup = false; // Flag to prevent duplicate setup
+
+// Color mapping for identity regions (RGB values)
+const IDENTITY_COLORS = [
+    [255, 0, 0],      // 0: Red
+    [0, 255, 0],      // 1: Green
+    [0, 0, 255],      // 2: Blue
+    [255, 255, 0],    // 3: Yellow
+    [255, 0, 255],    // 4: Magenta
+    [0, 255, 255],    // 5: Cyan
+    [255, 128, 0],    // 6: Orange
+    // Add more colors as needed
+];
+
+function processMaskForOverlays(maskImg) {
+    // Create a canvas to read mask pixel data
+    const canvas = document.createElement('canvas');
+    canvas.width = maskImg.naturalWidth || maskImg.width;
+    canvas.height = maskImg.naturalHeight || maskImg.height;
+    const ctx = canvas.getContext('2d');
+    
+    try {
+        ctx.drawImage(maskImg, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const pixels = imageData.data;
+        
+        // Extract binary masks for each identity color
+        binaryMasks = {};
+        
+        IDENTITY_COLORS.forEach((color, index) => {
+            const mask = new Uint8Array(canvas.width * canvas.height);
+            let matchCount = 0;
+            
+            // Check each pixel for color match
+            for (let i = 0; i < pixels.length; i += 4) {
+                const r = pixels[i];
+                const g = pixels[i + 1];
+                const b = pixels[i + 2];
+                
+                // Check if pixel matches this identity color (with small tolerance)
+                const matches = 
+                    Math.abs(r - color[0]) < 10 &&
+                    Math.abs(g - color[1]) < 10 &&
+                    Math.abs(b - color[2]) < 10;
+                
+                if (matches) {
+                    mask[i / 4] = 255;
+                    matchCount++;
+                } else {
+                    mask[i / 4] = 0;
+                }
+            }
+            
+            binaryMasks[index] = {
+                data: mask,
+                width: canvas.width,
+                height: canvas.height,
+                matchCount: matchCount
+            };
+        });
+        
+        // Set up hover handlers if identity images are already in the DOM
+        // (they might have loaded while we were processing the mask)
+        const identityImages = document.querySelectorAll('.identity-image');
+        if (identityImages.length > 0) {
+            setupIdentityHoverHandlers();
+        }
+        
+    } catch (e) {
+        // Silently fail if CORS prevents mask processing - feature won't work but app continues
+        console.error('Failed to process mask for overlays:', e.message);
+    }
+}
+
+function setupIdentityHoverHandlers() {
+    if (hoverHandlersSetup) {
+        return;
+    }
+    
+    const identityImages = document.querySelectorAll('.identity-image');
+    
+    if (identityImages.length === 0) {
+        return;
+    }
+    
+    identityImages.forEach(img => {
+        const index = parseInt(img.getAttribute('data-identity-index'));
+        
+        img.addEventListener('mouseenter', () => {
+            showMaskOverlay(index);
+        });
+        
+        img.addEventListener('mouseleave', () => {
+            hideMaskOverlay();
+        });
+    });
+    
+    hoverHandlersSetup = true;
+}
+
+function showMaskOverlay(identityIndex) {
+    const mask = binaryMasks[identityIndex];
+    if (!mask) {
+        return;
+    }
+    
+    // Apply overlay to Image A and Image B
+    const imageA = document.getElementById('image-a');
+    const imageB = document.getElementById('image-b');
+    
+    [imageA, imageB].forEach(img => {
+        if (!img || !img.complete) {
+            return;
+        }
+        
+        createOverlay(img, mask, identityIndex);
+    });
+}
+
+function createOverlay(targetImg, mask, identityIndex) {
+    // Find or create overlay canvas
+    const container = targetImg.parentElement;
+    let overlay = container.querySelector('.mask-overlay');
+    
+    if (!overlay) {
+        overlay = document.createElement('canvas');
+        overlay.className = 'mask-overlay';
+        overlay.style.position = 'absolute';
+        overlay.style.pointerEvents = 'none';
+        overlay.style.zIndex = '10';
+        container.style.position = 'relative';
+        container.appendChild(overlay);
+    }
+    
+    // Get actual image position and size
+    const imgRect = targetImg.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    
+    // Calculate offset of image within container
+    const offsetLeft = imgRect.left - containerRect.left;
+    const offsetTop = imgRect.top - containerRect.top;
+    
+    // Position overlay exactly over the image
+    overlay.style.left = offsetLeft + 'px';
+    overlay.style.top = offsetTop + 'px';
+    
+    // Size overlay to match image display size
+    overlay.width = targetImg.clientWidth;
+    overlay.height = targetImg.clientHeight;
+    overlay.style.width = targetImg.clientWidth + 'px';
+    overlay.style.height = targetImg.clientHeight + 'px';
+    
+    const ctx = overlay.getContext('2d');
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+    
+    // Scale mask to overlay size
+    const scaleX = overlay.width / mask.width;
+    const scaleY = overlay.height / mask.height;
+    
+    // Get identity color for highlighting
+    const color = IDENTITY_COLORS[identityIndex] || [255, 255, 255];
+    
+    // Create overlay effect
+    const overlayData = ctx.createImageData(overlay.width, overlay.height);
+    const pixels = overlayData.data;
+    
+    for (let y = 0; y < overlay.height; y++) {
+        for (let x = 0; x < overlay.width; x++) {
+            // Map back to mask coordinates
+            const maskX = Math.floor(x / scaleX);
+            const maskY = Math.floor(y / scaleY);
+            const maskIndex = maskY * mask.width + maskX;
+            
+            const pixelIndex = (y * overlay.width + x) * 4;
+            
+            if (mask.data[maskIndex] > 0) {
+                // Highlight this region with semi-transparent color
+                pixels[pixelIndex] = color[0];     // R
+                pixels[pixelIndex + 1] = color[1]; // G
+                pixels[pixelIndex + 2] = color[2]; // B
+                pixels[pixelIndex + 3] = 100;      // Alpha (semi-transparent)
+            } else {
+                pixels[pixelIndex + 3] = 0; // Fully transparent
+            }
+        }
+    }
+    
+    ctx.putImageData(overlayData, 0, 0);
+    overlay.style.display = 'block';
+}
+
+function hideMaskOverlay() {
+    const overlays = document.querySelectorAll('.mask-overlay');
+    overlays.forEach(overlay => {
+        overlay.style.display = 'none';
+    });
 }
 
 function showError(message) {
