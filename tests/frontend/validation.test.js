@@ -13,13 +13,16 @@ global.CONFIG = {
 
 // Mock the IDENTITY_COLORS array
 global.IDENTITY_COLORS = [
-    [230, 25, 75],    // Red
-    [60, 180, 75],    // Green
-    [255, 225, 25],   // Yellow
-    [0, 130, 200],    // Blue
-    [245, 130, 48],   // Orange
-    [145, 30, 180],   // Purple
-    [70, 240, 240]    // Cyan
+    [255, 0, 0],      // 0: Red
+    [0, 255, 0],      // 1: Green
+    [0, 0, 255],      // 2: Blue
+    [255, 255, 0],    // 3: Yellow
+    [255, 0, 255],    // 4: Magenta
+    [0, 255, 255],    // 5: Cyan
+    [255, 128, 0],    // 6: Orange
+    [128, 0, 255],    // 7: Purple
+    [0, 128, 255],    // 8: Light Blue
+    [128, 128, 128]   // 9: Gray
 ];
 
 describe('Form Validation Logic', () => {
@@ -186,8 +189,8 @@ describe('CONFIG Object', () => {
 });
 
 describe('Identity Colors', () => {
-    test('IDENTITY_COLORS has 7 colors', () => {
-        expect(IDENTITY_COLORS).toHaveLength(7);
+    test('IDENTITY_COLORS has 10 colors', () => {
+        expect(IDENTITY_COLORS).toHaveLength(10);
     });
 
     test('each color is an RGB array with 3 values', () => {
