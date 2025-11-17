@@ -1,8 +1,34 @@
+// Configuration Constants
+const CONFIG = {
+    // Touch interaction
+    TAP_THRESHOLD_PX: 10,          // Max movement distance to count as tap (not scroll)
+    MIN_TOUCH_TARGET_SIZE_PX: 44,  // Minimum touch target size for accessibility
+    
+    // Image display
+    MIN_IMAGE_DIMENSION_PX: 200,    // Minimum size for generated images
+    MIN_IDENTITY_IMAGE_PX: 50,      // Minimum size for identity images
+    
+    // Layout
+    MOBILE_BREAKPOINT_PX: 768,      // Width threshold for mobile layout
+    
+    // Timing
+    TUTORIAL_LOAD_DELAY_MS: 1000,   // Delay before showing tutorial
+    AUTO_FILL_DELAY_MS: 500,        // Delay before auto-filling forms in dev mode
+    IMAGE_PRELOAD_DELAY_MS: 100     // Delay before auto-filling survey in dev mode
+};
+
 // State management
 let demographicsData = null;
 let currentImageIndex = 0;
 let currentImageData = null;
 let totalImagePairs = 30;
+
+// Debug logging helper - only logs in dev mode
+const debugLog = (...args) => {
+    if (window.DEV_MODE) {
+        console.log(...args);
+    }
+};
 let deviceInfo = {};
 let devMode = false;
 let pairStartTime = null;  // Track when user starts viewing current pair
@@ -157,14 +183,14 @@ function setupEventListeners() {
         
         // Auto-fill in dev mode
         if (devMode) {
-            setTimeout(() => fillDemographicsForm(), 500);
+            setTimeout(() => fillDemographicsForm(), CONFIG.AUTO_FILL_DELAY_MS);
         }
     }
     
     // Survey form submission
     const surveyForm = document.getElementById('survey-form');
     if (surveyForm) {
-        console.log('✅ Setting up survey form submit handler');
+        debugLog('✅ Setting up survey form submit handler');
         surveyForm.addEventListener('submit', handleSurveySubmit);
     } else {
         console.error('❌ Survey form not found during setup');
@@ -229,7 +255,7 @@ function fillDemographicsForm() {
     document.getElementById('works-with-graphics').value = 'professional';
     document.getElementById('ai-familiarity').value = 'advanced';
     
-    console.log('✅ Demographics form auto-filled');
+    debugLog('✅ Demographics form auto-filled');
 }
 
 function fillSurveyForm() {
@@ -270,7 +296,7 @@ function fillSurveyForm() {
         logMsg += `, Match ${betterMatch} (conf ${promptConf})`;
     }
     logMsg += `, Mask ${betterMask} (conf ${maskConf}), Identity ${betterIdentity} (conf ${identityConf})`;
-    console.log(logMsg);
+    debugLog(logMsg);
 }
 
 async function handleDemographicsSubmit(event) {
@@ -341,14 +367,14 @@ async function handleDemographicsSubmit(event) {
 
 async function loadImagePair(index) {
     try {
-        console.log(`Fetching image pair ${index}...`);
+        debugLog(`Fetching image pair ${index}...`);
         const response = await fetch(`/api/get_image_pair/${index}`);
         const data = await response.json();
         
-        console.log('API response:', { ok: response.ok, status: response.status });
+        debugLog('API response:', { ok: response.ok, status: response.status });
         
         if (response.ok) {
-            console.log('Image pair data received:', { id: data.id, hasImageA: !!data.image_a_url, hasImageB: !!data.image_b_url });
+            debugLog('Image pair data received:', { id: data.id, hasImageA: !!data.image_a_url, hasImageB: !!data.image_b_url });
             currentImageData = data;
             currentImageIndex = index;
             
@@ -448,19 +474,19 @@ async function loadImagePair(index) {
                         pairStartTime = Date.now();
                         
                         // Verify images loaded (don't reveal method names to avoid bias)
-                        console.log(`✓ Loaded comparison ${data.id} of ${data.total_pairs}`);
+                        debugLog(`✓ Loaded comparison ${data.id} of ${data.total_pairs}`);
                     }
                 }
             };
             
             imgALoader.onload = () => {
-                console.log('Image A loaded successfully');
+                debugLog('Image A loaded successfully');
                 aLoaded = true;
                 checkBothLoaded();
             };
             
             imgBLoader.onload = () => {
-                console.log('Image B loaded successfully');
+                debugLog('Image B loaded successfully');
                 bLoaded = true;
                 checkBothLoaded();
             };
@@ -478,7 +504,7 @@ async function loadImagePair(index) {
             };
             
             // Start loading
-            console.log('Starting image load...');
+            debugLog('Starting image load...');
             imgALoader.src = data.image_a_url;
             imgBLoader.src = data.image_b_url;
             
@@ -526,7 +552,7 @@ async function loadImagePair(index) {
             
             // Auto-fill in dev mode
             if (devMode) {
-                setTimeout(() => fillSurveyForm(), 100);
+                setTimeout(() => fillSurveyForm(), CONFIG.IMAGE_PRELOAD_DELAY_MS);
             }
             
         } else {
@@ -540,7 +566,7 @@ async function loadImagePair(index) {
 }
 
 async function handleSurveySubmit(event) {
-    console.log('🔵 handleSurveySubmit called', {
+    debugLog('🔵 handleSurveySubmit called', {
         tutorialMode: window.TUTORIAL_MODE,
         currentIndex: currentImageIndex,
         imageData: currentImageData ? currentImageData.id : 'none'
@@ -549,7 +575,7 @@ async function handleSurveySubmit(event) {
     
     // If in tutorial mode, mark tutorial complete and redirect to real survey
     if (window.TUTORIAL_MODE) {
-        console.log('✅ Tutorial form submitted - marking complete and redirecting');
+        debugLog('✅ Tutorial form submitted - marking complete and redirecting');
         
         // Mark tutorial as complete in session
         try {
@@ -561,7 +587,7 @@ async function handleSurveySubmit(event) {
                 }
             });
         } catch (error) {
-            console.log('Note: Could not mark tutorial complete, but continuing anyway');
+            debugLog('Note: Could not mark tutorial complete, but continuing anyway');
         }
         
         // Redirect to real survey
@@ -569,7 +595,7 @@ async function handleSurveySubmit(event) {
         return;
     }
     
-    console.log('💾 Preparing to submit real survey response...');
+    debugLog('💾 Preparing to submit real survey response...');
     
     const formData = new FormData(event.target);
     const surveyResponse = Object.fromEntries(formData.entries());
@@ -619,7 +645,7 @@ async function handleSurveySubmit(event) {
         const result = await response.json();
         
         if (response.ok && result.success) {
-            console.log('📊 Survey response submitted:', {
+            debugLog('📊 Survey response submitted:', {
                 completed: result.completed,
                 currentIndex: currentImageIndex,
                 nextIndex: currentImageIndex + 1
@@ -627,12 +653,12 @@ async function handleSurveySubmit(event) {
             
             if (result.completed) {
                 // All image pairs completed, redirect to thank you page
-                console.log('🎉 All pairs completed! Redirecting to thank you page...');
+                debugLog('🎉 All pairs completed! Redirecting to thank you page...');
                 window.location.href = '/';
             } else {
                 // Load next image pair
                 currentImageIndex++;
-                console.log(`📄 Loading next pair: ${currentImageIndex}`);
+                debugLog(`📄 Loading next pair: ${currentImageIndex}`);
                 await loadImagePair(currentImageIndex);
                 window.scrollTo(0, 0);
             }
@@ -883,8 +909,8 @@ function setupIdentityHoverHandlers() {
                 Math.pow(touchEndPos.y - touchStartPos.y, 2)
             );
             
-            // If movement < 10px, treat as tap
-            if (distance < 10) {
+            // If movement less than threshold, treat as tap (not scroll)
+            if (distance < CONFIG.TAP_THRESHOLD_PX) {
                 // Prevent lightbox from opening on identity images
                 e.preventDefault();
                 
@@ -906,9 +932,17 @@ function setupIdentityHoverHandlers() {
         img.style.cursor = 'pointer';
     });
     
-    // Hide overlay when tapping elsewhere (but not when scrolling)
-    let docTouchStart = null;
+    hoverHandlersSetup = true;
+}
+
+// Document-level touch handlers (set up only once)
+let docTouchStart = null;
+let documentTouchHandlersSetup = false;
+
+function setupDocumentTouchHandlers() {
+    if (documentTouchHandlersSetup) return;
     
+    // Hide overlay when tapping elsewhere (but not when scrolling)
     document.addEventListener('touchstart', (e) => {
         docTouchStart = {
             x: e.touches[0].clientX,
@@ -935,8 +969,8 @@ function setupIdentityHoverHandlers() {
             Math.pow(touchEndPos.y - docTouchStart.y, 2)
         );
         
-        // Only dismiss on tap (< 10px movement)
-        if (distance < 10) {
+        // Only dismiss on tap (not scroll)
+        if (distance < CONFIG.TAP_THRESHOLD_PX) {
             hideMaskOverlay();
             activeOverlayIndex = null;
         }
@@ -944,8 +978,11 @@ function setupIdentityHoverHandlers() {
         docTouchStart = null;
     }, { passive: true });
     
-    hoverHandlersSetup = true;
+    documentTouchHandlersSetup = true;
 }
+
+// Set up document-level touch handlers on first call
+setupDocumentTouchHandlers();
 
 function showMaskOverlay(identityIndex) {
     const mask = binaryMasks[identityIndex];
@@ -1318,7 +1355,7 @@ function setupSubmitValidation() {
         const allAnswered = Object.values(radioGroups).length > 0 && 
                            Object.values(radioGroups).every(answered => answered);
         
-        console.log('📋 validateForm called:', {
+        debugLog('📋 validateForm called:', {
             tutorialMode: window.TUTORIAL_MODE,
             tutorialCompleted: window.tutorialCompleted,
             totalGroups: Object.keys(radioGroups).length,
@@ -1330,10 +1367,10 @@ function setupSubmitValidation() {
         // In tutorial mode, keep disabled until tutorial is complete
         if (window.TUTORIAL_MODE && !window.tutorialCompleted) {
             submitBtn.disabled = true;
-            console.log('  → Keeping disabled (tutorial not complete)');
+            debugLog('  → Keeping disabled (tutorial not complete)');
         } else {
             submitBtn.disabled = !allAnswered;
-            console.log('  → Setting disabled =', !allAnswered);
+            debugLog('  → Setting disabled =', !allAnswered);
         }
         
         return allAnswered;
@@ -1544,12 +1581,12 @@ if (window.TUTORIAL_MODE) {
 
     function completeTutorial() {
         // Just enable the form - tutorial will be marked complete when user submits
-        console.log('✅ Tutorial walkthrough complete');
+        debugLog('✅ Tutorial walkthrough complete');
         window.tutorialCompleted = true;
         
         // Trigger form validation to enable button if form is filled
         if (window.triggerFormValidation) {
-            console.log('✅ Triggering form validation');
+            debugLog('✅ Triggering form validation');
             window.triggerFormValidation();
         } else {
             console.error('❌ triggerFormValidation not available');
@@ -1566,11 +1603,11 @@ if (window.TUTORIAL_MODE) {
             
             // Add click handler for debugging
             submitBtn.addEventListener('click', (e) => {
-                console.log('🔵 Submit button clicked');
-                console.log('  - Button disabled:', submitBtn.disabled);
-                console.log('  - Tutorial completed:', window.tutorialCompleted);
+                debugLog('🔵 Submit button clicked');
+                debugLog('  - Button disabled:', submitBtn.disabled);
+                debugLog('  - Tutorial completed:', window.tutorialCompleted);
                 if (submitBtn.disabled) {
-                    console.log('  ⚠️ Button is disabled, click prevented');
+                    debugLog('  ⚠️ Button is disabled, click prevented');
                     e.preventDefault();
                 }
             });
@@ -1579,6 +1616,6 @@ if (window.TUTORIAL_MODE) {
         // Wait for first image pair to load
         setTimeout(() => {
             showTutorialStep(0);
-        }, 1000);
+        }, CONFIG.TUTORIAL_LOAD_DELAY_MS);
     });
 }
