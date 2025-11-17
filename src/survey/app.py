@@ -55,6 +55,9 @@ if TILE_LAYOUT not in ['AMB', 'MAB']:
     print(f"WARNING: Invalid TILE_LAYOUT '{TILE_LAYOUT}'. Using default 'AMB'. Valid options: AMB, MAB")
     TILE_LAYOUT = 'AMB'
 
+# Question Configuration: Enable/disable specific evaluation questions
+ENABLE_PROMPT_QUESTION = os.environ.get('ENABLE_PROMPT_QUESTION', 'false').lower() == 'true'  # Set ENABLE_PROMPT_QUESTION=true to enable
+
 # Security: Warn if weak admin password in production
 if ADMIN_PASSWORD == 'admin123' and IS_PRODUCTION:
     print("WARNING: Using default admin password! Set ADMIN_PASSWORD environment variable!")
@@ -349,13 +352,13 @@ def index():
             if len(completed_pair_ids) >= expected_pairs:
                 # In dev mode, allow restarting with ?new=true parameter
                 if DEV_MODE and force_new:
-                    return render_template('index.html', tile_layout=TILE_LAYOUT)
+                    return render_template('index.html', tile_layout=TILE_LAYOUT, enable_prompt_question=ENABLE_PROMPT_QUESTION)
                 # Show thank you page if completed
                 return render_template('thank_you.html', already_submitted=True, dev_mode=DEV_MODE)
     else:
         db.close()
     
-    return render_template('index.html', tile_layout=TILE_LAYOUT)
+    return render_template('index.html', tile_layout=TILE_LAYOUT, enable_prompt_question=ENABLE_PROMPT_QUESTION)
 
 @app.route('/referral', methods=['GET', 'POST'])
 def referral():
