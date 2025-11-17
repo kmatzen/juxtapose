@@ -48,6 +48,13 @@ limiter = Limiter(
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')  # Change this in production
 DEV_MODE = os.environ.get('DEV_MODE', 'false').lower() == 'true'  # Set DEV_MODE=true for testing
 
+# Layout Configuration: Order of tiles in the three-tile grid
+# Options: 'AMB' (A, Mask, B) or 'MAB' (Mask, A, B)
+TILE_LAYOUT = os.environ.get('TILE_LAYOUT', 'AMB').upper()  # Set TILE_LAYOUT=MAB for mask-first layout
+if TILE_LAYOUT not in ['AMB', 'MAB']:
+    print(f"WARNING: Invalid TILE_LAYOUT '{TILE_LAYOUT}'. Using default 'AMB'. Valid options: AMB, MAB")
+    TILE_LAYOUT = 'AMB'
+
 # Security: Warn if weak admin password in production
 if ADMIN_PASSWORD == 'admin123' and IS_PRODUCTION:
     print("WARNING: Using default admin password! Set ADMIN_PASSWORD environment variable!")
@@ -342,13 +349,13 @@ def index():
             if len(completed_pair_ids) >= expected_pairs:
                 # In dev mode, allow restarting with ?new=true parameter
                 if DEV_MODE and force_new:
-                    return render_template('index.html')
+                    return render_template('index.html', tile_layout=TILE_LAYOUT)
                 # Show thank you page if completed
                 return render_template('thank_you.html', already_submitted=True, dev_mode=DEV_MODE)
     else:
         db.close()
     
-    return render_template('index.html')
+    return render_template('index.html', tile_layout=TILE_LAYOUT)
 
 @app.route('/referral', methods=['GET', 'POST'])
 def referral():

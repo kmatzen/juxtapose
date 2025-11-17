@@ -623,11 +623,14 @@ function showRetakeModal() {
 
 function displayConditioningInputs(data) {
     // Always display conditioning since all pairs have identity and mask
-    document.getElementById('conditioning-container').style.display = 'block';
-    document.getElementById('identity-section').style.display = 'block';
-    document.getElementById('mask-section').style.display = 'block';
-    document.getElementById('identity-evaluation').style.display = 'block';
-    document.getElementById('mask-evaluation').style.display = 'block';
+    // Note: Elements are always visible in new layout, no need to toggle display
+    const identitySection = document.getElementById('identity-section');
+    const identityEval = document.getElementById('identity-evaluation');
+    const maskEval = document.getElementById('mask-evaluation');
+    
+    if (identitySection) identitySection.style.display = 'block';
+    if (identityEval) identityEval.style.display = 'block';
+    if (maskEval) maskEval.style.display = 'block';
     
     // Display identity images
     // The identity URL points to a single tall image: 512px wide x (512 * N) tall
@@ -823,21 +826,14 @@ function setQuestionsHeight() {
 }
 
 function scaleVisualContent(availableHeight, m) {
-    // Set column heights with minimums
-    const contextColumn = document.querySelector('.context-column');
-    const generatedImagesColumn = document.querySelector('.generated-images-column');
+    // Set visual content section height
+    const visualSection = m.visualSection;
+    const minVisualHeight = m.isMobileLandscape ? 250 : 300;
+    const finalHeight = Math.max(availableHeight, minVisualHeight);
     
-    // Ensure minimum height for scrollable areas
-    const minColumnHeight = m.isMobileLandscape ? 250 : 200;
-    const finalHeight = Math.max(availableHeight, minColumnHeight);
-    
-    if (contextColumn) {
-        contextColumn.style.maxHeight = `${finalHeight}px`;
-        contextColumn.style.minHeight = `${minColumnHeight}px`;
-    }
-    if (generatedImagesColumn) {
-        generatedImagesColumn.style.maxHeight = `${finalHeight}px`;
-        generatedImagesColumn.style.minHeight = `${minColumnHeight}px`;
+    if (visualSection) {
+        visualSection.style.maxHeight = `${finalHeight}px`;
+        visualSection.style.minHeight = `${minVisualHeight}px`;
     }
     
     // Calculate space for images
@@ -845,26 +841,18 @@ function scaleVisualContent(availableHeight, m) {
     const availableImageSpace = availableHeight - promptAndHeaderSpace;
     const maxImageHeight = Math.floor(availableImageSpace * 0.8);
     
-    // Image boxes are sized by CSS flex: 1 1 0, so images just need to fit within their containers
-    // Use a generous max-width - the flex containers handle the actual sizing
-    const maxImageWidth = 800;
-    
-    // Apply to generated images
-    const generatedImages = m.visualSection.querySelectorAll('.generated-image');
-    generatedImages.forEach(img => {
-        img.style.maxHeight = `${maxImageHeight}px`;
-        img.style.maxWidth = `${maxImageWidth}px`;
-        img.style.minWidth = '200px';
-        img.style.minHeight = '200px';
+    // Apply to tile images (generated images and mask in three-tile-grid)
+    const tileImages = m.visualSection.querySelectorAll('.tile-image');
+    tileImages.forEach(img => {
+        img.style.maxHeight = `${Math.max(maxImageHeight, 200)}px`;
         img.style.width = 'auto';
         img.style.height = 'auto';
         img.style.objectFit = 'contain';
     });
     
-    // Apply to identity and mask images
+    // Apply to identity images
     const smallImageHeight = Math.floor(availableImageSpace / 3);
     const identityImages = m.visualSection.querySelectorAll('.identity-image, .identity-stacked-image');
-    const maskImage = m.visualSection.querySelector('#mask-image');
     
     identityImages.forEach(img => {
         img.style.maxHeight = `${smallImageHeight}px`;
@@ -873,14 +861,6 @@ function scaleVisualContent(availableHeight, m) {
         img.style.width = 'auto';
         img.style.objectFit = 'contain';
     });
-    
-    if (maskImage) {
-        maskImage.style.maxHeight = `${smallImageHeight}px`;
-        maskImage.style.minWidth = '200px';
-        maskImage.style.minHeight = '200px';
-        maskImage.style.width = 'auto';
-        maskImage.style.objectFit = 'contain';
-    }
 }
 
 function navigateQuestion(direction) {
