@@ -315,6 +315,7 @@ p {
     justify-content: center;
     align-items: center;
     overflow: hidden;
+    position: relative; /* For overlay positioning */
 }
 
 .tile-image {
@@ -330,6 +331,16 @@ p {
 
 .tile-image:hover {
     transform: scale(1.01);
+}
+
+/* Mask overlay for hover effect on generated images */
+.mask-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 10;
+    border-radius: 4px;
 }
 
 /* BOTTOM SECTION: Questions (Progressive Flow) */
@@ -521,11 +532,14 @@ p {
     border-radius: 6px;
     border: 4px solid #999; /* Default gray if no color match */
     cursor: pointer;
-    transition: transform 0.2s;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .identity-image:hover {
     transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    filter: brightness(1.1);
 }
 
 /* ========================================================================
