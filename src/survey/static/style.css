@@ -1425,7 +1425,6 @@ p {
 #tutorial-banner .tutorial-text {
     flex: 1;
     min-width: 0;
-    padding-right: 140px;
 }
 
 #tutorial-banner h3 {
@@ -1445,7 +1444,6 @@ p {
 #tutorial-banner .tutorial-buttons {
     display: flex;
     gap: 10px;
-    position: absolute;
     right: 30px;
     top: 15px;
 }
@@ -1496,50 +1494,5 @@ p {
     }
 }
 
-/* Responsive tutorial banner */
-@media (max-width: 768px) {
-    #tutorial-banner .tutorial-content {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
-        padding: 50px 15px 12px 15px;
-        min-height: 120px;
-    }
-    
-    .tutorial-progress {
-        gap: 8px;
-        margin-bottom: 12px;
-    }
-    
-    .tutorial-progress-circle {
-        width: 32px;
-        height: 32px;
-    }
-    
-    .tutorial-progress-text {
-        font-size: 12px;
-    }
-    
-    #tutorial-banner .tutorial-text {
-        padding-right: 0;
-        width: 100%;
-    }
-    
-    #tutorial-banner h3 {
-        font-size: 16px;
-    }
-    
-    #tutorial-banner p {
-        font-size: 13px;
-    }
-    
-    #tutorial-banner .tutorial-buttons {
-        right: 15px;
-        top: 15px;
-    }
-    
-    #tutorial-banner .tutorial-text {
-        padding-right: 0;
-    }
-}
+
 
