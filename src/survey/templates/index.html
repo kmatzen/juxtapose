@@ -281,6 +281,8 @@
                     </div>
                 </div>
 
+                {% if enable_prompt_question %}
+                <!-- Prompt Adherence Section (optional, controlled by ENABLE_PROMPT_QUESTION config) -->
                 <div class="evaluation-section">
                     <div class="form-group">
                         <label>Which image better matches the text prompt?</label>
@@ -326,6 +328,7 @@
                         </div>
                     </div>
                 </div>
+                {% endif %}
                 
                 <!-- Mask Adherence Section (always shown) -->
                 <div id="mask-evaluation" class="evaluation-section">

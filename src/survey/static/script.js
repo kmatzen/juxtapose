@@ -237,11 +237,15 @@ function fillSurveyForm() {
     const imageConf = Math.floor(Math.random() * 5) + 1;
     document.querySelector(`input[name="image_confidence"][value="${imageConf}"]`).checked = true;
     
-    const betterMatch = Math.random() < 0.5 ? 'A' : 'B';
-    document.querySelector(`input[name="better_prompt_match"][value="${betterMatch}"]`).checked = true;
-    
-    const promptConf = Math.floor(Math.random() * 5) + 1;
-    document.querySelector(`input[name="prompt_confidence"][value="${promptConf}"]`).checked = true;
+    // Auto-fill prompt evaluation (if enabled)
+    const promptMatchElement = document.querySelector(`input[name="better_prompt_match"]`);
+    if (promptMatchElement) {
+        const betterMatch = Math.random() < 0.5 ? 'A' : 'B';
+        document.querySelector(`input[name="better_prompt_match"][value="${betterMatch}"]`).checked = true;
+        
+        const promptConf = Math.floor(Math.random() * 5) + 1;
+        document.querySelector(`input[name="prompt_confidence"][value="${promptConf}"]`).checked = true;
+    }
     
     // Auto-fill mask evaluation (always present)
     const betterMask = Math.random() < 0.5 ? 'A' : 'B';
@@ -255,7 +259,15 @@ function fillSurveyForm() {
     const identityConf = Math.floor(Math.random() * 5) + 1;
     document.querySelector(`input[name="identity_confidence"][value="${identityConf}"]`).checked = true;
     
-    console.log(`✅ Survey form auto-filled: Image ${betterImage} (conf ${imageConf}), Match ${betterMatch} (conf ${promptConf}), Mask ${betterMask} (conf ${maskConf}), Identity ${betterIdentity} (conf ${identityConf})`);
+    // Build log message
+    let logMsg = `✅ Survey form auto-filled: Image ${betterImage} (conf ${imageConf})`;
+    if (promptMatchElement) {
+        const betterMatch = document.querySelector(`input[name="better_prompt_match"]:checked`).value;
+        const promptConf = document.querySelector(`input[name="prompt_confidence"]:checked`).value;
+        logMsg += `, Match ${betterMatch} (conf ${promptConf})`;
+    }
+    logMsg += `, Mask ${betterMask} (conf ${maskConf}), Identity ${betterIdentity} (conf ${identityConf})`;
+    console.log(logMsg);
 }
 
 async function handleDemographicsSubmit(event) {
@@ -541,7 +553,11 @@ async function handleSurveySubmit(event) {
         was_randomized: currentImageData.was_randomized,
         time_spent: timeSpent,
         image_confidence: parseInt(surveyResponse.image_confidence),
-        prompt_confidence: parseInt(surveyResponse.prompt_confidence),
+        // Conditionally add prompt fields if present (controlled by ENABLE_PROMPT_QUESTION)
+        ...(surveyResponse.better_prompt_match && {
+            better_prompt_match: surveyResponse.better_prompt_match,
+            prompt_confidence: parseInt(surveyResponse.prompt_confidence)
+        }),
         // Conditionally add mask/identity fields if present
         ...(surveyResponse.better_mask_match && {
             better_mask_match: surveyResponse.better_mask_match,
