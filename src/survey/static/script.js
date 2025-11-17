@@ -164,7 +164,10 @@ function setupEventListeners() {
     // Survey form submission
     const surveyForm = document.getElementById('survey-form');
     if (surveyForm) {
+        console.log('✅ Setting up survey form submit handler');
         surveyForm.addEventListener('submit', handleSurveySubmit);
+    } else {
+        console.error('❌ Survey form not found during setup');
     }
     
     // Image lightbox
@@ -324,18 +327,8 @@ async function handleDemographicsSubmit(event) {
                 }
             }
             
-            // Move to survey section
-            document.getElementById('demographics-section').classList.remove('active');
-            document.getElementById('survey-section').classList.add('active');
-            
-            // Show survey progress
-            document.getElementById('survey-progress').style.display = 'block';
-            
-            // Load first image pair
-            await loadImagePair(0);
-            
-            // Scroll to top
-            window.scrollTo(0, 0);
+            // Redirect to home - server will check if tutorial is needed
+            window.location.href = '/';
         } else {
             showError('Failed to submit demographics. Please try again.');
             console.error('Error:', result.error);
@@ -545,7 +538,36 @@ async function loadImagePair(index) {
 }
 
 async function handleSurveySubmit(event) {
+    console.log('🔵 handleSurveySubmit called', {
+        tutorialMode: window.TUTORIAL_MODE,
+        currentIndex: currentImageIndex,
+        imageData: currentImageData ? currentImageData.id : 'none'
+    });
     event.preventDefault();
+    
+    // If in tutorial mode, mark tutorial complete and redirect to real survey
+    if (window.TUTORIAL_MODE) {
+        console.log('✅ Tutorial form submitted - marking complete and redirecting');
+        
+        // Mark tutorial as complete in session
+        try {
+            await fetch('/api/complete_tutorial', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken()
+                }
+            });
+        } catch (error) {
+            console.log('Note: Could not mark tutorial complete, but continuing anyway');
+        }
+        
+        // Redirect to real survey
+        window.location.href = '/';
+        return;
+    }
+    
+    console.log('💾 Preparing to submit real survey response...');
     
     const formData = new FormData(event.target);
     const surveyResponse = Object.fromEntries(formData.entries());
@@ -595,12 +617,20 @@ async function handleSurveySubmit(event) {
         const result = await response.json();
         
         if (response.ok && result.success) {
+            console.log('📊 Survey response submitted:', {
+                completed: result.completed,
+                currentIndex: currentImageIndex,
+                nextIndex: currentImageIndex + 1
+            });
+            
             if (result.completed) {
                 // All image pairs completed, redirect to thank you page
+                console.log('🎉 All pairs completed! Redirecting to thank you page...');
                 window.location.href = '/';
             } else {
                 // Load next image pair
                 currentImageIndex++;
+                console.log(`📄 Loading next pair: ${currentImageIndex}`);
                 await loadImagePair(currentImageIndex);
                 window.scrollTo(0, 0);
             }
@@ -1201,11 +1231,29 @@ function setupSubmitValidation() {
         const allAnswered = Object.values(radioGroups).length > 0 && 
                            Object.values(radioGroups).every(answered => answered);
         
+        console.log('📋 validateForm called:', {
+            tutorialMode: window.TUTORIAL_MODE,
+            tutorialCompleted: window.tutorialCompleted,
+            totalGroups: Object.keys(radioGroups).length,
+            allAnswered: allAnswered,
+            currentDisabled: submitBtn.disabled
+        });
+        
         // Enable/disable submit button
-        submitBtn.disabled = !allAnswered;
+        // In tutorial mode, keep disabled until tutorial is complete
+        if (window.TUTORIAL_MODE && !window.tutorialCompleted) {
+            submitBtn.disabled = true;
+            console.log('  → Keeping disabled (tutorial not complete)');
+        } else {
+            submitBtn.disabled = !allAnswered;
+            console.log('  → Setting disabled =', !allAnswered);
+        }
         
         return allAnswered;
     }
+    
+    // Make validateForm globally accessible for tutorial mode
+    window.triggerFormValidation = validateForm;
     
     // Listen for changes on all radio inputs
     surveyForm.addEventListener('change', (e) => {
@@ -1251,3 +1299,199 @@ function setupAutoAdvance() {
 
 // Initialize progressive questions when survey section loads
 // This is now handled in loadImagePair() to avoid MutationObserver overhead
+
+// ==================================================================
+// HELPER FUNCTIONS
+// ==================================================================
+
+function getCSRFToken() {
+    // Try to get CSRF token from meta tag (if it exists)
+    const metaTag = document.querySelector('meta[name="csrf-token"]');
+    if (metaTag) {
+        return metaTag.content;
+    }
+    // Try cookie
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'csrf_token') {
+            return decodeURIComponent(value);
+        }
+    }
+    return '';
+}
+
+// ==================================================================
+// TUTORIAL MODE
+// ==================================================================
+
+if (window.TUTORIAL_MODE) {
+    // Initialize tutorial state
+    window.tutorialCompleted = false;
+    
+    let currentTutorialStep = 0;
+    const tutorialSteps = [
+        {
+            title: "Welcome to the Survey Tutorial!",
+            text: "This interactive tutorial will guide you through the survey interface using real examples. Your responses won't be saved. Click 'Next' to continue.",
+            highlight: null
+        },
+        {
+            title: "Text Prompt",
+            text: "This is the text description that was used to generate the images. It tells you what should appear in the generated images.",
+            highlight: ".prompt-box"
+        },
+        {
+            title: "Identity Reference Images",
+            text: "These are the specific people or objects that should appear in the generated images. Notice each has a colored border - this matches colored regions in the spatial mask below.",
+            highlight: "#identity-section"
+        },
+        {
+            title: "Spatial Mask",
+            text: "This mask shows WHERE each identity should be placed in the image. Each colored region corresponds to one identity image (matched by border color).",
+            highlight: ".mask-tile"
+        },
+        {
+            title: "Interactive Hover Feature ✨",
+            text: "Try hovering your mouse over any identity image! You'll see the corresponding regions light up in Images A and B. This helps you check if identities are in the right places.",
+            highlight: "#identity-images"
+        },
+        {
+            title: "Generated Images",
+            text: "These are the two AI-generated images you'll be comparing. Image A and Image B were created using different methods.",
+            highlight: "#image-a, #image-b",
+            highlightParent: true  // Highlight the parent tile-box containers
+        },
+        {
+            title: "Evaluation Questions",
+            text: "Below the images, you'll answer questions about which image is better. For each question, select your choice (A, B, or Equal) and rate your confidence (1-5).",
+            highlight: ".questions-container"
+        },
+        {
+            title: "Navigation",
+            text: "Use the up/down arrows on the right to scroll through questions. Once all questions are answered, click the arrow at the bottom to move to the next image pair.",
+            highlight: ".question-navigation, #submit-btn"
+        },
+        {
+            title: "Ready to Practice!",
+            text: "Now try it yourself! Fill out all the questions on this page (your answers won't be saved). Once you complete all questions, click the arrow at the bottom, then you'll start the real survey.",
+            highlight: "#submit-btn"
+        }
+    ];
+
+    function showTutorialStep(step) {
+        const banner = document.getElementById('tutorial-banner');
+        const stepNumber = document.getElementById('tutorial-step-number');
+        const title = document.getElementById('tutorial-title');
+        const text = document.getElementById('tutorial-text');
+        
+        // Remove previous highlights
+        document.querySelectorAll('.tutorial-highlight').forEach(el => {
+            el.classList.remove('tutorial-highlight');
+        });
+        
+        // Set content
+        stepNumber.textContent = `${step + 1}/${tutorialSteps.length}`;
+        title.textContent = tutorialSteps[step].title;
+        text.textContent = tutorialSteps[step].text;
+        
+        // Highlight element(s) if specified
+        if (tutorialSteps[step].highlight) {
+            const elements = document.querySelectorAll(tutorialSteps[step].highlight);
+            const highlightParent = tutorialSteps[step].highlightParent;
+            
+            if (elements.length > 0) {
+                elements.forEach(element => {
+                    const targetElement = highlightParent ? element.closest('.tile-box') : element;
+                    if (targetElement) {
+                        targetElement.classList.add('tutorial-highlight');
+                    }
+                });
+                
+                // Scroll to the first element with offset for the banner
+                const firstElement = highlightParent ? elements[0].closest('.tile-box') : elements[0];
+                if (firstElement) {
+                    setTimeout(() => {
+                        const elementRect = firstElement.getBoundingClientRect();
+                        const absoluteElementTop = elementRect.top + window.pageYOffset;
+                        const bannerHeight = banner.offsetHeight;
+                        const offset = 100; // Extra space above the element
+                        window.scrollTo({
+                            top: absoluteElementTop - bannerHeight - offset,
+                            behavior: 'smooth'
+                        });
+                    }, 100);
+                }
+            }
+        }
+        
+        // Update button text
+        const nextBtn = document.querySelector('.btn-tutorial-primary');
+        if (step === tutorialSteps.length - 1) {
+            nextBtn.textContent = 'Got it!';
+        } else {
+            nextBtn.textContent = 'Next';
+        }
+        
+        banner.style.display = 'block';
+    }
+
+    window.nextTutorialStep = function() {
+        currentTutorialStep++;
+        if (currentTutorialStep >= tutorialSteps.length) {
+            // Hide the banner and let user fill out the form
+            const banner = document.getElementById('tutorial-banner');
+            banner.style.display = 'none';
+            
+            // Remove any remaining highlights
+            document.querySelectorAll('.tutorial-highlight').forEach(el => {
+                el.classList.remove('tutorial-highlight');
+            });
+            
+            // Mark tutorial as completed in session
+            completeTutorial();
+        } else {
+            showTutorialStep(currentTutorialStep);
+        }
+    };
+
+    function completeTutorial() {
+        // Just enable the form - tutorial will be marked complete when user submits
+        console.log('✅ Tutorial walkthrough complete');
+        window.tutorialCompleted = true;
+        
+        // Trigger form validation to enable button if form is filled
+        if (window.triggerFormValidation) {
+            console.log('✅ Triggering form validation');
+            window.triggerFormValidation();
+        } else {
+            console.error('❌ triggerFormValidation not available');
+        }
+    }
+    
+    // Start tutorial after survey loads
+    window.addEventListener('load', () => {
+        // Disable submit button until tutorial is complete
+        const submitBtn = document.getElementById('submit-btn');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.title = 'Complete the tutorial first';
+            
+            // Add click handler for debugging
+            submitBtn.addEventListener('click', (e) => {
+                console.log('🔵 Submit button clicked');
+                console.log('  - Button disabled:', submitBtn.disabled);
+                console.log('  - Tutorial completed:', window.tutorialCompleted);
+                if (submitBtn.disabled) {
+                    console.log('  ⚠️ Button is disabled, click prevented');
+                    e.preventDefault();
+                }
+            });
+        }
+        
+        // Wait for first image pair to load
+        setTimeout(() => {
+            showTutorialStep(0);
+        }, 1000);
+    });
+}
