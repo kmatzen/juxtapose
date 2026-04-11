@@ -1,6 +1,20 @@
-# Survey Web Application
+# Survey Tool
 
-A config-driven Flask survey for A/B evaluation studies. Define your survey structure in `survey_config.yaml` -- demographics, stimuli, questions, and layout -- and the app handles the rest.
+A config-driven web application for running A/B evaluation studies. Define your entire survey -- demographics, stimuli, evaluation questions, and tutorial -- in a single YAML file. No code changes needed.
+
+Built for research teams who need to collect human judgments on generated content (images, video, audio, text) with proper randomization, progress tracking, and data export.
+
+## Features
+
+- **Config-driven** -- one YAML file defines demographics, inputs, outputs, questions, and tutorial
+- **A/B randomization** -- method positions randomized per trial to prevent bias
+- **Multiple question types** -- A/B preference with confidence, Likert scales, free text, multiple choice
+- **Conditional questions** -- hide questions when optional inputs are absent
+- **Interactive tutorial** -- configurable walkthrough before the real survey
+- **Progress tracking** -- participants can resume where they left off
+- **Admin dashboard** -- real-time stats, per-question method preferences, CSV export
+- **Consent management** -- configurable consent checkbox and privacy policy link
+- **Security** -- CSRF protection, rate limiting, session management, audit logging
 
 ## Quick Start
 
@@ -9,11 +23,19 @@ pip install -r requirements.txt
 DEV_MODE=true python -m src.survey.app
 ```
 
-Open `http://localhost:5000`. Dev mode auto-fills forms, limits to 3 trials, bypasses referral codes, and shows a red badge.
+Open http://localhost:5000. Dev mode auto-fills forms, limits to 3 trials, and bypasses referral codes.
+
+## How It Works
+
+1. Define your survey in `survey_config.yaml`
+2. Prepare a tab-separated data file with one row per trial
+3. Run the server
+4. Share the URL with participants
+5. Export results as CSV from the admin dashboard
 
 ## Configuration
 
-Everything is defined in `survey_config.yaml`. See the included file for a complete working example.
+Everything lives in [`survey_config.yaml`](survey_config.yaml). The included file is a complete working example for an image generation evaluation study.
 
 ### Survey Settings
 
@@ -22,15 +44,10 @@ survey:
   title: "Your Study Title"
   description: "Introductory text shown on the demographics page."
   contact_email: "you@example.com"
-  pairs_per_user: 30          # trials per participant
-  dev_pairs: 3                # trials in dev mode
-  survey_heading: "Image Comparison"
-  survey_instruction: "Please evaluate the following two images."
-  next_button_text: "Next Image Pair"
-  submit_button_text: "Submit Survey"
-  # Consent (leave empty to hide)
+  pairs_per_user: 30
+  dev_pairs: 3
   consent_text: "I consent to the collection of my responses for research."
-  privacy_policy_url: ""      # link shown above consent checkbox
+  privacy_policy_url: "https://example.com/privacy"
 ```
 
 ### Demographics
@@ -52,7 +69,7 @@ demographics:
       - { value: "engineer", label: "Engineer" }
 ```
 
-Supported types: `email`, `text`, `number`, `select`, `checkbox`, `radio`, `textarea`
+Types: `email`, `text`, `number`, `select`, `checkbox`, `radio`, `textarea`
 
 ### Data File
 
@@ -64,41 +81,21 @@ data:
   columns: [prompt, method_a, method_b, image_a_url, image_b_url, mask_url, identity_urls]
 ```
 
-```
-a mountain landscape	Method-A	Method-B	https://...a.png	https://...b.png	https://...mask.png	https://...id.png
-```
-
-Lines starting with `#` are comments. A sample file is auto-created if missing.
-
 ### Inputs
 
-Shared context shown for each trial. Each input maps a data column to a widget.
+Shared context shown for each trial. Optional inputs are hidden when their column value is empty.
 
 | Type | Description |
 |------|-------------|
 | `text` | Plain text in a prompt box |
-| `image` | Single image (click to enlarge with `lightbox` interaction) |
+| `image` | Single image (supports lightbox) |
 | `image_gallery` | Row of images from comma-separated URLs or stacked image |
-| `video` | HTML5 video player (supports `loop`, `controls` interactions) |
-| `audio` | HTML5 audio player (supports `loop` interaction) |
-
-```yaml
-inputs:
-  - name: prompt
-    type: text
-    label: "Text Prompt"
-    column: prompt
-  - name: mask
-    type: image
-    label: "Spatial Mask"
-    column: mask_url
-    optional: true          # hidden when column value is empty for this trial
-    interactions: [lightbox]
-```
+| `video` | HTML5 video player (supports loop, controls) |
+| `audio` | HTML5 audio player (supports loop) |
 
 ### Outputs
 
-Per-method results shown as A/B comparison. Position is randomized per trial.
+Per-method results shown as an A/B comparison. Position is randomized per trial.
 
 | Type | Description |
 |------|-------------|
@@ -107,57 +104,47 @@ Per-method results shown as A/B comparison. Position is randomized per trial.
 | `audio` | Side-by-side audio players |
 | `text` | Side-by-side text blocks |
 
-```yaml
-outputs:
-  - name: image
-    type: image
-    label: "Image"
-    column_a: image_a_url
-    column_b: image_b_url
-    interactions: [lightbox]
-```
-
 ### Questions
 
-Evaluation criteria shown per trial. Rendered in order. Each question becomes a form section with progressive scroll navigation.
+Evaluation criteria per trial. Rendered in order with progressive scroll navigation.
 
 | Type | Description | Form fields |
 |------|-------------|-------------|
-| `ab_preference` | A/B/Equal radio choice with optional 1-5 confidence scale | `{name}_choice`, `{name}_confidence` |
-| `likert` | Numeric scale (configurable via `scale`, default 5) | `{name}_value` |
+| `ab_preference` | A/B/Equal choice with optional confidence scale | `{name}_choice`, `{name}_confidence` |
+| `likert` | Numeric scale (configurable range) | `{name}_value` |
 | `free_text` | Open text response | `{name}_text` |
-| `multiple_choice` | Single selection from `options` list | `{name}_value` |
+| `multiple_choice` | Single selection from options list | `{name}_value` |
 
 ```yaml
 questions:
   - name: image_quality
     type: ab_preference
     label: "Which image looks better?"
-    section_label: "Image Quality"   # heading above the question
-    confidence: true                 # show 1-5 confidence scale
+    confidence: true
     required: true
   - name: mask_adherence
     type: ab_preference
     label: "Which image follows the mask better?"
-    depends_on: mask                 # hidden when mask input has no data
-  - name: overall_rating
-    type: likert
-    label: "Rate the overall quality"
-    scale: 7                         # 1-7 scale
-  - name: comments
-    type: free_text
-    label: "Any additional comments?"
+    depends_on: mask        # hidden when mask input has no data
 ```
 
-### Methods
+### Tutorial
 
-Maps column names to method A/B for randomization and preference tracking:
+Interactive walkthrough shown after demographics. Steps are configurable, and the special `auto_questions` marker generates one step per question.
 
 ```yaml
-methods:
-  a: method_a
-  b: method_b
+tutorial:
+  enabled: true
+  steps:
+    - title: "Before You Begin"
+      text: "Let's walk through how this survey works."
+    - auto_questions
+    - title: "Ready to Begin"
+      text: "Complete all questions for practice, then begin the real survey."
+      highlight: "#submit-btn"
 ```
+
+Set `enabled: false` to skip the tutorial.
 
 ## Environment Variables
 
@@ -167,24 +154,9 @@ methods:
 | `ADMIN_PASSWORD` | `admin123` | Admin dashboard password |
 | `SECRET_KEY` | dev key | Flask session secret (**required in production**) |
 | `REFERRAL_CODES` | (none) | Comma-separated access codes; empty = no gate |
+| `DATA_DIR` | (none) | Persistent data directory; enables production mode |
 | `TILE_LAYOUT` | `MAB` | Tile order: `MAB` (Mask, A, B) or `AMB` |
 | `PORT` | `5000` | Server port |
-| `DATA_DIR` | (none) | Persistent data directory; enables production mode |
-| `IMAGE_PAIRS_FILE` | from config | Override data file path |
-| `TUTORIAL_PAIRS_FILE` | `tutorial_image_pair.txt` | Tutorial trial data |
-
-## Tutorial Mode
-
-After demographics, participants see an interactive tutorial that walks through the interface before starting the real survey. The tutorial uses a separate data file (`tutorial_image_pair.txt`).
-
-## Admin
-
-Visit `/admin/login`. The dashboard shows:
-- Per-question method preferences (dynamically generated from config)
-- Average confidence scores and time per pair
-- Demographics and response tables
-- CSV export
-- Delete-by-email for data removal requests
 
 ## Deployment
 
@@ -197,14 +169,20 @@ export DATA_DIR="/path/to/persistent/data"
 gunicorn src.survey.app:app --bind 0.0.0.0:8000
 ```
 
-When `DATA_DIR` is set (or `/data` exists), the app enables production mode: requires `SECRET_KEY`, enforces HTTPS cookies, and stores data in that directory.
+When `DATA_DIR` is set, the app enables production mode: requires `SECRET_KEY`, enforces HTTPS cookies, and stores the database and audit log in that directory.
+
+## Admin Dashboard
+
+Visit `/admin/login`. The dashboard provides:
+- Per-question method preferences (generated from config)
+- Average confidence scores and time per pair
+- Demographics and response tables
+- CSV export
+- Delete-by-email for data removal requests
 
 ## Database
 
 SQLite with JSON columns for demographics and responses. Migration from older schemas runs automatically on startup.
-
-- Development: `survey.db` (current directory)
-- Production: `$DATA_DIR/survey.db`
 
 ## Testing
 
@@ -213,4 +191,6 @@ pip install -r requirements.txt
 python -m pytest tests/ -q
 ```
 
-62 tests, 78% coverage.
+## License
+
+MIT. See [LICENSE](LICENSE).
