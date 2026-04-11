@@ -100,7 +100,7 @@ SHOW_PROMPT = os.environ.get('SHOW_PROMPT', str(_has_prompt_input)).lower() == '
 ENABLE_PROMPT_QUESTION = os.environ.get('ENABLE_PROMPT_QUESTION', str(_has_prompt_question)).lower() == 'true'
 
 # Tutorial pairs file
-TUTORIAL_PAIRS_FILE = os.environ.get('TUTORIAL_PAIRS_FILE', 'tutorial_image_pair.txt')
+TUTORIAL_PAIRS_FILE = os.environ.get('TUTORIAL_PAIRS_FILE', 'examples/tutorial_image_pair.txt')
 
 # ---------------------------------------------------------------------------
 # Load trial data from TSV (config-driven columns)
