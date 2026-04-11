@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Research Survey</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -159,6 +160,18 @@
                 </div>
                 {% endfor %}
 
+                {% if config.survey.consent_text %}
+                <div class="form-group" style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e0e0e0;">
+                    {% if config.survey.privacy_policy_url %}
+                    <p style="margin-bottom: 10px; font-size: 14px;">Please review our <a href="{{ config.survey.privacy_policy_url }}" target="_blank" rel="noopener">privacy policy</a> before continuing.</p>
+                    {% endif %}
+                    <label class="checkbox-label" style="font-weight: normal;">
+                        <input type="checkbox" name="consent" value="yes" required>
+                        {{ config.survey.consent_text }}
+                    </label>
+                </div>
+                {% endif %}
+
                 <button type="submit" class="btn btn-primary">Continue to Survey</button>
             </form>
         </section>
@@ -235,197 +248,80 @@
                     </div>
                 </div>
 
-                <!-- BOTTOM SECTION: Questions (Progressive) -->
+                <!-- BOTTOM SECTION: Questions (Progressive, from config) -->
                 <div class="questions-section">
                     <div class="questions-container">
-                        <div id="quality-evaluation" class="evaluation-section">
-                    <div class="form-group">
-                        <label>Which image looks better overall (quality, aesthetics, coherence)?</label>
-                        <div class="radio-group">
-                            <label class="radio-label">
-                                <input type="radio" name="better_image" value="A" required>
-                                Image A
-                            </label>
-                            <label class="radio-label">
-                                <input type="radio" name="better_image" value="B">
-                                Image B
-                            </label>
-                            <label class="radio-label">
-                                <input type="radio" name="better_image" value="equal">
-                                About Equal
-                            </label>
-                        </div>
-                    </div>
+                        {% for q in config.questions %}
+                        <div id="{{ q.name }}-evaluation" class="evaluation-section"
+                             {% if q.depends_on %}data-depends-on="{{ q.depends_on }}"{% endif %}>
 
-                    <div class="form-group">
-                        <label>How confident are you in this assessment?</label>
-                        <div class="likert-scale">
-                            <label class="likert-label">
-                                <input type="radio" name="image_confidence" value="1" required>
-                                <span>1<br><small>Not at all</small></span>
-                            </label>
-                            <label class="likert-label">
-                                <input type="radio" name="image_confidence" value="2">
-                                <span>2</span>
-                            </label>
-                            <label class="likert-label">
-                                <input type="radio" name="image_confidence" value="3">
-                                <span>3<br><small>Somewhat</small></span>
-                            </label>
-                            <label class="likert-label">
-                                <input type="radio" name="image_confidence" value="4">
-                                <span>4</span>
-                            </label>
-                            <label class="likert-label">
-                                <input type="radio" name="image_confidence" value="5">
-                                <span>5<br><small>Very confident</small></span>
-                            </label>
-                        </div>
-                    </div>
-                </div>
+                            {% if q.type == 'ab_preference' %}
+                            <div class="form-group">
+                                <label>{{ q.label }}</label>
+                                <div class="radio-group">
+                                    <label class="radio-label">
+                                        <input type="radio" name="{{ q.name }}_choice" value="A" {% if q.required %}required{% endif %}>
+                                        Image A
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="{{ q.name }}_choice" value="B">
+                                        Image B
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="{{ q.name }}_choice" value="equal">
+                                        About Equal
+                                    </label>
+                                </div>
+                            </div>
+                            {% if q.confidence %}
+                            <div class="form-group">
+                                <label>How confident are you in this assessment?</label>
+                                <div class="likert-scale">
+                                    {% for i in range(1, 6) %}
+                                    <label class="likert-label">
+                                        <input type="radio" name="{{ q.name }}_confidence" value="{{ i }}" {% if q.required and loop.first %}required{% endif %}>
+                                        <span>{{ i }}{% if i == 1 %}<br><small>Not at all</small>{% elif i == 3 %}<br><small>Somewhat</small>{% elif i == 5 %}<br><small>Very confident</small>{% endif %}</span>
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
 
-                {% if enable_prompt_question %}
-                <!-- Prompt Adherence Section (optional, controlled by ENABLE_PROMPT_QUESTION config) -->
-                <div class="evaluation-section">
-                    <div class="form-group">
-                        <label>Which image better matches the text prompt?</label>
-                        <div class="radio-group">
-                            <label class="radio-label">
-                                <input type="radio" name="better_prompt_match" value="A" required>
-                                Image A
-                            </label>
-                            <label class="radio-label">
-                                <input type="radio" name="better_prompt_match" value="B">
-                                Image B
-                            </label>
-                            <label class="radio-label">
-                                <input type="radio" name="better_prompt_match" value="equal">
-                                About Equal
-                            </label>
-                        </div>
-                    </div>
+                            {% elif q.type == 'likert' %}
+                            <div class="form-group">
+                                <label>{{ q.label }}</label>
+                                <div class="likert-scale">
+                                    {% for i in range(1, q.get('scale', 5) + 1) %}
+                                    <label class="likert-label">
+                                        <input type="radio" name="{{ q.name }}_value" value="{{ i }}" {% if q.required and loop.first %}required{% endif %}>
+                                        <span>{{ i }}</span>
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
 
-                    <div class="form-group">
-                        <label>How confident are you in this assessment?</label>
-                        <div class="likert-scale">
-                            <label class="likert-label">
-                                <input type="radio" name="prompt_confidence" value="1" required>
-                                <span>1<br><small>Not at all</small></span>
-                            </label>
-                            <label class="likert-label">
-                                <input type="radio" name="prompt_confidence" value="2">
-                                <span>2</span>
-                            </label>
-                            <label class="likert-label">
-                                <input type="radio" name="prompt_confidence" value="3">
-                                <span>3<br><small>Somewhat</small></span>
-                            </label>
-                            <label class="likert-label">
-                                <input type="radio" name="prompt_confidence" value="4">
-                                <span>4</span>
-                            </label>
-                            <label class="likert-label">
-                                <input type="radio" name="prompt_confidence" value="5">
-                                <span>5<br><small>Very confident</small></span>
-                            </label>
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
-                
-                <!-- Mask Adherence Section (always shown) -->
-                <div id="mask-evaluation" class="evaluation-section">
-                    <div class="form-group">
-                        <label>Which image better follows the spatial layout defined by the mask?</label>
-                        <div class="radio-group">
-                            <label class="radio-label">
-                                <input type="radio" name="better_mask_match" value="A">
-                                Image A
-                            </label>
-                            <label class="radio-label">
-                                <input type="radio" name="better_mask_match" value="B">
-                                Image B
-                            </label>
-                            <label class="radio-label">
-                                <input type="radio" name="better_mask_match" value="equal">
-                                About Equal
-                            </label>
-                        </div>
-                    </div>
+                            {% elif q.type == 'free_text' %}
+                            <div class="form-group">
+                                <label>{{ q.label }}</label>
+                                <textarea name="{{ q.name }}_text" rows="3" class="form-control"></textarea>
+                            </div>
 
-                    <div class="form-group">
-                        <label>How confident are you in this assessment?</label>
-                        <div class="likert-scale">
-                            <label class="likert-label">
-                                <input type="radio" name="mask_confidence" value="1">
-                                <span>1<br><small>Not at all</small></span>
-                            </label>
-                            <label class="likert-label">
-                                <input type="radio" name="mask_confidence" value="2">
-                                <span>2</span>
-                            </label>
-                            <label class="likert-label">
-                                <input type="radio" name="mask_confidence" value="3">
-                                <span>3<br><small>Somewhat</small></span>
-                            </label>
-                            <label class="likert-label">
-                                <input type="radio" name="mask_confidence" value="4">
-                                <span>4</span>
-                            </label>
-                            <label class="likert-label">
-                                <input type="radio" name="mask_confidence" value="5">
-                                <span>5<br><small>Very confident</small></span>
-                            </label>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Identity Adherence Section (always shown) -->
-                <div id="identity-evaluation" class="evaluation-section">
-                    <div class="form-group">
-                        <label>Which image better preserves the identity features from the reference images?</label>
-                        <div class="radio-group">
-                            <label class="radio-label">
-                                <input type="radio" name="better_identity_match" value="A">
-                                Image A
-                            </label>
-                            <label class="radio-label">
-                                <input type="radio" name="better_identity_match" value="B">
-                                Image B
-                            </label>
-                            <label class="radio-label">
-                                <input type="radio" name="better_identity_match" value="equal">
-                                About Equal
-                            </label>
-                        </div>
-                    </div>
+                            {% elif q.type == 'multiple_choice' %}
+                            <div class="form-group">
+                                <label>{{ q.label }}</label>
+                                <div class="radio-group">
+                                    {% for opt in q.get('options', []) %}
+                                    <label class="radio-label">
+                                        <input type="radio" name="{{ q.name }}_value" value="{{ opt.value }}" {% if q.required and loop.first %}required{% endif %}>
+                                        {{ opt.label }}
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
 
-                    <div class="form-group">
-                        <label>How confident are you in this assessment?</label>
-                        <div class="likert-scale">
-                            <label class="likert-label">
-                                <input type="radio" name="identity_confidence" value="1">
-                                <span>1<br><small>Not at all</small></span>
-                            </label>
-                            <label class="likert-label">
-                                <input type="radio" name="identity_confidence" value="2">
-                                <span>2</span>
-                            </label>
-                            <label class="likert-label">
-                                <input type="radio" name="identity_confidence" value="3">
-                                <span>3<br><small>Somewhat</small></span>
-                            </label>
-                            <label class="likert-label">
-                                <input type="radio" name="identity_confidence" value="4">
-                                <span>4</span>
-                            </label>
-                            <label class="likert-label">
-                                <input type="radio" name="identity_confidence" value="5">
-                                <span>5<br><small>Very confident</small></span>
-                            </label>
                         </div>
-                    </div>
-                </div>
+                        {% endfor %}
                     </div><!-- end questions-container -->
                     
                     <!-- Question Navigation -->

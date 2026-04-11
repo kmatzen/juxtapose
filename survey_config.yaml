@@ -21,6 +21,9 @@ survey:
   survey_instruction: "Please evaluate the following two images based on the given prompt."
   next_button_text: "Next Image Pair"
   submit_button_text: "Submit Survey"
+  # Consent / privacy (leave empty to skip consent checkbox)
+  privacy_policy_url: ""
+  consent_text: "I consent to the collection and use of my responses for research purposes as described above."
 
 # =============================================================================
 # Demographics

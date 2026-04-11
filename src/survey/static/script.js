@@ -270,48 +270,44 @@ function fillDemographicsForm() {
         }
     }
 
+    // Auto-check consent checkbox if present
+    const consent = document.querySelector('input[name="consent"]');
+    if (consent) consent.checked = true;
+
     debugLog('✅ Demographics form auto-filled');
 }
 
 function fillSurveyForm() {
-    // Auto-select random choices
-    const betterImage = Math.random() < 0.5 ? 'A' : 'B';
-    document.querySelector(`input[name="better_image"][value="${betterImage}"]`).checked = true;
-    
-    const imageConf = Math.floor(Math.random() * 5) + 1;
-    document.querySelector(`input[name="image_confidence"][value="${imageConf}"]`).checked = true;
-    
-    // Auto-fill prompt evaluation (if enabled)
-    const promptMatchElement = document.querySelector(`input[name="better_prompt_match"]`);
-    if (promptMatchElement) {
-        const betterMatch = Math.random() < 0.5 ? 'A' : 'B';
-        document.querySelector(`input[name="better_prompt_match"][value="${betterMatch}"]`).checked = true;
-        
-        const promptConf = Math.floor(Math.random() * 5) + 1;
-        document.querySelector(`input[name="prompt_confidence"][value="${promptConf}"]`).checked = true;
+    if (!surveyConfig || !surveyConfig.questions) return;
+
+    for (const q of surveyConfig.questions) {
+        const section = document.getElementById(`${q.name}-evaluation`);
+        if (!section || section.style.display === 'none') continue;
+
+        if (q.type === 'ab_preference') {
+            const v = Math.random() < 0.5 ? 'A' : 'B';
+            const r = section.querySelector(`input[name="${q.name}_choice"][value="${v}"]`);
+            if (r) r.checked = true;
+            if (q.confidence) {
+                const c = Math.floor(Math.random() * 5) + 1;
+                const cr = section.querySelector(`input[name="${q.name}_confidence"][value="${c}"]`);
+                if (cr) cr.checked = true;
+            }
+        } else if (q.type === 'likert') {
+            const scale = q.scale || 5;
+            const v = Math.floor(Math.random() * scale) + 1;
+            const r = section.querySelector(`input[name="${q.name}_value"][value="${v}"]`);
+            if (r) r.checked = true;
+        } else if (q.type === 'free_text') {
+            const ta = section.querySelector(`textarea[name="${q.name}_text"]`);
+            if (ta) ta.value = 'test response';
+        } else if (q.type === 'multiple_choice') {
+            const opts = section.querySelectorAll(`input[name="${q.name}_value"]`);
+            if (opts.length) opts[0].checked = true;
+        }
     }
-    
-    // Auto-fill mask evaluation (always present)
-    const betterMask = Math.random() < 0.5 ? 'A' : 'B';
-    document.querySelector(`input[name="better_mask_match"][value="${betterMask}"]`).checked = true;
-    const maskConf = Math.floor(Math.random() * 5) + 1;
-    document.querySelector(`input[name="mask_confidence"][value="${maskConf}"]`).checked = true;
-    
-    // Auto-fill identity evaluation (always present)
-    const betterIdentity = Math.random() < 0.5 ? 'A' : 'B';
-    document.querySelector(`input[name="better_identity_match"][value="${betterIdentity}"]`).checked = true;
-    const identityConf = Math.floor(Math.random() * 5) + 1;
-    document.querySelector(`input[name="identity_confidence"][value="${identityConf}"]`).checked = true;
-    
-    // Build log message
-    let logMsg = `✅ Survey form auto-filled: Image ${betterImage} (conf ${imageConf})`;
-    if (promptMatchElement) {
-        const betterMatch = document.querySelector(`input[name="better_prompt_match"]:checked`).value;
-        const promptConf = document.querySelector(`input[name="prompt_confidence"]:checked`).value;
-        logMsg += `, Match ${betterMatch} (conf ${promptConf})`;
-    }
-    logMsg += `, Mask ${betterMask} (conf ${maskConf}), Identity ${betterIdentity} (conf ${identityConf})`;
-    debugLog(logMsg);
+
+    debugLog('✅ Survey form auto-filled');
     
     // Trigger form validation to enable submit button
     if (window.triggerFormValidation) {
@@ -358,7 +354,8 @@ async function handleDemographicsSubmit(event) {
         const response = await fetch('/api/submit_demographics', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
             },
             body: JSON.stringify(demographicsData)
         });
@@ -625,45 +622,62 @@ async function handleSurveySubmit(event) {
     
     const formData = new FormData(event.target);
     const surveyResponse = Object.fromEntries(formData.entries());
-    
+
     // Calculate time spent on this pair (in seconds)
     const timeSpent = pairStartTime ? (Date.now() - pairStartTime) / 1000 : null;
-    
-    // Add the current image data to the response
+
+    // Build structured responses from config questions
+    const responses = {};
+    if (surveyConfig && surveyConfig.questions) {
+        for (const q of surveyConfig.questions) {
+            const section = document.getElementById(`${q.name}-evaluation`);
+            if (!section || section.style.display === 'none') continue;
+
+            if (q.type === 'ab_preference') {
+                const choice = surveyResponse[`${q.name}_choice`] || null;
+                const conf = surveyResponse[`${q.name}_confidence`];
+                if (choice) {
+                    responses[q.name] = {
+                        choice: choice,
+                        confidence: conf ? parseInt(conf) : null,
+                    };
+                }
+            } else if (q.type === 'likert') {
+                const val = surveyResponse[`${q.name}_value`];
+                if (val) responses[q.name] = { value: parseInt(val) };
+            } else if (q.type === 'free_text') {
+                const text = surveyResponse[`${q.name}_text`] || '';
+                responses[q.name] = { text: text };
+            } else if (q.type === 'multiple_choice') {
+                const val = surveyResponse[`${q.name}_value`];
+                if (val) responses[q.name] = { value: val };
+            }
+        }
+    }
+
     const completeResponse = {
-        ...surveyResponse,
         image_pair_id: currentImageData.id,
-        prompt: currentImageData.prompt,
-        method_a: currentImageData.method_a,
-        method_b: currentImageData.method_b,
-        image_a_url: currentImageData.image_a_url,
-        image_b_url: currentImageData.image_b_url,
-        identity_urls: currentImageData.identity_urls || null,
-        mask_url: currentImageData.mask_url || null,
+        stimulus_data: {
+            prompt: currentImageData.prompt,
+            method_a: currentImageData.method_a,
+            method_b: currentImageData.method_b,
+            image_a_url: currentImageData.image_a_url,
+            image_b_url: currentImageData.image_b_url,
+            identity_urls: currentImageData.identity_urls || null,
+            mask_url: currentImageData.mask_url || null,
+            methods: currentImageData.methods || {},
+        },
+        responses: responses,
         was_randomized: currentImageData.was_randomized,
         time_spent: timeSpent,
-        image_confidence: parseInt(surveyResponse.image_confidence),
-        // Conditionally add prompt fields if present (controlled by ENABLE_PROMPT_QUESTION)
-        ...(surveyResponse.better_prompt_match && {
-            better_prompt_match: surveyResponse.better_prompt_match,
-            prompt_confidence: parseInt(surveyResponse.prompt_confidence)
-        }),
-        // Conditionally add mask/identity fields if present
-        ...(surveyResponse.better_mask_match && {
-            better_mask_match: surveyResponse.better_mask_match,
-            mask_confidence: parseInt(surveyResponse.mask_confidence)
-        }),
-        ...(surveyResponse.better_identity_match && {
-            better_identity_match: surveyResponse.better_identity_match,
-            identity_confidence: parseInt(surveyResponse.identity_confidence)
-        })
     };
     
     try {
         const response = await fetch('/api/submit_survey', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
             },
             body: JSON.stringify(completeResponse)
         });
@@ -735,16 +749,33 @@ function showRetakeModal() {
     });
 }
 
+function updateQuestionVisibility(data) {
+    // Show/hide questions based on depends_on and available data
+    if (!surveyConfig || !surveyConfig.questions) return;
+    for (const q of surveyConfig.questions) {
+        const el = document.getElementById(`${q.name}-evaluation`);
+        if (!el) continue;
+        if (q.depends_on) {
+            // Find the input config for this dependency
+            const inp = (surveyConfig.inputs || []).find(i => i.name === q.depends_on);
+            const colValue = inp ? (data[inp.column] || '') : '';
+            el.style.display = colValue ? 'block' : 'none';
+            // Clear required on hidden inputs
+            if (!colValue) {
+                el.querySelectorAll('input[required]').forEach(i => i.removeAttribute('required'));
+            }
+        } else {
+            el.style.display = 'block';
+        }
+    }
+}
+
 function displayConditioningInputs(data) {
-    // Always display conditioning since all pairs have identity and mask
-    // Note: Elements are always visible in new layout, no need to toggle display
+    // Show/hide conditioning inputs and dependent questions
     const identitySection = document.getElementById('identity-section');
-    const identityEval = document.getElementById('identity-evaluation');
-    const maskEval = document.getElementById('mask-evaluation');
-    
     if (identitySection) identitySection.style.display = 'block';
-    if (identityEval) identityEval.style.display = 'block';
-    if (maskEval) maskEval.style.display = 'block';
+
+    updateQuestionVisibility(data);
     
     // Display identity images
     // The identity URL points to a single tall image: 512px wide x (512 * N) tall
@@ -1539,19 +1570,19 @@ if (window.TUTORIAL_MODE) {
             title: "Question 1: Overall Quality",
             text: "<strong>Which image looks better overall (quality, aesthetics, coherence)?</strong><br>Click on each of Image A and Image B to view them larger and judge the general quality. Look for blurriness, artifacts, and harmonization.",
             highlight: ".questions-container",
-            scrollToWithin: "#quality-evaluation"
+            scrollToWithin: "#image_quality-evaluation"
         },
         {
             title: "Question 2: Mask Structure",
             text: "<strong>Which image better follows the structure defined by the mask?</strong><br>Hover over each of the identity images which will overlay corresponding masks on both Image A and Image B. Judge which one follows the structure of the mask better.",
             highlight: ".questions-container",
-            scrollToWithin: "#mask-evaluation"
+            scrollToWithin: "#mask_adherence-evaluation"
         },
         {
             title: "Question 3: Identity Preservation",
             text: "<strong>Which image better preserves the identity features from the reference images?</strong><br>Hover over each of the reference images which will overlay corresponding masks on both Image A and Image B. Compare the identity of the subject in the selected areas with the corresponding reference image. If a chosen area doesn't contain the corresponding reference, it should be penalized.",
             highlight: ".questions-container",
-            scrollToWithin: "#identity-evaluation"
+            scrollToWithin: "#identity_preservation-evaluation"
         },
         {
             title: "Ready to Begin",
