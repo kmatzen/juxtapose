@@ -139,7 +139,7 @@ def _migrate_survey_responses(conn, cursor):
     stim_cols = ['prompt', 'method_a', 'method_b', 'image_a_url', 'image_b_url',
                  'identity_urls', 'mask_url']
 
-    # Response columns → question name mapping
+    # Response columns -> question name mapping
     response_mapping = {
         'better_image': ('image_quality', 'choice'),
         'image_confidence': ('image_quality', 'confidence'),
