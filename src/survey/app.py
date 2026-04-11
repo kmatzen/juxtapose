@@ -631,7 +631,6 @@ def tutorial():
 
 
 @app.route('/api/complete_tutorial', methods=['POST'])
-@csrf.exempt
 def complete_tutorial():
     """Mark tutorial as completed"""
     if 'session_id' not in session:
@@ -698,7 +697,6 @@ def check_demographics():
 # ---------------------------------------------------------------------------
 
 @app.route('/api/submit_demographics', methods=['POST'])
-@csrf.exempt
 def submit_demographics():
     """Submit demographics information"""
     if 'session_id' not in session:
@@ -907,7 +905,6 @@ def _add_flat_fields(stim, trial, randomized):
 # ---------------------------------------------------------------------------
 
 @app.route('/api/submit_survey', methods=['POST'])
-@csrf.exempt
 def submit_survey():
     """Submit survey response for a single trial."""
     if 'session_id' not in session:

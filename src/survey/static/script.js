@@ -358,7 +358,8 @@ async function handleDemographicsSubmit(event) {
         const response = await fetch('/api/submit_demographics', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
             },
             body: JSON.stringify(demographicsData)
         });
@@ -663,7 +664,8 @@ async function handleSurveySubmit(event) {
         const response = await fetch('/api/submit_survey', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
             },
             body: JSON.stringify(completeResponse)
         });
