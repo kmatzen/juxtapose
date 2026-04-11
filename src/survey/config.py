@@ -86,6 +86,10 @@ def _apply_defaults(config):
 
     config.setdefault('demographics', [])
 
+    tutorial = config.setdefault('tutorial', {})
+    tutorial.setdefault('enabled', True)
+    tutorial.setdefault('steps', [])
+
     for inp in config.get('inputs', []):
         inp.setdefault('optional', False)
         inp.setdefault('interactions', [])

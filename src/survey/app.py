@@ -491,7 +491,8 @@ def index():
                 return render_template('thank_you.html', already_submitted=True,
                                        dev_mode=DEV_MODE, config=CONFIG)
 
-            if not session.get('tutorial_completed', False):
+            tutorial_enabled = CONFIG.get('tutorial', {}).get('enabled', True)
+            if tutorial_enabled and not session.get('tutorial_completed', False):
                 if DEV_MODE:
                     logger.debug("Redirecting to tutorial")
                 return redirect(url_for('tutorial'))
@@ -659,6 +660,7 @@ def get_config():
         'questions': CONFIG.get('questions', []),
         'layout': CONFIG.get('layout', {}),
         'methods': CONFIG.get('methods', {}),
+        'tutorial': CONFIG.get('tutorial', {}),
     })
 
 
