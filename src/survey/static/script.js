@@ -771,76 +771,98 @@ function updateQuestionVisibility(data) {
 }
 
 function displayConditioningInputs(data) {
-    // Show/hide conditioning inputs and dependent questions
+    updateQuestionVisibility(data);
+
+    // Find gallery and mask inputs from config
+    const galleryInput = (surveyConfig ? surveyConfig.inputs : []).find(i => i.type === 'image_gallery');
+    const maskInput = (surveyConfig ? surveyConfig.inputs : []).find(i => i.type === 'image');
+    const outputImages = getOutputImageElements();
+
+    // Show identity section if data available
     const identitySection = document.getElementById('identity-section');
     if (identitySection) identitySection.style.display = 'block';
 
-    updateQuestionVisibility(data);
-    
-    // Display identity images
-    // The identity URL points to a single tall image: 512px wide x (512 * N) tall
-    // where N is the number of identities stacked vertically
-    const identityContainer = document.getElementById('identity-images');
-    identityContainer.innerHTML = ''; // Clear previous
-    
-    const identityUrl = data.identity_urls.trim();
-    
-    // Load the tall stacked image
+    // Display image_gallery input (identity images)
+    if (galleryInput) {
+        const galleryUrl = (data[galleryInput.column] || '').trim();
+        const container = document.getElementById('identity-images');
+        if (container && galleryUrl) {
+            container.innerHTML = '';
+            loadStackedGallery(container, galleryUrl, galleryInput.label || 'Reference', outputImages);
+        }
+    }
+
+    // Display mask image and set up overlay processing
+    if (maskInput) {
+        const maskUrl = data[maskInput.column] || '';
+        const maskImg = document.getElementById('mask-image');
+        if (maskImg && maskUrl) {
+            maskImg.crossOrigin = 'anonymous';
+            maskImg.src = maskUrl;
+            maskImg.onclick = () => openLightbox(maskUrl, maskInput.label || 'Mask');
+            maskImg.onload = () => {
+                processMaskForOverlays(maskImg);
+            };
+        }
+    }
+}
+
+function getOutputImageElements() {
+    // Find output image elements by config output names, fall back to hardcoded IDs
+    const outputs = (surveyConfig ? surveyConfig.outputs : []).filter(o => o.type === 'image');
+    const elements = [];
+    for (const out of outputs) {
+        const a = document.getElementById(`output-${out.name}-a`) || document.getElementById('image-a');
+        const b = document.getElementById(`output-${out.name}-b`) || document.getElementById('image-b');
+        if (a) elements.push(a);
+        if (b) elements.push(b);
+    }
+    // Fall back to hardcoded IDs if config lookup found nothing
+    if (elements.length === 0) {
+        const a = document.getElementById('image-a');
+        const b = document.getElementById('image-b');
+        if (a) elements.push(a);
+        if (b) elements.push(b);
+    }
+    return elements;
+}
+
+function loadStackedGallery(container, url, label, outputImages) {
+    // Load a vertically stacked image and slice into square segments
     const stackedImg = new Image();
-    stackedImg.crossOrigin = 'anonymous'; // For canvas access
+    stackedImg.crossOrigin = 'anonymous';
     stackedImg.onload = () => {
-        const width = 512;
-        const height = 512;
-        const numIdentities = Math.round(stackedImg.height / height);
-        
-        // Create a canvas for slicing
+        const width = stackedImg.width;
+        const height = width; // assume square segments
+        const numSegments = Math.round(stackedImg.height / height);
+
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
-        
-        // Slice and display each 512x512 segment horizontally
-        for (let i = 0; i < numIdentities; i++) {
-            // Clear canvas
+
+        for (let i = 0; i < numSegments; i++) {
             ctx.clearRect(0, 0, width, height);
-            
-            // Draw the slice from the stacked image
-            // sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight
             ctx.drawImage(stackedImg, 0, i * height, width, height, 0, 0, width, height);
-            
-            // Convert canvas to image
+
             const slicedImg = document.createElement('img');
             slicedImg.src = canvas.toDataURL();
-            slicedImg.alt = `Identity ${i + 1}`;
+            slicedImg.alt = `${label} ${i + 1}`;
             slicedImg.className = 'identity-image';
-            // Add color coding data attribute (colors will match spatial mask regions)
             slicedImg.setAttribute('data-identity-index', i);
-            slicedImg.onclick = () => openLightbox(slicedImg.src, `Identity Reference ${i + 1}`);
-            identityContainer.appendChild(slicedImg);
+            slicedImg.onclick = () => openLightbox(slicedImg.src, `${label} ${i + 1}`);
+            container.appendChild(slicedImg);
         }
-        
-        // Now that identity images are in the DOM, set up hover handlers
-        // (but only if binary masks have been processed)
+
         if (Object.keys(binaryMasks).length > 0) {
             setupIdentityHoverHandlers();
         }
     };
     stackedImg.onerror = () => {
-        console.error('Failed to load identity image:', identityUrl);
-        identityContainer.innerHTML = '<p style="color: red;">Failed to load identity images</p>';
+        console.error('Failed to load gallery image:', url);
+        container.innerHTML = '<p style="color: red;">Failed to load images</p>';
     };
-    stackedImg.src = identityUrl;
-    
-    // Display mask image
-    const maskImg = document.getElementById('mask-image');
-    maskImg.crossOrigin = 'anonymous'; // Enable CORS for canvas access
-    maskImg.src = data.mask_url;
-    maskImg.onclick = () => openLightbox(data.mask_url, 'Spatial Mask');
-    
-    // Process mask for hover overlays once it loads
-    maskImg.onload = () => {
-        processMaskForOverlays(maskImg);
-    };
+    stackedImg.src = url;
 }
 
 // Global storage for binary masks extracted from spatial mask
@@ -1052,16 +1074,13 @@ function showMaskOverlay(identityIndex) {
     if (!mask) {
         return;
     }
-    
-    // Apply overlay to Image A and Image B
-    const imageA = document.getElementById('image-a');
-    const imageB = document.getElementById('image-b');
-    
-    [imageA, imageB].forEach(img => {
+
+    // Apply overlay to all output images
+    const outputImages = getOutputImageElements();
+    outputImages.forEach(img => {
         if (!img || !img.complete) {
             return;
         }
-        
         createOverlay(img, mask, identityIndex);
     });
 }
