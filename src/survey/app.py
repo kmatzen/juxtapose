@@ -20,8 +20,9 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Security: Detect production environment
-IS_PRODUCTION = os.path.exists('/data')  # Fly.io mounts persistent volume at /data
+# Detect production environment via DATA_DIR or /data mount
+DATA_DIR = os.environ.get('DATA_DIR', '/data' if os.path.exists('/data') else '')
+IS_PRODUCTION = bool(DATA_DIR)
 
 # Security: Require strong SECRET_KEY in production
 SECRET_KEY = os.environ.get('SECRET_KEY')
@@ -69,7 +70,7 @@ if ADMIN_PASSWORD == 'admin123' and IS_PRODUCTION:
     logger.warning("Using default admin password! Set ADMIN_PASSWORD environment variable!")
 
 # Audit log file
-AUDIT_LOG_FILE = '/data/audit.log' if IS_PRODUCTION else 'audit.log'
+AUDIT_LOG_FILE = os.path.join(DATA_DIR, 'audit.log') if DATA_DIR else 'audit.log'
 
 # Referral codes - Set valid codes via environment variable (comma-separated) or in code
 # If empty, no referral code is required
@@ -79,8 +80,8 @@ REFERRAL_CODES = set(code.strip() for code in REFERRAL_CODES_ENV.split(',') if c
 # In dev mode, bypass referral code requirement
 REQUIRE_REFERRAL = bool(REFERRAL_CODES) and not DEV_MODE
 
-# Use /data for persistent storage on Fly.io, otherwise local directory
-DATABASE = '/data/survey.db' if IS_PRODUCTION else 'survey.db'
+# Database location: DATA_DIR for production, local for development
+DATABASE = os.path.join(DATA_DIR, 'survey.db') if DATA_DIR else 'survey.db'
 
 # ---------------------------------------------------------------------------
 # Load survey configuration

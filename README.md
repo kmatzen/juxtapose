@@ -169,6 +169,7 @@ methods:
 | `REFERRAL_CODES` | (none) | Comma-separated access codes; empty = no gate |
 | `TILE_LAYOUT` | `MAB` | Tile order: `MAB` (Mask, A, B) or `AMB` |
 | `PORT` | `5000` | Server port |
+| `DATA_DIR` | (none) | Persistent data directory; enables production mode |
 | `IMAGE_PAIRS_FILE` | from config | Override data file path |
 | `TUTORIAL_PAIRS_FILE` | `tutorial_image_pair.txt` | Tutorial trial data |
 
@@ -185,22 +186,33 @@ Visit `/admin/login`. The dashboard shows:
 - CSV export
 - Delete-by-email for data removal requests
 
-## Deployment (Fly.io)
+## Deployment
+
+A `Dockerfile` and `Procfile` are included for container-based hosting. Set environment variables for production:
 
 ```bash
-fly launch --no-deploy --name your-survey
-fly volumes create survey_data --size 3 --region sjc
-fly secrets set ADMIN_PASSWORD="yourpass" SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
-fly secrets set REFERRAL_CODES="YOUR_CODE"
-fly deploy
+SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+ADMIN_PASSWORD="your-secure-password"
+DATA_DIR="/data"              # persistent volume mount for database + logs
+```
+
+When `DATA_DIR` is set (or `/data` exists), the app enables production mode: requires `SECRET_KEY`, enforces HTTPS cookies, and stores data in that directory.
+
+```bash
+docker build -t survey .
+docker run -p 8000:8000 \
+  -v survey_data:/data \
+  -e SECRET_KEY="..." \
+  -e ADMIN_PASSWORD="..." \
+  survey
 ```
 
 ## Database
 
 SQLite with JSON columns for demographics and responses. Migration from older schemas runs automatically on startup.
 
-- Local: `survey.db`
-- Production (Fly.io): `/data/survey.db`
+- Development: `survey.db` (current directory)
+- Production: `$DATA_DIR/survey.db`
 
 ## Testing
 
