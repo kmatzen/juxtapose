@@ -13,7 +13,7 @@
 survey:
   title: "Welcome to Our GenAI Image Evaluation Study"
   description: "Thank you for participating! Please provide some information about your background and experience with AI systems."
-  contact_email: "survey-x7qp@adobe.com"
+  contact_email: ""  # shown in footer and contact links; leave empty to hide
   pairs_per_user: 30
   dev_pairs: 3
   # Text shown in the survey (evaluation) section
@@ -234,11 +234,11 @@ questions:
     depends_on: identity
 
 # =============================================================================
-# Layout
+# Layout (reserved for future use)
 # =============================================================================
-# Defines the two-phase layout for the survey section.
-# Each column has sections; each section has items (input names, "outputs",
-# or question names). Use direction: row for side-by-side items.
+# Describes the intended widget arrangement. Currently the survey template uses
+# a fixed three-tile grid (controlled by the TILE_LAYOUT env var). This section
+# is passed to the frontend config API but not yet used for rendering.
 
 layout:
   columns:

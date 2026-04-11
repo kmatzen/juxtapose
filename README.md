@@ -9,19 +9,35 @@ pip install -r requirements.txt
 DEV_MODE=true python -m src.survey.app
 ```
 
-Dev mode auto-fills forms, limits to 3 trials, and bypasses referral codes.
+Open `http://localhost:5000`. Dev mode auto-fills forms, limits to 3 trials, bypasses referral codes, and shows a red badge.
 
 ## Configuration
 
-Everything is defined in `survey_config.yaml`:
+Everything is defined in `survey_config.yaml`. See the included file for a complete working example.
+
+### Survey Settings
 
 ```yaml
 survey:
   title: "Your Study Title"
+  description: "Introductory text shown on the demographics page."
   contact_email: "you@example.com"
-  pairs_per_user: 30
-  dev_pairs: 3
+  pairs_per_user: 30          # trials per participant
+  dev_pairs: 3                # trials in dev mode
+  survey_heading: "Image Comparison"
+  survey_instruction: "Please evaluate the following two images."
+  next_button_text: "Next Image Pair"
+  submit_button_text: "Submit Survey"
+  # Consent (leave empty to hide)
+  consent_text: "I consent to the collection of my responses for research."
+  privacy_policy_url: ""      # link shown above consent checkbox
+```
 
+### Demographics
+
+Fields shown before the main survey. The first `email` field is used for retake detection.
+
+```yaml
 demographics:
   - name: email
     type: email
@@ -30,82 +46,96 @@ demographics:
   - name: occupation
     type: select
     label: "Occupation"
+    required: true
     options:
       - { value: "researcher", label: "Researcher" }
-      # ...
-
-data:
-  file: "image_pairs.txt"
-  columns: [prompt, method_a, method_b, image_a_url, image_b_url, mask_url, identity_urls]
-
-methods:
-  a: method_a
-  b: method_b
-
-inputs:
-  - name: prompt
-    type: text
-    label: "Text Prompt"
-    column: prompt
-  - name: mask
-    type: image
-    label: "Spatial Mask"
-    column: mask_url
-    optional: true
-
-outputs:
-  - name: image
-    type: image
-    column_a: image_a_url
-    column_b: image_b_url
-
-questions:
-  - name: image_quality
-    type: ab_preference
-    label: "Which image looks better?"
-    confidence: true
-    required: true
-  - name: mask_adherence
-    type: ab_preference
-    label: "Which image follows the mask better?"
-    confidence: true
-    depends_on: mask
+      - { value: "engineer", label: "Engineer" }
 ```
+
+Supported types: `email`, `text`, `number`, `select`, `checkbox`, `radio`, `textarea`
 
 ### Data File
 
 Tab-separated, one row per trial. Column order must match `data.columns`:
 
+```yaml
+data:
+  file: "image_pairs.txt"
+  columns: [prompt, method_a, method_b, image_a_url, image_b_url, mask_url, identity_urls]
+```
+
 ```
 a mountain landscape	Method-A	Method-B	https://...a.png	https://...b.png	https://...mask.png	https://...id.png
 ```
 
-Lines starting with `#` are comments.
+Lines starting with `#` are comments. A sample file is auto-created if missing.
 
-### Supported Types
+### Inputs, Outputs, Questions
 
-**Demographics:** email, text, number, select, checkbox, radio, textarea
+```yaml
+inputs:        # shared context shown for each trial
+  - name: prompt
+    type: text           # text, image, image_gallery, video, audio
+    label: "Text Prompt"
+    column: prompt
+  - name: mask
+    type: image
+    column: mask_url
+    optional: true       # hidden when column value is empty
 
-**Inputs:** text, image, image_gallery, video, audio
+outputs:       # per-method results, A/B randomized
+  - name: image
+    type: image          # image, video, audio, text
+    column_a: image_a_url
+    column_b: image_b_url
 
-**Outputs:** image, video, audio, text
+questions:     # evaluation criteria per trial
+  - name: image_quality
+    type: ab_preference  # ab_preference, likert, free_text, multiple_choice
+    label: "Which image looks better?"
+    confidence: true     # show 1-5 confidence scale
+    required: true
+  - name: mask_adherence
+    type: ab_preference
+    label: "Which image follows the mask better?"
+    depends_on: mask     # hidden when mask input has no data
+```
 
-**Questions:** ab_preference (with optional confidence), likert, free_text, multiple_choice
+### Methods
+
+Maps column names to method A/B for randomization and preference tracking:
+
+```yaml
+methods:
+  a: method_a
+  b: method_b
+```
 
 ## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DEV_MODE` | `false` | Auto-fill forms, 3 trials, bypass referral |
+| `DEV_MODE` | `false` | Auto-fill forms, fewer trials, bypass referral |
 | `ADMIN_PASSWORD` | `admin123` | Admin dashboard password |
-| `SECRET_KEY` | dev key | Flask session secret (required in production) |
-| `REFERRAL_CODES` | `ADOBE2025` | Comma-separated access codes |
-| `TILE_LAYOUT` | `MAB` | Tile order: `MAB` or `AMB` |
+| `SECRET_KEY` | dev key | Flask session secret (**required in production**) |
+| `REFERRAL_CODES` | (none) | Comma-separated access codes; empty = no gate |
+| `TILE_LAYOUT` | `MAB` | Tile order: `MAB` (Mask, A, B) or `AMB` |
 | `PORT` | `5000` | Server port |
+| `IMAGE_PAIRS_FILE` | from config | Override data file path |
+| `TUTORIAL_PAIRS_FILE` | `tutorial_image_pair.txt` | Tutorial trial data |
+
+## Tutorial Mode
+
+After demographics, participants see an interactive tutorial that walks through the interface before starting the real survey. The tutorial uses a separate data file (`tutorial_image_pair.txt`).
 
 ## Admin
 
-Visit `/admin/login`. The dashboard shows per-question method preferences, confidence stats, and timing. Export to CSV for analysis.
+Visit `/admin/login`. The dashboard shows:
+- Per-question method preferences (dynamically generated from config)
+- Average confidence scores and time per pair
+- Demographics and response tables
+- CSV export
+- Delete-by-email for data removal requests
 
 ## Deployment (Fly.io)
 
@@ -113,11 +143,22 @@ Visit `/admin/login`. The dashboard shows per-question method preferences, confi
 fly launch --no-deploy --name your-survey
 fly volumes create survey_data --size 3 --region sjc
 fly secrets set ADMIN_PASSWORD="yourpass" SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+fly secrets set REFERRAL_CODES="YOUR_CODE"
 fly deploy
 ```
 
 ## Database
 
-SQLite with JSON columns. Demographics and responses stored as JSON for flexibility. Migration from older schemas runs automatically on startup.
+SQLite with JSON columns for demographics and responses. Migration from older schemas runs automatically on startup.
 
-File: `survey.db` (local) or `/data/survey.db` (Fly.io).
+- Local: `survey.db`
+- Production (Fly.io): `/data/survey.db`
+
+## Testing
+
+```bash
+pip install -r requirements.txt
+python -m pytest tests/ -q
+```
+
+62 tests, 78% coverage.
