@@ -270,6 +270,10 @@ function fillDemographicsForm() {
         }
     }
 
+    // Auto-check consent checkbox if present
+    const consent = document.querySelector('input[name="consent"]');
+    if (consent) consent.checked = true;
+
     debugLog('✅ Demographics form auto-filled');
 }
 
