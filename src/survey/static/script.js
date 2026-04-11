@@ -77,11 +77,11 @@ async function checkDevMode() {
         devMode = surveyConfig.dev_mode;
 
         if (devMode) {
-            console.log('🔧 DEV MODE ENABLED - Forms will be auto-filled');
+            console.log('DEV MODE ENABLED - Forms will be auto-filled');
             // Add a visible indicator
             const indicator = document.createElement('div');
             indicator.style.cssText = 'position: fixed; top: 10px; right: 10px; background: #ff6b6b; color: white; padding: 10px 15px; border-radius: 5px; z-index: 10000; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);';
-            indicator.textContent = '🔧 DEV MODE';
+            indicator.textContent = 'DEV MODE';
             document.body.appendChild(indicator);
         }
     } catch (error) {
@@ -190,7 +190,7 @@ function setupEventListeners() {
     // Survey form submission
     const surveyForm = document.getElementById('survey-form');
     if (surveyForm) {
-        debugLog('✅ Setting up survey form submit handler');
+        debugLog('Setting up survey form submit handler');
         surveyForm.addEventListener('submit', handleSurveySubmit);
     } else {
         console.error('❌ Survey form not found during setup');
@@ -274,7 +274,7 @@ function fillDemographicsForm() {
     const consent = document.querySelector('input[name="consent"]');
     if (consent) consent.checked = true;
 
-    debugLog('✅ Demographics form auto-filled');
+    debugLog('Demographics form auto-filled');
 }
 
 function fillSurveyForm() {
@@ -307,7 +307,7 @@ function fillSurveyForm() {
         }
     }
 
-    debugLog('✅ Survey form auto-filled');
+    debugLog('Survey form auto-filled');
     
     // Trigger form validation to enable submit button
     if (window.triggerFormValidation) {
@@ -499,7 +499,7 @@ async function loadImagePair(index) {
                         pairStartTime = Date.now();
                         
                         // Verify images loaded (don't reveal method names to avoid bias)
-                        debugLog(`✓ Loaded comparison ${data.id} of ${data.total_pairs}`);
+                        debugLog(`Loaded comparison ${data.id} of ${data.total_pairs}`);
                     }
                 }
             };
@@ -589,7 +589,7 @@ async function loadImagePair(index) {
 }
 
 async function handleSurveySubmit(event) {
-    debugLog('🔵 handleSurveySubmit called', {
+    debugLog('handleSurveySubmit called', {
         tutorialMode: window.TUTORIAL_MODE,
         currentIndex: currentImageIndex,
         imageData: currentImageData ? currentImageData.id : 'none'
@@ -598,7 +598,7 @@ async function handleSurveySubmit(event) {
     
     // If in tutorial mode, mark tutorial complete and redirect to real survey
     if (window.TUTORIAL_MODE) {
-        debugLog('✅ Tutorial form submitted - marking complete and redirecting');
+        debugLog('Tutorial form submitted - marking complete and redirecting');
         
         // Mark tutorial as complete in session
         try {
@@ -618,7 +618,7 @@ async function handleSurveySubmit(event) {
         return;
     }
     
-    debugLog('💾 Preparing to submit real survey response...');
+    debugLog('Preparing to submit real survey response...');
     
     const formData = new FormData(event.target);
     const surveyResponse = Object.fromEntries(formData.entries());
@@ -685,7 +685,7 @@ async function handleSurveySubmit(event) {
         const result = await response.json();
         
         if (response.ok && result.success) {
-            debugLog('📊 Survey response submitted:', {
+            debugLog('Survey response submitted:', {
                 completed: result.completed,
                 currentIndex: currentImageIndex,
                 nextIndex: currentImageIndex + 1
@@ -693,12 +693,12 @@ async function handleSurveySubmit(event) {
             
             if (result.completed) {
                 // All image pairs completed, redirect to thank you page
-                debugLog('🎉 All pairs completed! Redirecting to thank you page...');
+                debugLog('All pairs completed! Redirecting to thank you page...');
                 window.location.href = '/';
             } else {
                 // Load next image pair
                 currentImageIndex++;
-                debugLog(`📄 Loading next pair: ${currentImageIndex}`);
+                debugLog(`Loading next pair: ${currentImageIndex}`);
                 await loadImagePair(currentImageIndex);
                 window.scrollTo(0, 0);
             }
@@ -1713,12 +1713,12 @@ if (window.TUTORIAL_MODE) {
 
     function completeTutorial() {
         // Just enable the form - tutorial will be marked complete when user submits
-        debugLog('✅ Tutorial walkthrough complete');
+        debugLog('Tutorial walkthrough complete');
         window.tutorialCompleted = true;
         
         // Trigger form validation to enable button if form is filled
         if (window.triggerFormValidation) {
-            debugLog('✅ Triggering form validation');
+            debugLog('Triggering form validation');
             window.triggerFormValidation();
         } else {
             console.error('❌ triggerFormValidation not available');
@@ -1735,11 +1735,11 @@ if (window.TUTORIAL_MODE) {
             
             // Add click handler for debugging
             submitBtn.addEventListener('click', (e) => {
-                debugLog('🔵 Submit button clicked');
+                debugLog('Submit button clicked');
                 debugLog('  - Button disabled:', submitBtn.disabled);
                 debugLog('  - Tutorial completed:', window.tutorialCompleted);
                 if (submitBtn.disabled) {
-                    debugLog('  ⚠️ Button is disabled, click prevented');
+                    debugLog('  Button is disabled, click prevented');
                     e.preventDefault();
                 }
             });
