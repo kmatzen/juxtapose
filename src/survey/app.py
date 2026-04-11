@@ -1,16 +1,75 @@
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, abort
 import sqlite3
 import uuid
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import random
 from functools import wraps
+import hashlib
+import secrets
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+
+# Security: Detect production environment
+IS_PRODUCTION = os.path.exists('/data')  # Fly.io mounts persistent volume at /data
+
+# Security: Require strong SECRET_KEY in production
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    if IS_PRODUCTION:
+        raise ValueError("SECRET_KEY environment variable must be set in production!")
+    SECRET_KEY = 'dev-secret-key-change-in-production'
+app.secret_key = SECRET_KEY
+
+# Security: Session configuration
+# Only require HTTPS cookies in production
+app.config['SESSION_COOKIE_SECURE'] = IS_PRODUCTION  # HTTPS only in production
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)  # Session timeout
+
+# Security: CSRF Protection
+app.config['WTF_CSRF_ENABLED'] = True
+app.config['WTF_CSRF_TIME_LIMIT'] = None  # Don't expire CSRF tokens
+csrf = CSRFProtect(app)
+
+# Security: Rate Limiting
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per hour"],
+    storage_uri="memory://",
+)
+
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')  # Change this in production
 DEV_MODE = os.environ.get('DEV_MODE', 'false').lower() == 'true'  # Set DEV_MODE=true for testing
+
+# Session versioning - increment this when session structure changes
+SESSION_VERSION = 2  # Increment this to invalidate old sessions
+
+# Layout Configuration: Order of tiles in the three-tile grid
+# Options: 'AMB' (A, Mask, B) or 'MAB' (Mask, A, B)
+TILE_LAYOUT = os.environ.get('TILE_LAYOUT', 'MAB').upper()  # Set TILE_LAYOUT=AMB for image-mask-image layout
+if TILE_LAYOUT not in ['AMB', 'MAB']:
+    print(f"WARNING: Invalid TILE_LAYOUT '{TILE_LAYOUT}'. Using default 'MAB'. Valid options: AMB, MAB")
+    TILE_LAYOUT = 'MAB'
+
+# Question Configuration: Enable/disable specific evaluation questions
+ENABLE_PROMPT_QUESTION = os.environ.get('ENABLE_PROMPT_QUESTION', 'false').lower() == 'true'  # Set ENABLE_PROMPT_QUESTION=true to enable
+
+# Display Configuration: Show/hide the text prompt
+SHOW_PROMPT = os.environ.get('SHOW_PROMPT', 'false').lower() == 'true'  # Set SHOW_PROMPT=true to display prompt text
+
+# Security: Warn if weak admin password in production
+if ADMIN_PASSWORD == 'admin123' and IS_PRODUCTION:
+    print("WARNING: Using default admin password! Set ADMIN_PASSWORD environment variable!")
+
+# Audit log file
+AUDIT_LOG_FILE = '/data/audit.log' if IS_PRODUCTION else 'audit.log'
 
 # Referral codes - Set valid codes via environment variable (comma-separated) or in code
 # If empty, no referral code is required
@@ -27,19 +86,20 @@ if not REFERRAL_CODES:
 REQUIRE_REFERRAL = bool(REFERRAL_CODES) and not DEV_MODE
 
 # Use /data for persistent storage on Fly.io, otherwise local directory
-DATABASE = '/data/survey.db' if os.path.exists('/data') else 'survey.db'
+DATABASE = '/data/survey.db' if IS_PRODUCTION else 'survey.db'
 
-# Image pairs configuration file
+# Image pairs configuration files
 IMAGE_PAIRS_FILE = os.environ.get('IMAGE_PAIRS_FILE', 'image_pairs.txt')
+TUTORIAL_PAIRS_FILE = os.environ.get('TUTORIAL_PAIRS_FILE', 'tutorial_image_pair.txt')
 
-def load_image_pairs():
-    """Load image pairs from text file"""
+def load_image_pairs_from_file(file_path_relative, start_id=1):
+    """Load image pairs from a text file"""
     pairs = []
-    pair_id = 1
+    pair_id = start_id
     
     # Get the path relative to the app root (parent of src/)
     base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    file_path = os.path.join(base_path, IMAGE_PAIRS_FILE)
+    file_path = os.path.join(base_path, file_path_relative)
     
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -53,12 +113,12 @@ def load_image_pairs():
                 # Split by tab
                 parts = line.split('\t')
                 
-                # Expect exactly 7 fields: prompt, method_a, method_b, image_a_url, image_b_url, identity_urls, mask_url
+                # Expect exactly 7 fields: prompt, method_a, method_b, image_a_url, image_b_url, mask_url, identity_urls
                 if len(parts) != 7:
                     print(f"Warning: Line {line_num} has {len(parts)} fields (expected 7), skipping: {line[:50]}...")
                     continue
                 
-                prompt, method_a, method_b, image_a_url, image_b_url, identity_urls, mask_url = parts
+                prompt, method_a, method_b, image_a_url, image_b_url, mask_url, identity_urls = parts
                 
                 pairs.append({
                     "id": pair_id,
@@ -73,36 +133,53 @@ def load_image_pairs():
                 pair_id += 1
         
         if not pairs:
-            raise ValueError(f"No valid image pairs found in {IMAGE_PAIRS_FILE}")
+            raise ValueError(f"No valid image pairs found in {file_path_relative}")
         
-        print(f"✓ Loaded {len(pairs)} image pairs from {IMAGE_PAIRS_FILE}")
+        print(f"✓ Loaded {len(pairs)} image pairs from {file_path_relative}")
         return pairs
         
     except FileNotFoundError:
-        print(f"ERROR: {IMAGE_PAIRS_FILE} not found at {file_path}")
+        print(f"ERROR: {file_path_relative} not found at {file_path}")
         print("Creating sample file with 3 placeholder pairs...")
         
         # Create a sample file with helpful instructions
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write("# Image Pairs Configuration\n")
-            f.write("# Format: prompt <TAB> method_a <TAB> method_b <TAB> image_a_url <TAB> image_b_url <TAB> identity_urls <TAB> mask_url\n")
-            f.write("# identity_urls: comma-separated list of identity images\n")
+            f.write("# Format: prompt <TAB> method_a <TAB> method_b <TAB> image_a_url <TAB> image_b_url <TAB> mask_url <TAB> identity_urls\n")
             f.write("# mask_url: single spatial mask image\n")
+            f.write("# identity_urls: single URL to stacked identity image (512px wide x 512N tall, N = number of identities)\n")
             f.write("# Lines starting with # are comments\n\n")
-            f.write("A serene mountain landscape\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\thttps://placehold.co/200x200/gray/white?text=Identity\thttps://placehold.co/300x300/yellow/black?text=Mask\n")
-            f.write("A futuristic city\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\thttps://placehold.co/200x200/gray/white?text=Identity\thttps://placehold.co/300x300/yellow/black?text=Mask\n")
-            f.write("A person skiing\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\thttps://placehold.co/200x200/gray/white?text=ID1,https://placehold.co/200x200/gray/white?text=ID2\thttps://placehold.co/300x300/yellow/black?text=Mask\n")
+            f.write("A serene mountain landscape\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\thttps://placehold.co/300x300/yellow/black?text=Mask\thttps://placehold.co/200x200/gray/white?text=Identity\n")
+            f.write("A futuristic city\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\thttps://placehold.co/300x300/yellow/black?text=Mask\thttps://placehold.co/200x200/gray/white?text=Identity\n")
+            f.write("A person skiing\tMethod-A\tMethod-B\thttps://placehold.co/600x400/0066cc/white?text=Method+A\thttps://placehold.co/600x400/cc6600/white?text=Method+B\thttps://placehold.co/300x300/yellow/black?text=Mask\thttps://placehold.co/512x1024/gray/white?text=Stacked+IDs\n")
         
         print(f"✓ Created {file_path} with sample data")
         # Recursively call to load the newly created file
-        return load_image_pairs()
+        return load_image_pairs_from_file(file_path_relative, start_id)
     
     except Exception as e:
-        print(f"ERROR loading {IMAGE_PAIRS_FILE}: {e}")
+        print(f"ERROR loading {file_path_relative}: {e}")
         raise
+
+def load_image_pairs():
+    """Load main survey image pairs"""
+    return load_image_pairs_from_file(IMAGE_PAIRS_FILE, start_id=1)
+
+def load_tutorial_pair():
+    """Load tutorial image pair"""
+    try:
+        pairs = load_image_pairs_from_file(TUTORIAL_PAIRS_FILE, start_id=0)
+        if pairs:
+            return pairs[0]  # Return just the first (and only) tutorial pair
+        return None
+    except Exception as e:
+        print(f"Warning: Could not load tutorial pair: {e}")
+        # Fall back to first regular image pair if tutorial pair not available
+        return IMAGE_PAIRS[0] if IMAGE_PAIRS else None
 
 # Load image pairs on startup
 IMAGE_PAIRS = load_image_pairs()
+TUTORIAL_PAIR = load_tutorial_pair()
 
 # Run database migrations before initializing
 try:
@@ -110,6 +187,65 @@ try:
     migrate_database()
 except Exception as e:
     print(f"Warning: Migration failed (might be first run): {e}")
+
+# Security: Audit logging
+def audit_log(action, details, user_ip=None):
+    """Log security-sensitive actions"""
+    try:
+        timestamp = datetime.now().isoformat()
+        ip = user_ip or get_remote_address()
+        session_id = session.get('session_id', 'unknown')
+        admin_session = 'ADMIN' if session.get('admin_authenticated') else 'USER'
+        
+        log_entry = {
+            'timestamp': timestamp,
+            'ip': ip,
+            'session': session_id,
+            'role': admin_session,
+            'action': action,
+            'details': details
+        }
+        
+        with open(AUDIT_LOG_FILE, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(log_entry) + '\n')
+            
+    except Exception as e:
+        # Never let audit logging break the app
+        print(f"Audit logging error: {e}")
+
+# Session validation: Check for stale sessions
+@app.before_request
+def validate_session():
+    """Validate session version and clear if stale"""
+    # Skip validation for static files
+    if request.path.startswith('/static/'):
+        return
+    
+    # Skip validation in testing mode
+    if app.config.get('TESTING'):
+        return
+    
+    # Check session version
+    if 'session_id' in session:
+        session_version = session.get('version')
+        if session_version != SESSION_VERSION:
+            # Session is stale (either old without version or wrong version) - clear it
+            print(f"[INFO] Clearing stale session (version {session_version} != {SESSION_VERSION})")
+            session.clear()
+            # Don't redirect here, just clear - the route will handle it
+
+# Security: HTTP Security Headers
+@app.after_request
+def set_security_headers(response):
+    """Add security headers to all responses"""
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    # Only set HSTS in production (Fly.io handles HTTPS)
+    if IS_PRODUCTION:
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    return response
 
 def get_db():
     """Get database connection"""
@@ -178,10 +314,17 @@ def init_db():
             better_identity_match TEXT,
             identity_confidence INTEGER,
             was_randomized INTEGER DEFAULT 0,
+            time_spent REAL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (participant_id) REFERENCES participants (id)
         )
     ''')
+    
+    # Add time_spent column if it doesn't exist (for existing databases)
+    try:
+        db.execute('ALTER TABLE survey_responses ADD COLUMN time_spent REAL')
+    except:
+        pass  # Column already exists
     
     db.commit()
     db.close()
@@ -218,6 +361,7 @@ def index():
     """Home page - check referral code and if user has already submitted"""
     if 'session_id' not in session:
         session['session_id'] = str(uuid.uuid4())
+        session['version'] = SESSION_VERSION
     
     # Check if referral code is required and validated
     if REQUIRE_REFERRAL and not session.get('referral_validated'):
@@ -234,26 +378,46 @@ def index():
     ).fetchone()
     
     if participant:
-        # Get the number of pairs assigned to this user (from session or default)
-        user_pairs_count = session.get('user_pairs_count', min(len(IMAGE_PAIRS), 30 if not DEV_MODE else 3))
-        
-        # Check if they've completed all their assigned questions
-        response_count = db.execute(
-            'SELECT COUNT(*) as count FROM survey_responses WHERE participant_id = ?',
+        # Get user's email to check for completed pairs
+        demo = db.execute(
+            'SELECT email FROM demographics WHERE participant_id = ?',
             (participant['id'],)
         ).fetchone()
         db.close()
         
-        if response_count and response_count['count'] >= user_pairs_count:
-            # In dev mode, allow restarting with ?new=true parameter
-            if DEV_MODE and force_new:
-                return render_template('index.html')
-            # Show thank you page if completed
-            return render_template('thank_you.html', already_submitted=True, dev_mode=DEV_MODE)
+        if demo and demo['email']:
+            # Check how many pairs they've completed (fully answered)
+            completed_pair_ids = get_completed_pair_ids_for_email(demo['email'])
+            # Check how many pairs are available total
+            total_available_pairs = len(IMAGE_PAIRS)
+            # In dev mode, limit to 3; in prod, limit to 30
+            max_pairs = 3 if DEV_MODE else 30
+            expected_pairs = min(total_available_pairs, max_pairs)
+            
+            if DEV_MODE:
+                print(f"[DEBUG] Index route check: email={demo['email']}, completed={len(completed_pair_ids)}, expected={expected_pairs}, tutorial_complete={session.get('tutorial_completed', False)}")
+            
+            # If they've completed all available pairs (or reached the limit), show thank you
+            if len(completed_pair_ids) >= expected_pairs:
+                # In dev mode, allow restarting with ?new=true parameter
+                if DEV_MODE and force_new:
+                    if DEV_MODE:
+                        print(f"[DEBUG] Showing survey (force_new)")
+                    return render_template('index.html', tile_layout=TILE_LAYOUT, enable_prompt_question=ENABLE_PROMPT_QUESTION, show_prompt=SHOW_PROMPT)
+                # Show thank you page if completed
+                if DEV_MODE:
+                    print(f"[DEBUG] Showing thank you page (survey complete)")
+                return render_template('thank_you.html', already_submitted=True, dev_mode=DEV_MODE)
+            
+            # Demographics completed, check if tutorial completed
+            if not session.get('tutorial_completed', False):
+                if DEV_MODE:
+                    print(f"[DEBUG] Redirecting to tutorial")
+                return redirect(url_for('tutorial'))
     else:
         db.close()
     
-    return render_template('index.html')
+    return render_template('index.html', tile_layout=TILE_LAYOUT, enable_prompt_question=ENABLE_PROMPT_QUESTION, show_prompt=SHOW_PROMPT)
 
 @app.route('/referral', methods=['GET', 'POST'])
 def referral():
@@ -279,17 +443,134 @@ def referral():
 def reset_session():
     """Reset session - useful for dev/testing or shared computers"""
     if DEV_MODE:
-        session.clear()
-        return redirect(url_for('referral') if REQUIRE_REFERRAL else url_for('index'))
+        # In dev mode, immediately reset without confirmation
+        return reset_session_logic()
     else:
         # In production, show styled confirmation page
         return render_template('reset_session_confirm.html')
 
+def reset_session_logic():
+    """Core logic for resetting session and deleting user data"""
+    email_to_delete = None
+    print(f"[INFO] Reset session requested")
+    
+    if 'session_id' in session:
+        print(f"[INFO] Found session_id: {session['session_id']}")
+        db = get_db()
+        try:
+            # Get participant and their email
+            participant = db.execute(
+                'SELECT id FROM participants WHERE session_id = ?',
+                (session['session_id'],)
+            ).fetchone()
+            
+            if participant:
+                print(f"[INFO] Found participant: {participant['id']}")
+                demo = db.execute(
+                    'SELECT email FROM demographics WHERE participant_id = ?',
+                    (participant['id'],)
+                ).fetchone()
+                
+                if demo:
+                    email_to_delete = demo['email']
+                    
+                    print(f"[INFO] Resetting session and deleting data for: {email_to_delete}")
+                    
+                    # Delete all data for this email (all participants/sessions with this email)
+                    # Get all participant IDs for this email
+                    all_participants = db.execute('''
+                        SELECT p.id FROM participants p
+                        JOIN demographics d ON p.id = d.participant_id
+                        WHERE d.email = ?
+                    ''', (email_to_delete,)).fetchall()
+                    
+                    participant_ids = [p['id'] for p in all_participants]
+                    
+                    if participant_ids:
+                        # Delete survey responses
+                        placeholders = ','.join('?' * len(participant_ids))
+                        deleted_responses = db.execute(f'DELETE FROM survey_responses WHERE participant_id IN ({placeholders})', participant_ids)
+                        print(f"[INFO] Deleted {deleted_responses.rowcount} survey responses")
+                        
+                        # Delete demographics
+                        deleted_demographics = db.execute(f'DELETE FROM demographics WHERE participant_id IN ({placeholders})', participant_ids)
+                        print(f"[INFO] Deleted {deleted_demographics.rowcount} demographics records")
+                        
+                        # Delete participants
+                        deleted_participants = db.execute(f'DELETE FROM participants WHERE id IN ({placeholders})', participant_ids)
+                        print(f"[INFO] Deleted {deleted_participants.rowcount} participant records")
+                        
+                        db.commit()
+                        
+                        print(f"[INFO] Reset complete for {email_to_delete}")
+                    else:
+                        print(f"[WARNING] No participant records found for {email_to_delete}")
+                else:
+                    print(f"[WARNING] Participant found but no demographics record")
+            else:
+                print(f"[WARNING] No participant found for session_id: {session['session_id']}")
+        except Exception as e:
+            print(f"[ERROR] Error during session reset: {e}")
+            db.rollback()
+        finally:
+            db.close()
+    else:
+        print(f"[WARNING] No session_id in session")
+    
+    # Clear the session
+    session.clear()
+    print(f"[INFO] Session cleared, redirecting to start")
+    return redirect(url_for('referral') if REQUIRE_REFERRAL else url_for('index'))
+
 @app.route('/reset_session_confirm', methods=['POST'])
 def reset_session_confirm():
-    """Confirm session reset"""
-    session.clear()
-    return redirect(url_for('referral') if REQUIRE_REFERRAL else url_for('index'))
+    """Confirm session reset - calls the reset logic"""
+    return reset_session_logic()
+
+@app.route('/tutorial')
+def tutorial():
+    """Show tutorial mode - interactive walkthrough using real survey interface"""
+    if 'session_id' not in session:
+        session['session_id'] = str(uuid.uuid4())
+        session['version'] = SESSION_VERSION
+    
+    # Check if user should be here
+    if not session.get('referral_validated', False):
+        return redirect(url_for('referral'))
+    
+    # Check if demographics completed
+    demographics_completed = False
+    if 'session_id' in session:
+        conn = get_db()
+        c = conn.cursor()
+        # Join participants and demographics tables using session_id
+        c.execute('''
+            SELECT d.id FROM demographics d
+            JOIN participants p ON d.participant_id = p.id
+            WHERE p.session_id = ?
+        ''', (session['session_id'],))
+        demographics_completed = c.fetchone() is not None
+        conn.close()
+    
+    if not demographics_completed:
+        return redirect(url_for('index'))
+    
+    # Set tutorial mode flag in session
+    session['tutorial_mode'] = True
+    
+    # Render the survey page in tutorial mode
+    return render_template('index.html', tile_layout=TILE_LAYOUT, enable_prompt_question=ENABLE_PROMPT_QUESTION, show_prompt=SHOW_PROMPT, tutorial_mode=True)
+
+@app.route('/api/complete_tutorial', methods=['POST'])
+@csrf.exempt  # Exempt from CSRF - protected by session
+def complete_tutorial():
+    """Mark tutorial as completed"""
+    if 'session_id' not in session:
+        return jsonify({'error': 'No session'}), 400
+    
+    session['tutorial_completed'] = True
+    session['tutorial_mode'] = False  # Exit tutorial mode
+    return jsonify({'ok': True})
 
 @app.route('/api/config')
 def get_config():
@@ -298,7 +579,66 @@ def get_config():
         'dev_mode': DEV_MODE
     })
 
+@app.route('/api/check_demographics')
+def check_demographics():
+    """Check if demographics have been submitted for current session and get progress"""
+    if 'session_id' not in session:
+        return jsonify({'submitted': False})
+    
+    db = get_db()
+    try:
+        participant = db.execute(
+            'SELECT id FROM participants WHERE session_id = ?',
+            (session['session_id'],)
+        ).fetchone()
+        
+        if not participant:
+            return jsonify({'submitted': False})
+        
+        demo = db.execute(
+            'SELECT id, email FROM demographics WHERE participant_id = ?',
+            (participant['id'],)
+        ).fetchone()
+        
+        if not demo:
+            return jsonify({'submitted': False})
+        
+        # Get how many pairs have been completed
+        # Only check prompt fields if prompt question is enabled
+        if ENABLE_PROMPT_QUESTION:
+            completed_count = db.execute('''
+                SELECT COUNT(*) as count FROM survey_responses 
+                WHERE participant_id = ?
+                    AND better_image IS NOT NULL
+                    AND image_confidence IS NOT NULL
+                    AND better_prompt_match IS NOT NULL
+                    AND prompt_confidence IS NOT NULL
+                    AND better_mask_match IS NOT NULL
+                    AND mask_confidence IS NOT NULL
+                    AND better_identity_match IS NOT NULL
+                    AND identity_confidence IS NOT NULL
+            ''', (participant['id'],)).fetchone()
+        else:
+            completed_count = db.execute('''
+                SELECT COUNT(*) as count FROM survey_responses 
+                WHERE participant_id = ?
+                    AND better_image IS NOT NULL
+                    AND image_confidence IS NOT NULL
+                    AND better_mask_match IS NOT NULL
+                    AND mask_confidence IS NOT NULL
+                    AND better_identity_match IS NOT NULL
+                    AND identity_confidence IS NOT NULL
+            ''', (participant['id'],)).fetchone()
+        
+        return jsonify({
+            'submitted': True,
+            'completed_pairs': completed_count['count'] if completed_count else 0
+        })
+    finally:
+        db.close()
+
 @app.route('/api/submit_demographics', methods=['POST'])
+@csrf.exempt  # Exempt from CSRF - protected by session
 def submit_demographics():
     """Submit demographics information"""
     if 'session_id' not in session:
@@ -405,33 +745,127 @@ def submit_demographics():
         })
     except Exception as e:
         db.rollback()
-        return jsonify({'error': str(e)}), 500
+        # Security: Don't leak internal error details
+        print(f"Error in submit_demographics: {e}")
+        return jsonify({'error': 'An error occurred while submitting demographics'}), 500
+    finally:
+        db.close()
+
+def get_completed_pair_ids_for_email(email):
+    """Get list of pair IDs that have been fully completed by this email address.
+    A pair is considered complete only if all 8 questions have been answered
+    (4 choice questions + 4 confidence questions)."""
+    if not email:
+        return []
+    
+    db = get_db()
+    try:
+        # Get all participant IDs for this email
+        participant_ids = db.execute('''
+            SELECT p.id 
+            FROM participants p
+            JOIN demographics d ON p.id = d.participant_id
+            WHERE d.email = ?
+        ''', (email,)).fetchall()
+        
+        if not participant_ids:
+            return []
+        
+        participant_id_list = [p['id'] for p in participant_ids]
+        
+        # Get image_pair_ids where required fields are non-null
+        # Base requirements: better_image, image_confidence, mask, identity
+        # Conditional: prompt match/confidence only if enabled
+        placeholders = ','.join('?' * len(participant_id_list))
+        
+        # Build query based on enabled questions
+        query = f'''
+            SELECT DISTINCT image_pair_id
+            FROM survey_responses
+            WHERE participant_id IN ({placeholders})
+                AND better_image IS NOT NULL
+                AND image_confidence IS NOT NULL
+                AND better_mask_match IS NOT NULL
+                AND mask_confidence IS NOT NULL
+                AND better_identity_match IS NOT NULL
+                AND identity_confidence IS NOT NULL
+        '''
+        
+        # Only require prompt fields if the prompt question is enabled
+        if ENABLE_PROMPT_QUESTION:
+            query += '''
+                AND better_prompt_match IS NOT NULL
+                AND prompt_confidence IS NOT NULL
+            '''
+        
+        completed_pairs = db.execute(query, participant_id_list).fetchall()
+        
+        return [row['image_pair_id'] for row in completed_pairs]
     finally:
         db.close()
 
 @app.route('/api/get_image_pair/<int:pair_index>')
 def get_image_pair(pair_index):
     """Get a specific image pair"""
+    # If user is in tutorial mode and requesting the first pair, return the tutorial pair
+    if session.get('tutorial_mode', False) and pair_index == 0:
+        if TUTORIAL_PAIR:
+            tutorial_pair = TUTORIAL_PAIR.copy()
+            tutorial_pair['total_pairs'] = 1  # Only one tutorial pair
+            return jsonify(tutorial_pair)
+        # Fall back to first regular pair if tutorial pair not available
+        if IMAGE_PAIRS:
+            fallback_pair = IMAGE_PAIRS[0].copy()
+            fallback_pair['total_pairs'] = 1
+            return jsonify(fallback_pair)
+        return jsonify({'error': 'No image pairs available'}), 404
+    
     # Initialize user's randomized pair list if not already done
-    if 'user_image_pairs' not in session:
+    # OR if DEV_MODE has changed since session was created
+    if 'user_image_pairs' not in session or session.get('session_dev_mode') != DEV_MODE:
+        # Get the user's email from demographics (if they've submitted it)
+        user_email = None
+        if 'session_id' in session:
+            db = get_db()
+            try:
+                demo = db.execute('''
+                    SELECT d.email 
+                    FROM demographics d
+                    JOIN participants p ON d.participant_id = p.id
+                    WHERE p.session_id = ?
+                    ORDER BY d.id DESC
+                    LIMIT 1
+                ''', (session['session_id'],)).fetchone()
+                if demo:
+                    user_email = demo['email']
+            finally:
+                db.close()
+        
+        # Get list of completed pair IDs for this email
+        completed_pair_ids = get_completed_pair_ids_for_email(user_email) if user_email else []
+        
+        # Filter out completed pairs from available pairs
+        available_pairs = [p for p in IMAGE_PAIRS if p['id'] not in completed_pair_ids]
+        
         # In dev mode, use first 3 pairs; in production, randomly sample up to 30
         max_pairs = 3 if DEV_MODE else 30
         
         # If we have fewer pairs than max, use all of them
-        num_pairs = min(len(IMAGE_PAIRS), max_pairs)
+        num_pairs = min(len(available_pairs), max_pairs)
         
         # Randomly sample and shuffle pairs for this user
-        if len(IMAGE_PAIRS) <= num_pairs:
-            # Use all pairs, but in random order
-            user_pairs = IMAGE_PAIRS.copy()
+        if len(available_pairs) <= num_pairs:
+            # Use all available pairs, but in random order
+            user_pairs = available_pairs.copy()
             random.shuffle(user_pairs)
         else:
             # Randomly sample without replacement
-            user_pairs = random.sample(IMAGE_PAIRS, num_pairs)
+            user_pairs = random.sample(available_pairs, num_pairs)
         
         # Store the shuffled pair list in session (store just the IDs to keep session small)
         session['user_image_pairs'] = [pair['id'] for pair in user_pairs]
         session['user_pairs_count'] = len(user_pairs)
+        session['session_dev_mode'] = DEV_MODE  # Track which mode this session was created in
     
     # Get user's pair list
     user_pair_ids = session.get('user_image_pairs', [])
@@ -460,6 +894,7 @@ def get_image_pair(pair_index):
     return jsonify(pair)
 
 @app.route('/api/submit_survey', methods=['POST'])
+@csrf.exempt  # Exempt from CSRF - protected by session
 def submit_survey():
     """Submit survey response for a single image pair"""
     if 'session_id' not in session:
@@ -504,6 +939,7 @@ def submit_survey():
                     better_identity_match = ?,
                     identity_confidence = ?,
                     was_randomized = ?,
+                    time_spent = ?,
                     created_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             ''', (
@@ -523,6 +959,7 @@ def submit_survey():
                 data.get('better_identity_match'),
                 data.get('identity_confidence'),
                 1 if data.get('was_randomized') else 0,
+                data.get('time_spent'),
                 existing['id']
             ))
         else:
@@ -533,8 +970,8 @@ def submit_survey():
                  identity_urls, mask_url,
                  better_image, image_confidence, better_prompt_match, prompt_confidence,
                  better_mask_match, mask_confidence, better_identity_match, identity_confidence,
-                 was_randomized)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 was_randomized, time_spent)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 participant['id'],
                 data.get('image_pair_id'),
@@ -553,41 +990,70 @@ def submit_survey():
                 data.get('mask_confidence'),
                 data.get('better_identity_match'),
                 data.get('identity_confidence'),
-                1 if data.get('was_randomized') else 0
+                1 if data.get('was_randomized') else 0,
+                data.get('time_spent')
             ))
         
         # Check if they've completed all their assigned image pairs
         user_pairs_count = session.get('user_pairs_count', min(len(IMAGE_PAIRS), 30 if not DEV_MODE else 3))
-        response_count = db.execute(
-            'SELECT COUNT(*) as count FROM survey_responses WHERE participant_id = ?',
-            (participant['id'],)
-        ).fetchone()
         
         db.commit()
         
-        completed = response_count['count'] >= user_pairs_count
+        # Get user's email to check completed pairs
+        demo = db.execute(
+            'SELECT email FROM demographics WHERE participant_id = ?',
+            (participant['id'],)
+        ).fetchone()
+        
+        if demo and demo['email']:
+            completed_pair_ids = get_completed_pair_ids_for_email(demo['email'])
+            completed = len(completed_pair_ids) >= user_pairs_count
+            if DEV_MODE:
+                print(f"[DEBUG] Submit check: email={demo['email']}, completed_pairs={len(completed_pair_ids)}, user_pairs_count={user_pairs_count}, completed={completed}")
+        else:
+            completed = False
+        
         return jsonify({'success': True, 'completed': completed})
     except Exception as e:
         db.rollback()
-        return jsonify({'error': str(e)}), 500
+        # Security: Don't leak internal error details
+        print(f"Error in submit_survey: {e}")
+        return jsonify({'error': 'An error occurred while submitting survey response'}), 500
     finally:
         db.close()
 
 @app.route('/admin/login', methods=['GET', 'POST'])
+@limiter.limit("100 per hour")  # Security: Strict rate limit on login attempts
 def admin_login():
     """Admin login page"""
     if request.method == 'POST':
         password = request.form.get('password')
+        ip = get_remote_address()
+        
         if password == ADMIN_PASSWORD:
             session['admin_authenticated'] = True
+            session.permanent = True  # Enable 2-hour timeout for admin sessions
+            
+            # Security: Audit successful login
+            audit_log('ADMIN_LOGIN_SUCCESS', {'ip': ip})
+            
             return redirect(url_for('admin'))
         else:
-            return render_template('admin_login.html', error='Invalid password')
+            # Security: Audit failed login attempt
+            audit_log('ADMIN_LOGIN_FAILED', {'ip': ip, 'reason': 'Invalid password'})
+            
+            # Security: Don't reveal whether username or password was wrong
+            return render_template('admin_login.html', error='Invalid credentials'), 401
+    
     return render_template('admin_login.html')
 
 @app.route('/admin/logout')
 def admin_logout():
     """Admin logout"""
+    if session.get('admin_authenticated'):
+        # Security: Audit logout
+        audit_log('ADMIN_LOGOUT', {'ip': get_remote_address()})
+    
     session.pop('admin_authenticated', None)
     return redirect(url_for('admin_login'))
 
@@ -641,6 +1107,7 @@ def admin_results():
             s.better_identity_match,
             s.identity_confidence,
             s.was_randomized,
+            s.time_spent,
             s.created_at as response_created,
             CASE 
                 WHEN s.better_image = 'A' THEN s.method_a
@@ -719,6 +1186,7 @@ def admin_export():
             s.better_identity_match,
             s.identity_confidence,
             s.was_randomized,
+            s.time_spent,
             s.created_at as response_created,
             CASE 
                 WHEN s.better_image = 'A' THEN s.method_a
@@ -761,6 +1229,84 @@ def admin_export():
         headers={'Content-Disposition': 'attachment; filename=survey_results.csv'}
     )
     return response
+
+@app.route('/api/admin/delete_by_email', methods=['POST'])
+@require_admin
+@limiter.limit("20 per hour")  # Security: Rate limit delete operations
+def delete_by_email():
+    """Delete all records associated with an email address"""
+    email = request.json.get('email') if request.json else None
+    
+    # Security: Input validation
+    if not email:
+        audit_log('DELETE_FAILED', {'reason': 'No email provided'})
+        return jsonify({'error': 'Email address is required'}), 400
+    
+    # Security: Basic email format validation
+    if '@' not in email or len(email) > 255:
+        audit_log('DELETE_FAILED', {'reason': 'Invalid email format', 'email': email[:50]})
+        return jsonify({'error': 'Invalid email format'}), 400
+    
+    db = get_db()
+    try:
+        # Find all participant IDs associated with this email
+        participant_ids = db.execute('''
+            SELECT p.id 
+            FROM participants p
+            JOIN demographics d ON p.id = d.participant_id
+            WHERE d.email = ?
+        ''', (email,)).fetchall()
+        
+        if not participant_ids:
+            # Security: Audit attempted deletion of non-existent email
+            audit_log('DELETE_NOT_FOUND', {'email': email})
+            return jsonify({'error': 'No records found for this email address'}), 404
+        
+        participant_id_list = [p['id'] for p in participant_ids]
+        placeholders = ','.join('?' * len(participant_id_list))
+        
+        # Delete survey responses
+        responses_deleted = db.execute(
+            f'DELETE FROM survey_responses WHERE participant_id IN ({placeholders})',
+            participant_id_list
+        ).rowcount
+        
+        # Delete demographics
+        demographics_deleted = db.execute(
+            f'DELETE FROM demographics WHERE participant_id IN ({placeholders})',
+            participant_id_list
+        ).rowcount
+        
+        # Delete participants
+        participants_deleted = db.execute(
+            f'DELETE FROM participants WHERE id IN ({placeholders})',
+            participant_id_list
+        ).rowcount
+        
+        db.commit()
+        
+        # Security: Audit successful deletion
+        audit_log('DELETE_SUCCESS', {
+            'email': email,
+            'participants_deleted': participants_deleted,
+            'demographics_deleted': demographics_deleted,
+            'responses_deleted': responses_deleted
+        })
+        
+        return jsonify({
+            'success': True,
+            'email': email,
+            'participants_deleted': participants_deleted,
+            'demographics_deleted': demographics_deleted,
+            'responses_deleted': responses_deleted
+        })
+    except Exception as e:
+        db.rollback()
+        # Security: Audit deletion error, but don't leak details to client
+        audit_log('DELETE_ERROR', {'email': email, 'error': str(e)})
+        return jsonify({'error': 'An error occurred while deleting records'}), 500
+    finally:
+        db.close()
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

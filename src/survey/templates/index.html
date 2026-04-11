@@ -7,13 +7,60 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+    {% if tutorial_mode %}
+    <!-- Tutorial Mode Banner (Fixed to top) -->
+    <div id="tutorial-banner" style="display: none;">
+        <div class="tutorial-content">
+            <div class="tutorial-progress">
+                <div class="tutorial-progress-circle">
+                    <svg viewBox="0 0 36 36" class="circular-chart">
+                        <path class="circle-bg"
+                            d="M18 2.0845
+                               a 15.9155 15.9155 0 0 1 0 31.831
+                               a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none"
+                            stroke="rgba(255, 255, 255, 0.2)"
+                            stroke-width="3"
+                        />
+                        <path class="circle-fill" id="tutorial-progress-circle"
+                            d="M18 2.0845
+                               a 15.9155 15.9155 0 0 1 0 31.831
+                               a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none"
+                            stroke="white"
+                            stroke-width="3"
+                            stroke-dasharray="0, 100"
+                        />
+                        <!-- Checkmark that appears when complete -->
+                        <path class="circle-checkmark" id="tutorial-checkmark"
+                            d="M12 18 L16 22 L24 14"
+                            fill="none"
+                            stroke="white"
+                            stroke-width="2.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            opacity="0"
+                        />
+                    </svg>
+                </div>
+            </div>
+            <div class="tutorial-text">
+                <h3 id="tutorial-title"></h3>
+                <p id="tutorial-text"></p>
+            </div>
+            <div class="tutorial-buttons">
+                <button class="btn-tutorial btn-tutorial-primary" onclick="nextTutorialStep()">Next</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Initialize tutorial mode
+        window.TUTORIAL_MODE = true;
+    </script>
+    {% endif %}
+
     <div class="container">
         <div class="progress-container">
-            <div class="progress-bar">
-                <div class="progress-step active" id="step1">1</div>
-                <div class="progress-line"></div>
-                <div class="progress-step" id="step2">2</div>
-            </div>
             <div class="survey-progress" id="survey-progress" style="display: none;">
                 <div class="progress-text">Question <span id="current-question">1</span> of <span id="total-questions">30</span></div>
                 <div class="progress-bar-container">
@@ -25,7 +72,9 @@
         <!-- Demographics Section -->
         <section id="demographics-section" class="section active">
             <h1>Welcome to Our GenAI Image Evaluation Study</h1>
-            <p>Thank you for participating! Please provide some information about your background and experience with AI systems.</p>
+            <p>Thank you for participating! In this study, you will evaluate <strong>30 pairs of AI-generated images</strong> along with the inputs used to create them (text prompts, identity references, and spatial masks). You are free to quit at any time, and if you return to your browser later, you may pick up where you left off.</p>
+            
+            <p>Please provide some information about your background and experience with AI systems to help us understand the context of your evaluations.</p>
             
             <div class="info-box">
                 <h3>📊 Data Collection Notice</h3>
@@ -36,8 +85,9 @@
                     <li><strong>Screen Resolution:</strong> <span id="user-screen">Detecting...</span></li>
                     <li><strong>Display Density:</strong> <span id="user-pixel-ratio">Detecting...</span></li>
                     <li><strong>Color Depth:</strong> <span id="user-color">Detecting...</span> bits</li>
+                    <li><strong>Session Cookies:</strong> Required for survey functionality and progress tracking</li>
                 </ul>
-                <p class="privacy-note">This information helps us understand how images appear on different devices. No personal data is collected beyond what you explicitly provide below.</p>
+                <p class="privacy-note">This information helps us understand how images appear on different devices. Session cookies are essential for the survey to function and store temporary data while you complete the survey. No personal data is collected beyond what you explicitly provide below.</p>
                 <p class="contact-note"><strong>Questions or data removal requests?</strong> Contact us at <a href="mailto:survey-x7qp@adobe.com">survey-x7qp@adobe.com</a></p>
             </div>
             
@@ -45,6 +95,9 @@
                 <div class="form-group">
                     <label for="email">Email Address</label>
                     <input type="email" id="email" name="email" placeholder="your@email.com" required>
+                    <small style="display: block; margin-top: 5px; color: #666; font-size: 12px;">
+                        Your email will <strong>not</strong> be used to contact you directly. It is only used to ensure each user completes the survey once. For technical support or feedback, please contact us at <a href="mailto:survey-x7qp@adobe.com">survey-x7qp@adobe.com</a>.
+                    </small>
                 </div>
 
                 <div class="form-group">
@@ -167,57 +220,76 @@
             <p class="instruction">Please evaluate the following two images based on the given prompt. <span id="total-pairs-text">You will see multiple image pairs in total.</span></p>
 
             <form id="survey-form">
-                <!-- Two-column layout: All visual content on left, questions on right -->
-                <div class="survey-grid">
-                    <!-- Left column: All visual content (sticky) -->
-                    <div class="images-column">
-                        <!-- Prompt -->
-                        <div class="prompt-box">
-                            <h3>Text Prompt</h3>
-                            <p id="prompt-text">Loading...</p>
-                        </div>
-                        
-                        <!-- Conditioning Inputs (Identity & Mask) -->
-                        <div id="conditioning-container">
-                            <div class="conditioning-section">
-                                <div id="identity-section" class="conditioning-box">
-                                    <h3>Identity Reference Images</h3>
-                                    <p class="conditioning-note">The generated images should preserve the identity features from these reference images.</p>
-                                    <div id="identity-images" class="identity-images-container"></div>
-                                </div>
-                                
-                                <div id="mask-section" class="conditioning-box">
-                                    <h3>Spatial Mask</h3>
-                                    <p class="conditioning-note">The generated images should follow the spatial layout indicated by this mask (different colors represent different regions).</p>
-                                    <div class="mask-image-container">
-                                        <img id="mask-image" src="" alt="Spatial Mask" class="mask-image">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Output Images (larger) -->
-                        <div class="output-images-section">
-                            <h3 class="section-title">Generated Images</h3>
-                            <div class="output-images-grid">
-                                <div class="output-image-box">
-                                    <h4>Image A</h4>
-                                    <img id="image-a" src="" alt="Image A" class="output-image">
-                                </div>
-
-                                <div class="output-image-box">
-                                    <h4>Image B</h4>
-                                    <img id="image-b" src="" alt="Image B" class="output-image">
-                                </div>
-                            </div>
-                        </div>
+                <!-- TOP SECTION: Visual Content -->
+                <div class="visual-content-section">
+                    {% if show_prompt %}
+                    <!-- Prompt - Full Width -->
+                    <div class="prompt-box">
+                        <h3>Text Prompt</h3>
+                        <p id="prompt-text">Loading...</p>
                     </div>
-
-                    <!-- Right column: Questions -->
-                    <div class="questions-column">
-                        <div class="evaluation-section">
-                    <h3 class="section-title">Image Quality</h3>
+                    {% endif %}
                     
+                    <!-- Identity Images - Full Width -->
+                    <div id="identity-section" class="conditioning-box">
+                        <h3>Identity Reference Images</h3>
+                        <div id="identity-images" class="identity-images-container"></div>
+                    </div>
+                    
+                    <!-- Three Tiles: Configurable Order -->
+                    <div class="three-tile-grid">
+                        {% if tile_layout == 'MAB' %}
+                            <!-- Layout: Mask, A, B -->
+                            <div class="tile-box mask-tile">
+                                <h4>Spatial Mask</h4>
+                                <div class="tile-image-container">
+                                    <img id="mask-image" src="" alt="Spatial Mask" class="tile-image">
+                                </div>
+                            </div>
+                            
+                            <div class="tile-box">
+                                <h4>Image A</h4>
+                                <div class="tile-image-container">
+                                    <img id="image-a" src="" alt="Image A" class="tile-image">
+                                </div>
+                            </div>
+                            
+                            <div class="tile-box">
+                                <h4>Image B</h4>
+                                <div class="tile-image-container">
+                                    <img id="image-b" src="" alt="Image B" class="tile-image">
+                                </div>
+                            </div>
+                        {% else %}
+                            <!-- Layout: A, Mask, B (default) -->
+                            <div class="tile-box">
+                                <h4>Image A</h4>
+                                <div class="tile-image-container">
+                                    <img id="image-a" src="" alt="Image A" class="tile-image">
+                                </div>
+                            </div>
+                            
+                            <div class="tile-box mask-tile">
+                                <h4>Spatial Mask</h4>
+                                <div class="tile-image-container">
+                                    <img id="mask-image" src="" alt="Spatial Mask" class="tile-image">
+                                </div>
+                            </div>
+                            
+                            <div class="tile-box">
+                                <h4>Image B</h4>
+                                <div class="tile-image-container">
+                                    <img id="image-b" src="" alt="Image B" class="tile-image">
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- BOTTOM SECTION: Questions (Progressive) -->
+                <div class="questions-section">
+                    <div class="questions-container">
+                        <div id="quality-evaluation" class="evaluation-section">
                     <div class="form-group">
                         <label>Which image looks better overall (quality, aesthetics, coherence)?</label>
                         <div class="radio-group">
@@ -263,9 +335,9 @@
                     </div>
                 </div>
 
+                {% if enable_prompt_question %}
+                <!-- Prompt Adherence Section (optional, controlled by ENABLE_PROMPT_QUESTION config) -->
                 <div class="evaluation-section">
-                    <h3 class="section-title">Prompt Adherence</h3>
-                    
                     <div class="form-group">
                         <label>Which image better matches the text prompt?</label>
                         <div class="radio-group">
@@ -310,11 +382,10 @@
                         </div>
                     </div>
                 </div>
+                {% endif %}
                 
                 <!-- Mask Adherence Section (always shown) -->
                 <div id="mask-evaluation" class="evaluation-section">
-                    <h3 class="section-title">Mask Adherence</h3>
-                    
                     <div class="form-group">
                         <label>Which image better follows the spatial layout defined by the mask?</label>
                         <div class="radio-group">
@@ -362,8 +433,6 @@
                 
                 <!-- Identity Adherence Section (always shown) -->
                 <div id="identity-evaluation" class="evaluation-section">
-                    <h3 class="section-title">Identity Preservation</h3>
-                    
                     <div class="form-group">
                         <label>Which image better preserves the identity features from the reference images?</label>
                         <div class="radio-group">
@@ -408,10 +477,24 @@
                         </div>
                     </div>
                 </div>
-                    </div><!-- end questions-column -->
-                </div><!-- end survey-grid -->
-
-                <button type="submit" class="btn btn-primary" id="submit-btn">Next Image Pair</button>
+                    </div><!-- end questions-container -->
+                    
+                    <!-- Question Navigation -->
+                    <div class="question-navigation" role="navigation" aria-label="Question navigation">
+                        <button type="button" class="btn" id="prev-question-btn" disabled 
+                                title="Previous Question" 
+                                aria-label="Scroll to previous question">↑</button>
+                        <button type="button" class="btn" id="next-question-btn" 
+                                title="Next Question" 
+                                aria-label="Scroll to next question">↓</button>
+                    </div>
+                    
+                    <!-- Submit Button -->
+                    <div style="text-align: center; margin-top: 20px; padding-bottom: 20px;">
+                        <button type="submit" class="btn btn-primary" id="submit-btn" disabled 
+                                aria-label="Submit answers and continue to next image pair">→</button>
+                    </div>
+                </div><!-- end questions-section -->
             </form>
         </section>
     </div>
@@ -447,6 +530,10 @@
         <p>Questions or concerns? Contact <a href="mailto:survey-x7qp@adobe.com">survey-x7qp@adobe.com</a></p>
     </footer>
 
+    <script>
+        // Configuration from server
+        window.SHOW_PROMPT = {{ 'true' if show_prompt else 'false' }};
+    </script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
