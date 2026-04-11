@@ -7,7 +7,7 @@ This document describes the extended format for `image_pairs.txt` that includes 
 Each line represents a single image comparison pair with conditioning inputs (tab-separated):
 
 ```
-prompt <TAB> method_a <TAB> method_b <TAB> image_a_url <TAB> image_b_url <TAB> identity_urls <TAB> mask_url
+prompt <TAB> method_a <TAB> method_b <TAB> image_a_url <TAB> image_b_url <TAB> mask_url <TAB> identity_urls
 ```
 
 ### Field Descriptions:
@@ -17,17 +17,19 @@ prompt <TAB> method_a <TAB> method_b <TAB> image_a_url <TAB> image_b_url <TAB> i
 3. **`method_b`** (Text) - Method name for image B
 4. **`image_a_url`** (URL) - Generated image A
 5. **`image_b_url`** (URL) - Generated image B
-6. **`identity_urls`** (URLs) - Identity conditioning images, comma-separated if multiple
-   - Example: `https://example.com/identity1.jpg,https://example.com/identity2.jpg`
-   - Supports multiple identity reference images
-7. **`mask_url`** (URL) - Mask image showing spatial layout constraints
+6. **`mask_url`** (URL) - Mask image showing spatial layout constraints
    - Different colors can represent different regions/objects
    - Displayed to users as a reference for spatial adherence
+7. **`identity_urls`** (URL) - Single URL to a stacked identity image
+   - Image format: 512px wide x (512 * N) tall, where N = number of identities
+   - Each identity is a 512x512 square stacked vertically
+   - JavaScript automatically slices and displays them horizontally
+   - Example: `https://example.com/stacked_identities.jpg` (e.g., 512x1536 for 3 identities)
 
 ## Example
 
 ```
-A person skiing on a mountain	Method-A	Method-B	https://example.com/a.jpg	https://example.com/b.jpg	https://example.com/id1.jpg,https://example.com/id2.jpg	https://example.com/mask.png
+A person skiing on a mountain	Method-A	Method-B	https://example.com/a.jpg	https://example.com/b.jpg	https://example.com/mask.png	https://example.com/stacked_identities.jpg
 ```
 
 ## Backward Compatibility

@@ -116,6 +116,7 @@
             {% endif %}
             
             <form method="POST" class="referral-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input 
                     type="text" 
                     name="referral_code" 
