@@ -2,12 +2,11 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 import sqlite3
 import uuid
 import os
+import logging
 from datetime import datetime, timedelta
 import json
 import random
 from functools import wraps
-import hashlib
-import secrets
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect, generate_csrf
@@ -16,6 +15,8 @@ from src.survey.config import (
     load_config, get_email_field, build_column_map,
     get_inputs_by_name, get_outputs_by_name, get_questions_by_name,
 )
+
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -60,12 +61,12 @@ SESSION_VERSION = 3  # Incremented for config-driven schema change
 # Options: 'AMB' (A, Mask, B) or 'MAB' (Mask, A, B)
 TILE_LAYOUT = os.environ.get('TILE_LAYOUT', 'MAB').upper()
 if TILE_LAYOUT not in ['AMB', 'MAB']:
-    print(f"WARNING: Invalid TILE_LAYOUT '{TILE_LAYOUT}'. Using default 'MAB'. Valid options: AMB, MAB")
+    logger.warning("Invalid TILE_LAYOUT '%s'. Using default 'MAB'. Valid options: AMB, MAB", TILE_LAYOUT)
     TILE_LAYOUT = 'MAB'
 
 # Security: Warn if weak admin password in production
 if ADMIN_PASSWORD == 'admin123' and IS_PRODUCTION:
-    print("WARNING: Using default admin password! Set ADMIN_PASSWORD environment variable!")
+    logger.warning("Using default admin password! Set ADMIN_PASSWORD environment variable!")
 
 # Audit log file
 AUDIT_LOG_FILE = '/data/audit.log' if IS_PRODUCTION else 'audit.log'
@@ -74,12 +75,6 @@ AUDIT_LOG_FILE = '/data/audit.log' if IS_PRODUCTION else 'audit.log'
 # If empty, no referral code is required
 REFERRAL_CODES_ENV = os.environ.get('REFERRAL_CODES', '')
 REFERRAL_CODES = set(code.strip() for code in REFERRAL_CODES_ENV.split(',') if code.strip()) if REFERRAL_CODES_ENV else set()
-
-# Or set them directly here:
-if not REFERRAL_CODES:
-    REFERRAL_CODES = {
-        'ADOBE2025',
-    }
 
 # In dev mode, bypass referral code requirement
 REQUIRE_REFERRAL = bool(REFERRAL_CODES) and not DEV_MODE
@@ -128,7 +123,7 @@ def _load_trials_from_file(file_path_relative, start_id=1):
 
                 parts = line.split('\t')
                 if len(parts) != len(columns):
-                    print(f"Warning: Line {line_num} has {len(parts)} fields (expected {len(columns)}), skipping: {line[:50]}...")
+                    logger.warning("Line %d has %d fields (expected %d), skipping", line_num, len(parts), len(columns))
                     continue
 
                 row = {}
@@ -149,12 +144,12 @@ def _load_trials_from_file(file_path_relative, start_id=1):
         if not trials:
             raise ValueError(f"No valid trials found in {file_path_relative}")
 
-        print(f"✓ Loaded {len(trials)} image pairs from {file_path_relative}")
+        logger.info("Loaded %d image pairs from %s", len(trials), file_path_relative)
         return trials
 
     except FileNotFoundError:
-        print(f"ERROR: {file_path_relative} not found at {file_path}")
-        print("Creating sample file with 3 placeholder pairs...")
+        logger.error("%s not found at %s", file_path_relative, file_path)
+        logger.info("Creating sample file with placeholder data")
 
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(f"# Trial data - tab-separated\n")
@@ -163,11 +158,11 @@ def _load_trials_from_file(file_path_relative, start_id=1):
                 vals = [f"sample-{col}-{i}" for col in columns]
                 f.write('\t'.join(vals) + '\n')
 
-        print(f"✓ Created {file_path} with sample data")
+        logger.info("Created %s with sample data", file_path)
         return _load_trials_from_file(file_path_relative, start_id)
 
     except Exception as e:
-        print(f"ERROR loading {file_path_relative}: {e}")
+        logger.error("Error loading %s: %s", file_path_relative, e)
         raise
 
 
@@ -185,7 +180,7 @@ def load_tutorial_pair():
             return pairs[0]
         return None
     except Exception as e:
-        print(f"Warning: Could not load tutorial pair: {e}")
+        logger.warning("Could not load tutorial pair: %s", e)
         return IMAGE_PAIRS[0] if IMAGE_PAIRS else None
 
 
@@ -198,7 +193,7 @@ try:
     from src.survey.migrate_db import migrate_database
     migrate_database()
 except Exception as e:
-    print(f"Warning: Migration failed (might be first run): {e}")
+    logger.warning("Migration failed (might be first run): %s", e)
 
 # Security: Audit logging
 def audit_log(action, details, user_ip=None):
@@ -223,7 +218,7 @@ def audit_log(action, details, user_ip=None):
 
     except Exception as e:
         # Never let audit logging break the app
-        print(f"Audit logging error: {e}")
+        logger.error("Audit logging error: %s", e)
 
 # Session validation: Check for stale sessions
 @app.before_request
@@ -236,7 +231,7 @@ def validate_session():
     if 'session_id' in session:
         session_version = session.get('version')
         if session_version != SESSION_VERSION:
-            print(f"[INFO] Clearing stale session (version {session_version} != {SESSION_VERSION})")
+            logger.info("Clearing stale session (version %s != %s)", session_version, SESSION_VERSION)
             session.clear()
 
 # Security: HTTP Security Headers
@@ -480,24 +475,24 @@ def index():
             expected_pairs = _trial_count()
 
             if DEV_MODE:
-                print(f"[DEBUG] Index route check: email={demo['email']}, completed={len(completed_pair_ids)}, expected={expected_pairs}, tutorial_complete={session.get('tutorial_completed', False)}")
+                logger.debug("Index route check: email=%s, completed=%d, expected=%d, tutorial_complete=%s", demo["email"], len(completed_pair_ids), expected_pairs, session.get("tutorial_completed", False))
 
             if len(completed_pair_ids) >= expected_pairs:
                 if DEV_MODE and force_new:
                     if DEV_MODE:
-                        print(f"[DEBUG] Showing survey (force_new)")
+                        logger.debug("Showing survey (force_new)")
                     return render_template('index.html', config=CONFIG,
                                            tile_layout=TILE_LAYOUT,
                                            enable_prompt_question=ENABLE_PROMPT_QUESTION,
                                            show_prompt=SHOW_PROMPT)
                 if DEV_MODE:
-                    print(f"[DEBUG] Showing thank you page (survey complete)")
+                    logger.debug("Showing thank you page (survey complete)")
                 return render_template('thank_you.html', already_submitted=True,
                                        dev_mode=DEV_MODE, config=CONFIG)
 
             if not session.get('tutorial_completed', False):
                 if DEV_MODE:
-                    print(f"[DEBUG] Redirecting to tutorial")
+                    logger.debug("Redirecting to tutorial")
                 return redirect(url_for('tutorial'))
     else:
         db.close()
@@ -540,10 +535,10 @@ def reset_session():
 def reset_session_logic():
     """Core logic for resetting session and deleting user data"""
     email_to_delete = None
-    print(f"[INFO] Reset session requested")
+    logger.info("Reset session requested")
 
     if 'session_id' in session:
-        print(f"[INFO] Found session_id: {session['session_id']}")
+        logger.info("Found session_id: %s", session["session_id"])
         db = get_db()
         try:
             participant = db.execute(
@@ -552,7 +547,7 @@ def reset_session_logic():
             ).fetchone()
 
             if participant:
-                print(f"[INFO] Found participant: {participant['id']}")
+                logger.info("Found participant: %s", participant["id"])
                 demo = db.execute(
                     'SELECT email FROM demographics WHERE participant_id = ?',
                     (participant['id'],)
@@ -560,7 +555,7 @@ def reset_session_logic():
 
                 if demo:
                     email_to_delete = demo['email']
-                    print(f"[INFO] Resetting session and deleting data for: {email_to_delete}")
+                    logger.info("Resetting session and deleting data for: %s", email_to_delete)
 
                     all_participants = db.execute('''
                         SELECT p.id FROM participants p
@@ -573,29 +568,29 @@ def reset_session_logic():
                     if participant_ids:
                         placeholders = ','.join('?' * len(participant_ids))
                         deleted_responses = db.execute(f'DELETE FROM survey_responses WHERE participant_id IN ({placeholders})', participant_ids)
-                        print(f"[INFO] Deleted {deleted_responses.rowcount} survey responses")
+                        logger.info("Deleted %d survey responses", deleted_responses.rowcount)
                         deleted_demographics = db.execute(f'DELETE FROM demographics WHERE participant_id IN ({placeholders})', participant_ids)
-                        print(f"[INFO] Deleted {deleted_demographics.rowcount} demographics records")
+                        logger.info("Deleted %d demographics records", deleted_demographics.rowcount)
                         deleted_participants = db.execute(f'DELETE FROM participants WHERE id IN ({placeholders})', participant_ids)
-                        print(f"[INFO] Deleted {deleted_participants.rowcount} participant records")
+                        logger.info("Deleted %d participant records", deleted_participants.rowcount)
                         db.commit()
-                        print(f"[INFO] Reset complete for {email_to_delete}")
+                        logger.info("Reset complete for %s", email_to_delete)
                     else:
-                        print(f"[WARNING] No participant records found for {email_to_delete}")
+                        logger.warning("No participant records found for %s", email_to_delete)
                 else:
-                    print(f"[WARNING] Participant found but no demographics record")
+                    logger.warning("Participant found but no demographics record")
             else:
-                print(f"[WARNING] No participant found for session_id: {session['session_id']}")
+                logger.warning("No participant found for session_id: %s", session["session_id"])
         except Exception as e:
-            print(f"[ERROR] Error during session reset: {e}")
+            logger.error("Error during session reset: %s", e)
             db.rollback()
         finally:
             db.close()
     else:
-        print(f"[WARNING] No session_id in session")
+        logger.warning("No session_id in session")
 
     session.clear()
-    print(f"[INFO] Session cleared, redirecting to start")
+    logger.info("Session cleared, redirecting to start")
     return redirect(url_for('referral') if REQUIRE_REFERRAL else url_for('index'))
 
 
@@ -639,7 +634,6 @@ def tutorial():
 
 
 @app.route('/api/complete_tutorial', methods=['POST'])
-@csrf.exempt
 def complete_tutorial():
     """Mark tutorial as completed"""
     if 'session_id' not in session:
@@ -706,7 +700,7 @@ def check_demographics():
 # ---------------------------------------------------------------------------
 
 @app.route('/api/submit_demographics', methods=['POST'])
-@csrf.exempt
+@limiter.limit("10 per hour")
 def submit_demographics():
     """Submit demographics information"""
     if 'session_id' not in session:
@@ -792,7 +786,7 @@ def submit_demographics():
         })
     except Exception as e:
         db.rollback()
-        print(f"Error in submit_demographics: {e}")
+        logger.error("Error in submit_demographics: %s", e)
         return jsonify({'error': 'An error occurred while submitting demographics'}), 500
     finally:
         db.close()
@@ -915,7 +909,7 @@ def _add_flat_fields(stim, trial, randomized):
 # ---------------------------------------------------------------------------
 
 @app.route('/api/submit_survey', methods=['POST'])
-@csrf.exempt
+@limiter.limit("60 per hour")
 def submit_survey():
     """Submit survey response for a single trial."""
     if 'session_id' not in session:
@@ -1005,14 +999,14 @@ def submit_survey():
             completed_pair_ids = _get_completed_trial_ids_for_email(demo['email'])
             completed = len(completed_pair_ids) >= user_pairs_count
             if DEV_MODE:
-                print(f"[DEBUG] Submit check: email={demo['email']}, completed_pairs={len(completed_pair_ids)}, user_pairs_count={user_pairs_count}, completed={completed}")
+                logger.debug("Submit check: email=%s, completed_pairs=%d, user_pairs_count=%d, completed=%s", demo["email"], len(completed_pair_ids), user_pairs_count, completed)
         else:
             completed = False
 
         return jsonify({'success': True, 'completed': completed})
     except Exception as e:
         db.rollback()
-        print(f"Error in submit_survey: {e}")
+        logger.error("Error in submit_survey: %s", e)
         return jsonify({'error': 'An error occurred while submitting survey response'}), 500
     finally:
         db.close()
@@ -1044,7 +1038,7 @@ def _old_confidence_key(question_name):
 # ---------------------------------------------------------------------------
 
 @app.route('/admin/login', methods=['GET', 'POST'])
-@limiter.limit("100 per hour")
+@limiter.limit("10 per hour")
 def admin_login():
     """Admin login page"""
     if request.method == 'POST':
@@ -1350,4 +1344,4 @@ def delete_by_email():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=DEV_MODE)
