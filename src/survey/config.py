@@ -81,6 +81,8 @@ def _apply_defaults(config):
     survey.setdefault('contact_email', '')
     survey.setdefault('pairs_per_user', 30)
     survey.setdefault('dev_pairs', 3)
+    survey.setdefault('privacy_policy_url', '')
+    survey.setdefault('consent_text', '')
 
     config.setdefault('demographics', [])
 

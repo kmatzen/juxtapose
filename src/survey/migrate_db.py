@@ -5,6 +5,9 @@ Handles migration from old hardcoded schema to new JSON-based schema.
 import sqlite3
 import os
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def migrate_database():
@@ -13,10 +16,10 @@ def migrate_database():
     db_path = '/data/survey.db' if os.path.exists('/data') else 'survey.db'
 
     if not os.path.exists(db_path):
-        print("→ No existing database found, skipping migration (will be created fresh)")
+        logger.info("No existing database found, skipping migration (will be created fresh)")
         return
 
-    print("→ Checking database schema...")
+    logger.info("Checking database schema...")
 
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
@@ -26,9 +29,9 @@ def migrate_database():
         _migrate_demographics(conn, cursor)
         _migrate_survey_responses(conn, cursor)
         conn.commit()
-        print("✓ Database migration check completed")
+        logger.info("Database migration check completed")
     except Exception as e:
-        print(f"✗ Migration failed: {e}")
+        logger.error("Migration failed: %s", e)
         conn.rollback()
         raise
     finally:
@@ -52,14 +55,14 @@ def _migrate_demographics(conn, cursor):
     # New schema has: id, participant_id, email, data, created_at
     # Old schema has: id, participant_id, email, occupation, has_used_image_gen, ...
     if 'data' in columns:
-        print("  ✓ demographics table already uses JSON schema")
+        logger.info("demographics table already uses JSON schema")
         return
 
     if 'occupation' not in columns:
         # Neither old nor new schema — skip
         return
 
-    print("  → Migrating demographics to JSON schema...")
+    logger.info("Migrating demographics to JSON schema...")
 
     # Old demographic columns (excluding id, participant_id, email, created_at)
     old_demo_cols = [
@@ -106,7 +109,7 @@ def _migrate_demographics(conn, cursor):
     # Swap tables
     cursor.execute('DROP TABLE demographics')
     cursor.execute('ALTER TABLE demographics_new RENAME TO demographics')
-    print(f"  ✓ Migrated {len(rows)} demographics rows to JSON schema")
+    logger.info("Migrated %d demographics rows to JSON schema", len(rows))
 
 
 def _migrate_survey_responses(conn, cursor):
@@ -123,14 +126,14 @@ def _migrate_survey_responses(conn, cursor):
     #                 image_a_url, image_b_url, identity_urls, mask_url,
     #                 better_image, image_confidence, ..., was_randomized, time_spent, created_at
     if 'stimulus_data' in columns:
-        print("  ✓ survey_responses table already uses JSON schema")
+        logger.info("survey_responses table already uses JSON schema")
         return
 
     if 'better_image' not in columns:
         # Neither old nor new schema — skip
         return
 
-    print("  → Migrating survey_responses to JSON schema...")
+    logger.info("Migrating survey_responses to JSON schema...")
 
     # Stimulus columns
     stim_cols = ['prompt', 'method_a', 'method_b', 'image_a_url', 'image_b_url',
@@ -215,10 +218,11 @@ def _migrate_survey_responses(conn, cursor):
     # Swap tables
     cursor.execute('DROP TABLE survey_responses')
     cursor.execute('ALTER TABLE survey_responses_new RENAME TO survey_responses')
-    print(f"  ✓ Migrated {len(rows)} survey responses to JSON schema")
+    logger.info("Migrated %d survey responses to JSON schema", len(rows))
 
 
 if __name__ == "__main__":
-    print("=== Database Migration Tool ===")
+    logging.basicConfig(level=logging.INFO)
+    logger.info("=== Database Migration Tool ===")
     migrate_database()
-    print("=== Migration Complete ===")
+    logger.info("=== Migration Complete ===")

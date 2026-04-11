@@ -4,12 +4,19 @@ Tests for admin functionality
 import pytest
 import json
 import io
+from tests.conftest import insert_demographics, insert_response
+
+STANDARD_RESPONSES = {
+    'image_quality': {'choice': 'A', 'confidence': 3},
+    'mask_adherence': {'choice': 'B', 'confidence': 4},
+    'identity_preservation': {'choice': 'equal', 'confidence': 2},
+}
 
 
 def test_admin_requires_authentication(client):
     """Test admin page requires authentication"""
     response = client.get('/admin')
-    assert response.status_code == 302  # Redirect to login
+    assert response.status_code == 302
 
 
 def test_admin_login_get(client):
@@ -24,33 +31,29 @@ def test_admin_login_success(client):
     response = client.post('/admin/login',
                           data={'password': 'admin123'},
                           follow_redirects=False)
-    assert response.status_code == 302  # Redirect to admin page
-    
-    # Check session was updated
+    assert response.status_code == 302
+
     with client.session_transaction() as sess:
         assert sess.get('admin_authenticated') is True
 
 
 def test_admin_logout(client):
     """Test admin logout"""
-    # First login
     with client.session_transaction() as sess:
         sess['admin_authenticated'] = True
-    
+
     response = client.get('/admin/logout', follow_redirects=False)
-    assert response.status_code == 302  # Redirect to login
-    
-    # Check session was cleared
+    assert response.status_code == 302
+
     with client.session_transaction() as sess:
         assert 'admin_authenticated' not in sess
 
 
 def test_admin_page_with_auth(client):
     """Test admin page with authentication"""
-    # Set authenticated session
     with client.session_transaction() as sess:
         sess['admin_authenticated'] = True
-    
+
     response = client.get('/admin')
     assert response.status_code == 200
 
@@ -58,36 +61,28 @@ def test_admin_page_with_auth(client):
 def test_admin_export_csv_no_auth(client):
     """Test CSV export requires authentication"""
     response = client.get('/api/admin/export')
-    assert response.status_code == 302  # Redirect to login
+    assert response.status_code == 302
 
 
 def test_admin_export_csv_with_auth(client):
     """Test CSV export with authentication"""
     from src.survey.app import get_db
     import uuid
-    
-    # Create some test data with unique session
+
     with client.application.app_context():
         db = get_db()
         unique_session = f'test-export-{uuid.uuid4()}'
         db.execute("INSERT INTO participants (session_id, browser, os) VALUES (?, 'Chrome', 'macOS')",
                   (unique_session,))
         participant_id = db.execute('SELECT last_insert_rowid()').fetchone()[0]
-        db.execute("INSERT INTO demographics (participant_id, email, occupation) VALUES (?, ?, 'Engineer')",
-                  (participant_id, 'export@example.com'))
-        db.execute("""
-            INSERT INTO survey_responses 
-            (participant_id, image_pair_id, better_image, image_confidence, 
-             better_mask_match, mask_confidence, better_identity_match, identity_confidence, was_randomized)
-            VALUES (?, 1, 'A', 3, 'B', 4, 'Equal', 2, 0)
-        """, (participant_id,))
+        insert_demographics(db, participant_id, 'export@example.com', occupation='Engineer')
+        insert_response(db, participant_id, 1, STANDARD_RESPONSES)
         db.commit()
         db.close()
-    
-    # Set authenticated session
+
     with client.session_transaction() as sess:
         sess['admin_authenticated'] = True
-    
+
     response = client.get('/api/admin/export')
     assert response.status_code == 200
     assert response.headers['Content-Type'] == 'text/csv; charset=utf-8'
@@ -100,15 +95,14 @@ def test_admin_delete_by_email_no_auth(client):
     response = client.post('/api/admin/delete_by_email',
                           json={'email': 'test@example.com'},
                           content_type='application/json')
-    assert response.status_code == 302  # Redirect to login
+    assert response.status_code == 302
 
 
 def test_admin_delete_by_email_no_email_provided(client):
     """Test delete requires email parameter"""
-    # Set authenticated session
     with client.session_transaction() as sess:
         sess['admin_authenticated'] = True
-    
+
     response = client.post('/api/admin/delete_by_email',
                           json={},
                           content_type='application/json')
@@ -119,10 +113,9 @@ def test_admin_delete_by_email_no_email_provided(client):
 
 def test_admin_delete_by_email_invalid_email(client):
     """Test delete with invalid email format"""
-    # Set authenticated session
     with client.session_transaction() as sess:
         sess['admin_authenticated'] = True
-    
+
     response = client.post('/api/admin/delete_by_email',
                           json={'email': 'not-an-email'},
                           content_type='application/json')
@@ -133,10 +126,9 @@ def test_admin_delete_by_email_invalid_email(client):
 
 def test_admin_delete_by_email_nonexistent(client):
     """Test delete with email that doesn't exist"""
-    # Set authenticated session
     with client.session_transaction() as sess:
         sess['admin_authenticated'] = True
-    
+
     response = client.post('/api/admin/delete_by_email',
                           json={'email': 'nonexistent@example.com'},
                           content_type='application/json')
@@ -149,8 +141,7 @@ def test_admin_delete_by_email_success(client):
     """Test successful delete by email"""
     from src.survey.app import get_db
     import uuid
-    
-    # Create test data with unique session and email
+
     unique_email = f'delete-{uuid.uuid4()}@example.com'
     with client.application.app_context():
         db = get_db()
@@ -158,30 +149,22 @@ def test_admin_delete_by_email_success(client):
         db.execute("INSERT INTO participants (session_id, browser, os) VALUES (?, 'Chrome', 'macOS')",
                   (unique_session,))
         participant_id = db.execute('SELECT last_insert_rowid()').fetchone()[0]
-        db.execute("INSERT INTO demographics (participant_id, email, occupation) VALUES (?, ?, 'Engineer')",
-                  (participant_id, unique_email))
-        db.execute("""
-            INSERT INTO survey_responses 
-            (participant_id, image_pair_id, better_image, image_confidence, 
-             better_mask_match, mask_confidence, better_identity_match, identity_confidence, was_randomized)
-            VALUES (?, 1, 'A', 3, 'B', 4, 'Equal', 2, 0)
-        """, (participant_id,))
+        insert_demographics(db, participant_id, unique_email, occupation='Engineer')
+        insert_response(db, participant_id, 1, STANDARD_RESPONSES)
         db.commit()
         db.close()
-    
-    # Set authenticated session
+
     with client.session_transaction() as sess:
         sess['admin_authenticated'] = True
-    
+
     response = client.post('/api/admin/delete_by_email',
                           json={'email': unique_email},
                           content_type='application/json')
     assert response.status_code == 200
     data = json.loads(response.data)
     assert data['success'] is True
-    assert data['participants_deleted'] == 1  # Note: plural form matches API response
-    
-    # Verify data was actually deleted
+    assert data['participants_deleted'] == 1
+
     with client.application.app_context():
         db = get_db()
         result = db.execute("SELECT COUNT(*) as count FROM demographics WHERE email = ?",
@@ -192,9 +175,6 @@ def test_admin_delete_by_email_success(client):
 
 def test_admin_rate_limiting(client):
     """Test rate limiting on admin login"""
-    # This test verifies the rate limiter is configured
-    # We can't easily test the actual limiting without making 10+ requests
-    # but we can verify wrong password attempts don't crash
     for i in range(3):
         response = client.post('/admin/login',
                               data={'password': f'wrong{i}'},
@@ -204,13 +184,11 @@ def test_admin_rate_limiting(client):
 
 def test_reset_session_confirm_page(client):
     """Test reset_session_confirm page (via GET /reset_session)"""
-    # reset_session_confirm is POST-only, but /reset_session GET shows the page
     with client.session_transaction() as sess:
         sess['session_id'] = 'test-reset-page'
-    
+
     response = client.get('/reset_session')
     assert response.status_code == 200
-    # Should show confirmation UI
     assert b'Start Over' in response.data or b'confirm' in response.data.lower()
 
 
@@ -218,27 +196,23 @@ def test_reset_session_confirm_post(client):
     """Test reset_session_confirm POST deletes data"""
     from src.survey.app import get_db
     import uuid
-    
-    # Create test data with unique session
+
     unique_session = f'test-reset-post-{uuid.uuid4()}'
     with client.application.app_context():
         db = get_db()
         db.execute("INSERT INTO participants (session_id, browser, os) VALUES (?, 'Chrome', 'macOS')",
                   (unique_session,))
         participant_id = db.execute('SELECT last_insert_rowid()').fetchone()[0]
-        db.execute("INSERT INTO demographics (participant_id, email, occupation) VALUES (?, ?, 'Engineer')",
-                  (participant_id, 'reset@example.com'))
+        insert_demographics(db, participant_id, 'reset@example.com', occupation='Engineer')
         db.commit()
         db.close()
-    
+
     with client.session_transaction() as sess:
         sess['session_id'] = unique_session
         sess['referral_validated'] = True
-    
+
     response = client.post('/reset_session_confirm', follow_redirects=False)
-    assert response.status_code == 302  # Redirect
-    
-    # Verify session cleared
+    assert response.status_code == 302
+
     with client.session_transaction() as sess:
         assert 'referral_validated' not in sess
-

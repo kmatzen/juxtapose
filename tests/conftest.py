@@ -4,39 +4,34 @@ Pytest configuration and fixtures
 import pytest
 import tempfile
 import os
+import json
 from src.survey import app as app_module
 
 
 @pytest.fixture
 def app():
     """Create application for testing"""
-    # Set environment variables BEFORE importing app
     os.environ['DEV_MODE'] = 'false'
-    os.environ['REFERRAL_CODES'] = ''  # Empty referral codes
-    os.environ['ENABLE_PROMPT_QUESTION'] = 'false'
-    
-    # Reload the app module to pick up environment variables
+    os.environ['REFERRAL_CODES'] = ''
+
     import importlib
     importlib.reload(app_module)
     flask_app = app_module.app
-    
-    # Create a temporary database
+
     db_fd, db_path = tempfile.mkstemp()
-    
+
     flask_app.config.update({
         'TESTING': True,
         'DATABASE': db_path,
         'SECRET_KEY': 'test_secret_key',
-        'WTF_CSRF_ENABLED': False,  # Disable CSRF for testing
+        'WTF_CSRF_ENABLED': False,
     })
-    
-    # Initialize database schema
+
     with flask_app.app_context():
         app_module.init_db()
-    
+
     yield flask_app
-    
-    # Cleanup
+
     os.close(db_fd)
     os.unlink(db_path)
 
@@ -92,3 +87,36 @@ def sample_demographics():
         }
     }
 
+
+# ---------------------------------------------------------------------------
+# Test helpers for new JSON schema
+# ---------------------------------------------------------------------------
+
+def insert_demographics(db, participant_id, email, **extra):
+    """Insert demographics row using new JSON schema."""
+    data = {'email': email}
+    data.update(extra)
+    db.execute(
+        'INSERT INTO demographics (participant_id, email, data) VALUES (?, ?, ?)',
+        (participant_id, email, json.dumps(data))
+    )
+
+
+def insert_response(db, participant_id, image_pair_id, responses,
+                     stimulus=None, was_randomized=0, time_spent=None):
+    """Insert survey_responses row using new JSON schema.
+
+    responses: dict like {'image_quality': {'choice': 'A', 'confidence': 4}, ...}
+    stimulus: dict of stimulus data (prompt, method_a, etc.)
+    """
+    db.execute('''
+        INSERT INTO survey_responses
+        (participant_id, image_pair_id, stimulus_data, responses, was_randomized, time_spent)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (
+        participant_id, image_pair_id,
+        json.dumps(stimulus or {}),
+        json.dumps(responses),
+        was_randomized,
+        time_spent,
+    ))
