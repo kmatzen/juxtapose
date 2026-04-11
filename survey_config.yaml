@@ -1,0 +1,254 @@
+# =============================================================================
+# Survey Configuration
+# =============================================================================
+# This file defines the complete structure of your survey: what participants
+# see, what data you collect, and how the interface is laid out.
+#
+# Key concepts:
+#   - inputs:  Stimuli shared between methods (prompts, references, masks)
+#   - outputs: Results from each method, shown as A/B and randomized
+#   - questions: What you ask participants about the outputs
+#   - layout: How inputs, outputs, and questions are arranged on screen
+
+survey:
+  title: "Welcome to Our GenAI Image Evaluation Study"
+  description: "Thank you for participating! Please provide some information about your background and experience with AI systems."
+  contact_email: "survey-x7qp@adobe.com"
+  pairs_per_user: 30
+  dev_pairs: 3
+  # Text shown in the survey (evaluation) section
+  survey_heading: "Image Comparison"
+  survey_instruction: "Please evaluate the following two images based on the given prompt."
+  next_button_text: "Next Image Pair"
+  submit_button_text: "Submit Survey"
+
+# =============================================================================
+# Demographics
+# =============================================================================
+# Fields shown before the main survey. Supported types:
+#   email, text, number, select, checkbox, radio, textarea
+#
+# The first field with type "email" is used for retake detection.
+
+demographics:
+  - name: email
+    type: email
+    label: "Email Address"
+    placeholder: "your@email.com"
+    required: true
+
+  - name: occupation
+    type: select
+    label: "Occupation/Role"
+    required: true
+    options:
+      - { value: "researcher", label: "Researcher" }
+      - { value: "software-engineer", label: "Software Engineer" }
+      - { value: "student", label: "Student" }
+      - { value: "designer", label: "Designer/Artist" }
+      - { value: "product-manager", label: "Product Manager" }
+      - { value: "data-scientist", label: "Data Scientist/ML Engineer" }
+      - { value: "other-tech", label: "Other (Technical)" }
+      - { value: "other-non-tech", label: "Other (Non-Technical)" }
+
+  - name: technical_background
+    type: select
+    label: "Technical Background Level"
+    required: true
+    options:
+      - { value: "none", label: "No technical background" }
+      - { value: "basic", label: "Basic (some programming/tech exposure)" }
+      - { value: "intermediate", label: "Intermediate (regular programming/tech work)" }
+      - { value: "advanced", label: "Advanced (expert in technical field)" }
+
+  - name: has_used_image_gen
+    type: select
+    label: "Have you used AI image generation systems?"
+    required: true
+    options:
+      - { value: "never", label: "Never" }
+      - { value: "once-or-twice", label: "Once or twice" }
+      - { value: "occasionally", label: "Occasionally (a few times)" }
+      - { value: "regularly", label: "Regularly (weekly or more)" }
+      - { value: "extensively", label: "Extensively (daily/professional use)" }
+
+  - name: image_gen_tools
+    type: checkbox
+    label: "Which AI image generation tools have you used? (Select all that apply or leave blank)"
+    options:
+      - { value: "dalle", label: "DALL-E" }
+      - { value: "midjourney", label: "Midjourney" }
+      - { value: "stable-diffusion", label: "Stable Diffusion" }
+      - { value: "firefly", label: "Adobe Firefly" }
+      - { value: "other", label: "Other" }
+
+  - name: works_on_ai_development
+    type: select
+    label: "Do you work on the development of AI systems?"
+    required: true
+    options:
+      - { value: "no", label: "No" }
+      - { value: "tangentially", label: "Tangentially (use AI tools in work)" }
+      - { value: "yes-research", label: "Yes (research/academic)" }
+      - { value: "yes-industry", label: "Yes (industry/production)" }
+
+  - name: ai_usage_frequency
+    type: select
+    label: "How often do you use AI tools (ChatGPT, etc.)?"
+    required: true
+    options:
+      - { value: "never", label: "Never" }
+      - { value: "rarely", label: "Rarely (once a month or less)" }
+      - { value: "sometimes", label: "Sometimes (weekly)" }
+      - { value: "often", label: "Often (daily)" }
+      - { value: "very-often", label: "Very often (multiple times per day)" }
+
+  - name: works_with_graphics
+    type: select
+    label: "Do you work regularly with computer graphics?"
+    required: true
+    options:
+      - { value: "no", label: "No" }
+      - { value: "hobbyist", label: "Yes (hobbyist/personal projects)" }
+      - { value: "professional", label: "Yes (professional/work)" }
+      - { value: "researcher", label: "Yes (research/academic)" }
+
+  - name: ai_familiarity
+    type: select
+    label: "How would you rate your familiarity with AI/ML concepts?"
+    required: true
+    options:
+      - { value: "none", label: "No familiarity" }
+      - { value: "basic", label: "Basic (know what AI is)" }
+      - { value: "intermediate", label: "Intermediate (understand how AI works)" }
+      - { value: "advanced", label: "Advanced (can explain ML algorithms)" }
+      - { value: "expert", label: "Expert (work with/develop AI systems)" }
+
+# =============================================================================
+# Data File
+# =============================================================================
+# Tab-separated file with one row per trial. Columns listed here define the
+# expected order. Column names are referenced by inputs, outputs, and methods.
+
+data:
+  file: "image_pairs.txt"
+  columns:
+    - prompt
+    - method_a
+    - method_b
+    - image_a_url
+    - image_b_url
+    - mask_url
+    - identity_urls
+
+# Which columns hold the method names for A and B
+methods:
+  a: method_a
+  b: method_b
+
+# =============================================================================
+# Inputs (shared context shown for each trial)
+# =============================================================================
+# Supported types: text, image, image_gallery, video, audio
+# Optional inputs are hidden when the column value is empty for a trial.
+# Interactions: lightbox, loop, controls
+
+inputs:
+  - name: prompt
+    type: text
+    label: "Text Prompt"
+    column: prompt
+
+  - name: identity
+    type: image_gallery
+    label: "Identity Reference Images"
+    description: "The generated images should preserve the identity features from these reference images."
+    column: identity_urls
+    optional: true
+    interactions: [lightbox]
+
+  - name: mask
+    type: image
+    label: "Spatial Mask"
+    description: "The generated images should follow the spatial layout indicated by this mask (different colors represent different regions)."
+    column: mask_url
+    optional: true
+    interactions: [lightbox]
+
+# =============================================================================
+# Outputs (per-method results, A/B randomized)
+# =============================================================================
+# Each output has column_a and column_b mapping to the data file.
+# Supported types: image, video, audio, text
+
+outputs:
+  - name: image
+    type: image
+    label: "Image"
+    column_a: image_a_url
+    column_b: image_b_url
+    interactions: [lightbox]
+
+# =============================================================================
+# Questions (evaluation criteria per trial)
+# =============================================================================
+# Supported types:
+#   ab_preference  - A/B/Equal choice with optional confidence (1-5)
+#   likert         - Scale rating (set 'scale' for range, default 5)
+#   free_text      - Open text response
+#   multiple_choice - Single selection from options
+#
+# depends_on: name of an optional input; question is hidden when that input
+#             has no data for the current trial.
+
+questions:
+  - name: image_quality
+    type: ab_preference
+    section_label: "Image Quality"
+    label: "Which image looks better overall (quality, aesthetics, coherence)?"
+    confidence: true
+    required: true
+
+  - name: prompt_adherence
+    type: ab_preference
+    section_label: "Prompt Adherence"
+    label: "Which image better matches the text prompt?"
+    confidence: true
+    required: true
+
+  - name: mask_adherence
+    type: ab_preference
+    section_label: "Mask Adherence"
+    label: "Which image better follows the spatial layout defined by the mask?"
+    confidence: true
+    depends_on: mask
+
+  - name: identity_preservation
+    type: ab_preference
+    section_label: "Identity Preservation"
+    label: "Which image better preserves the identity features from the reference images?"
+    confidence: true
+    depends_on: identity
+
+# =============================================================================
+# Layout
+# =============================================================================
+# Defines the two-phase layout for the survey section.
+# Each column has sections; each section has items (input names, "outputs",
+# or question names). Use direction: row for side-by-side items.
+
+layout:
+  columns:
+    - width: "55%"
+      sticky: true
+      sections:
+        - widgets: [prompt]
+        - widgets: [identity, mask]
+        - widgets: [outputs]
+          label: "Generated Images"
+    - width: "45%"
+      sections:
+        - widgets: [image_quality]
+        - widgets: [prompt_adherence]
+        - widgets: [mask_adherence]
+        - widgets: [identity_preservation]
