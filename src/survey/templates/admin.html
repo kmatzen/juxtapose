@@ -10,42 +10,36 @@
 <body>
     <div class="admin-container">
         <h1>Survey Administration</h1>
-        
-        <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+
+        <div class="stats-grid" id="stats-grid">
             <div class="stat-card">
                 <div class="stat-number" id="total-responses">0</div>
                 <div class="stat-label">Total Participants</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number" id="avg-confidence" style="font-size: 1.5em;">0 / 0</div>
-                <div class="stat-label">Avg Confidence (Image / Prompt)</div>
+                <div class="stat-number" id="avg-confidence" style="font-size: 1.5em;">-</div>
+                <div class="stat-label">Avg Confidence</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number" id="avg-time" style="font-size: 1.5em;">-</div>
                 <div class="stat-label">Avg Time per Pair (seconds)</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-number" id="method-prefs-image" style="font-size: 14px; line-height: 1.4;">Loading...</div>
-                <div class="stat-label">Method Preferences (Image Quality)</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number" id="method-prefs-prompt" style="font-size: 14px; line-height: 1.4;">Loading...</div>
-                <div class="stat-label">Method Preferences (Prompt Adherence)</div>
-            </div>
         </div>
+
+        <div id="method-pref-cards"></div>
 
         <button class="btn btn-primary export-btn" onclick="exportCSV()">Export to CSV</button>
 
         <button class="btn btn-primary" onclick="location.href='/admin/logout'" style="margin-bottom: 10px;">Logout</button>
 
         <div style="margin-bottom: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px; border: 2px solid #e74c3c;">
-            <h3 style="margin-top: 0; color: #e74c3c;">⚠️ Delete User Data</h3>
+            <h3 style="margin-top: 0; color: #e74c3c;">Delete User Data</h3>
             <p style="margin-bottom: 15px; color: #333;">Permanently delete all records associated with an email address. This action cannot be undone.</p>
             <div style="display: flex; gap: 10px; align-items: center;">
-                <input 
-                    type="email" 
-                    id="delete-email" 
-                    placeholder="user@example.com" 
+                <input
+                    type="email"
+                    id="delete-email"
+                    placeholder="user@example.com"
                     style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
                 />
                 <button class="btn btn-primary" onclick="deleteByEmail()" style="background: #e74c3c; white-space: nowrap;">Delete Records</button>
@@ -59,9 +53,7 @@
         </div>
 
         <table id="results-table">
-            <thead id="table-header">
-                <!-- Will be populated by JavaScript -->
-            </thead>
+            <thead id="table-header"></thead>
             <tbody id="results-body">
                 <tr><td colspan="15">Loading...</td></tr>
             </tbody>
@@ -69,187 +61,158 @@
     </div>
 
     <script>
-        let currentView = 'demographics'; // 'demographics' or 'responses'
+        let currentView = 'demographics';
         let cachedData = [];
+        let adminConfig = null;
+
+        async function init() {
+            const cfgRes = await fetch('/api/config');
+            adminConfig = await cfgRes.json();
+            await loadResults();
+            setInterval(loadResults, 30000);
+        }
 
         async function loadResults() {
             try {
                 const response = await fetch('/api/admin/results');
                 const data = await response.json();
                 cachedData = data;
-                
-                // Update stats
-                const uniqueParticipants = new Set(data.map(r => r.email)).size;
-                document.getElementById('total-responses').textContent = uniqueParticipants;
-                
-                // Count preferences by actual method, not just A/B position
-                const methodImagePrefs = {};
-                const methodPromptPrefs = {};
-                data.forEach(r => {
-                    if (r.preferred_method_image) {
-                        methodImagePrefs[r.preferred_method_image] = (methodImagePrefs[r.preferred_method_image] || 0) + 1;
+
+                // Total unique participants
+                const emails = new Set(data.map(r => r.email).filter(Boolean));
+                document.getElementById('total-responses').textContent = emails.size || new Set(data.map(r => r.session_id)).size;
+
+                // Build method preference stats per ab_preference question
+                const prefCards = document.getElementById('method-pref-cards');
+                prefCards.innerHTML = '';
+
+                if (adminConfig && adminConfig.questions) {
+                    const confValues = [];
+
+                    for (const q of adminConfig.questions) {
+                        if (q.type !== 'ab_preference') continue;
+
+                        const prefs = {};
+                        data.forEach(r => {
+                            const pm = r[`${q.name}_preferred_method`];
+                            if (pm) prefs[pm] = (prefs[pm] || 0) + 1;
+                            const c = r[`${q.name}_confidence`];
+                            if (c) confValues.push(c);
+                        });
+
+                        const summary = Object.keys(prefs).map(m => `${m}: ${prefs[m]}`).join(', ') || 'No data';
+                        const card = document.createElement('div');
+                        card.className = 'stat-card';
+                        card.style.cssText = 'margin-bottom: 10px;';
+                        card.innerHTML = `<div class="stat-number" style="font-size:14px;line-height:1.4;">${summary}</div><div class="stat-label">Preferences: ${q.section_label || q.name}</div>`;
+                        prefCards.appendChild(card);
                     }
-                    if (r.preferred_method_prompt) {
-                        methodPromptPrefs[r.preferred_method_prompt] = (methodPromptPrefs[r.preferred_method_prompt] || 0) + 1;
-                    }
-                });
-                
-                const avgImageConf = data.length > 0 
-                    ? (data.reduce((sum, r) => sum + (r.image_confidence || 0), 0) / data.length).toFixed(1)
-                    : 0;
-                const avgPromptConf = data.length > 0 
-                    ? (data.reduce((sum, r) => sum + (r.prompt_confidence || 0), 0) / data.length).toFixed(1)
-                    : 0;
-                
-                // Calculate average time spent (only for responses with time data)
+
+                    const avgConf = confValues.length > 0
+                        ? (confValues.reduce((a, b) => a + b, 0) / confValues.length).toFixed(1)
+                        : '-';
+                    document.getElementById('avg-confidence').textContent = avgConf;
+                }
+
+                // Average time
                 const responsesWithTime = data.filter(r => r.time_spent != null);
                 const avgTime = responsesWithTime.length > 0
                     ? (responsesWithTime.reduce((sum, r) => sum + r.time_spent, 0) / responsesWithTime.length).toFixed(1)
                     : '-';
-                
-                // Display method preferences for image quality
-                const imageSummary = Object.keys(methodImagePrefs).map(method => 
-                    `${method}: ${methodImagePrefs[method]}`
-                ).join(', ') || 'No data yet';
-                
-                // Display method preferences for prompt adherence
-                const promptSummary = Object.keys(methodPromptPrefs).map(method => 
-                    `${method}: ${methodPromptPrefs[method]}`
-                ).join(', ') || 'No data yet';
-                
-                document.getElementById('method-prefs-image').textContent = imageSummary;
-                document.getElementById('method-prefs-prompt').textContent = promptSummary;
-                document.getElementById('avg-confidence').textContent = avgImageConf + ' / ' + avgPromptConf;
                 document.getElementById('avg-time').textContent = avgTime;
-                
-                // Render current view
+
                 renderTable();
             } catch (error) {
                 console.error('Error loading results:', error);
-                document.getElementById('results-body').innerHTML = 
-                    '<tr><td colspan="15">Error loading results</td></tr>';
+                document.getElementById('results-body').innerHTML = '<tr><td colspan="15">Error loading results</td></tr>';
             }
         }
 
         function toggleView() {
             currentView = currentView === 'demographics' ? 'responses' : 'demographics';
-            document.getElementById('view-mode').textContent = 
-                currentView === 'demographics' ? 'Demographics View' : 'Responses View';
+            document.getElementById('view-mode').textContent = currentView === 'demographics' ? 'Demographics View' : 'Responses View';
             renderTable();
         }
 
         function renderTable() {
             const thead = document.getElementById('table-header');
             const tbody = document.getElementById('results-body');
-            
+
             if (cachedData.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="15">No responses yet</td></tr>';
                 return;
             }
 
             if (currentView === 'demographics') {
-                // Demographics view - one row per participant
-                thead.innerHTML = `
-                    <tr>
-                        <th>Email</th>
-                        <th>Referral Code</th>
-                        <th>Browser</th>
-                        <th>OS</th>
-                        <th>Screen</th>
-                        <th>DPR</th>
-                        <th>Occupation</th>
-                        <th>Tech Level</th>
-                        <th>Used Image Gen</th>
-                        <th>AI Familiarity</th>
-                        <th>Responses</th>
-                    </tr>
-                `;
-                
+                // Build header from config demographics fields
+                const demoFields = (adminConfig && adminConfig.demographics) || [];
+                let headerHtml = '<tr><th>Email</th><th>Referral</th><th>Browser</th><th>OS</th><th>Screen</th>';
+                for (const f of demoFields) {
+                    if (f.type === 'email') continue;
+                    headerHtml += `<th>${f.label}</th>`;
+                }
+                headerHtml += '<th>Responses</th></tr>';
+                thead.innerHTML = headerHtml;
+
                 // Group by email
                 const participantMap = {};
                 cachedData.forEach(row => {
-                    if (!participantMap[row.email]) {
-                        participantMap[row.email] = {
-                            email: row.email,
-                            referral_code: row.referral_code,
-                            browser: row.browser,
-                            browser_version: row.browser_version,
-                            os: row.os,
-                            screen_width: row.screen_width,
-                            screen_height: row.screen_height,
-                            pixel_ratio: row.pixel_ratio,
-                            occupation: row.occupation,
-                            technical_background: row.technical_background,
-                            has_used_image_gen: row.has_used_image_gen,
-                            ai_familiarity: row.ai_familiarity,
-                            responseCount: 0
-                        };
+                    const key = row.email || row.session_id;
+                    if (!participantMap[key]) {
+                        participantMap[key] = { ...row, responseCount: 0 };
                     }
-                    participantMap[row.email].responseCount++;
+                    participantMap[key].responseCount++;
                 });
-                
-                tbody.innerHTML = Object.values(participantMap).map(p => `
-                    <tr>
-                        <td>${p.email || '-'}</td>
-                        <td>${p.referral_code || '-'}</td>
-                        <td style="font-size: 11px;">${p.browser || '-'} ${p.browser_version || ''}</td>
-                        <td>${p.os || '-'}</td>
-                        <td style="font-size: 11px;">${p.screen_width}×${p.screen_height}</td>
-                        <td>${p.pixel_ratio ? p.pixel_ratio + 'x' : '-'}</td>
-                        <td>${p.occupation || '-'}</td>
-                        <td>${p.technical_background || '-'}</td>
-                        <td>${p.has_used_image_gen || '-'}</td>
-                        <td>${p.ai_familiarity || '-'}</td>
-                        <td><strong>${p.responseCount}/30</strong></td>
-                    </tr>
-                `).join('');
+
+                const pairsPerUser = (adminConfig && adminConfig.survey && adminConfig.survey.pairs_per_user) || 30;
+
+                tbody.innerHTML = Object.values(participantMap).map(p => {
+                    let cells = `<td>${p.email || '-'}</td>`;
+                    cells += `<td>${p.referral_code || '-'}</td>`;
+                    cells += `<td style="font-size:11px;">${p.browser || '-'} ${p.browser_version || ''}</td>`;
+                    cells += `<td>${p.os || '-'}</td>`;
+                    cells += `<td style="font-size:11px;">${p.screen_width || '?'}×${p.screen_height || '?'}</td>`;
+                    for (const f of demoFields) {
+                        if (f.type === 'email') continue;
+                        cells += `<td>${p[f.name] || '-'}</td>`;
+                    }
+                    cells += `<td><strong>${p.responseCount}/${pairsPerUser}</strong></td>`;
+                    return `<tr>${cells}</tr>`;
+                }).join('');
             } else {
-                // Responses view - one row per response
-                thead.innerHTML = `
-                    <tr>
-                        <th>Date</th>
-                        <th>Email</th>
-                        <th>Pair#</th>
-                        <th>Method A</th>
-                        <th>Method B</th>
-                        <th>UI Choice (Img)</th>
-                        <th>Preferred Method (Img)</th>
-                        <th>Img Conf</th>
-                        <th>UI Choice (Prompt)</th>
-                        <th>Preferred Method (Prompt)</th>
-                        <th>Prompt Conf</th>
-                        <th>UI Choice (Mask)</th>
-                        <th>Preferred Method (Mask)</th>
-                        <th>Mask Conf</th>
-                        <th>UI Choice (Identity)</th>
-                        <th>Preferred Method (Identity)</th>
-                        <th>Identity Conf</th>
-                        <th>Time (s)</th>
-                    </tr>
-                `;
-                
-                tbody.innerHTML = cachedData.map(row => `
-                    <tr>
-                        <td style="font-size: 11px;">${new Date(row.response_created).toLocaleDateString()}</td>
-                        <td>${row.email || '-'}</td>
-                        <td>${row.image_pair_id || '-'}</td>
-                        <td style="font-size: 11px;">${row.method_a || 'N/A'}</td>
-                        <td style="font-size: 11px;">${row.method_b || 'N/A'}</td>
-                        <td>${row.better_image || '-'}</td>
-                        <td><strong>${row.preferred_method_image || 'N/A'}</strong></td>
-                        <td>${row.image_confidence || '-'}</td>
-                        <td>${row.better_prompt_match || '-'}</td>
-                        <td><strong>${row.preferred_method_prompt || 'N/A'}</strong></td>
-                        <td>${row.prompt_confidence || '-'}</td>
-                        <td>${row.better_mask_match || '-'}</td>
-                        <td><strong>${row.preferred_method_mask || '-'}</strong></td>
-                        <td>${row.mask_confidence || '-'}</td>
-                        <td>${row.better_identity_match || '-'}</td>
-                        <td><strong>${row.preferred_method_identity || '-'}</strong></td>
-                        <td>${row.identity_confidence || '-'}</td>
-                        <td>${row.time_spent != null ? row.time_spent.toFixed(1) : '-'}</td>
-                    </tr>
-                `).join('');
+                // Responses view - build from config questions
+                const questions = (adminConfig && adminConfig.questions) || [];
+                let headerHtml = '<tr><th>Date</th><th>Email</th><th>Pair#</th><th>Method A</th><th>Method B</th>';
+                for (const q of questions) {
+                    if (q.type === 'ab_preference') {
+                        const label = q.section_label || q.name;
+                        headerHtml += `<th>Choice (${label})</th><th>Preferred (${label})</th>`;
+                        if (q.confidence) headerHtml += `<th>Conf (${label})</th>`;
+                    }
+                }
+                headerHtml += '<th>Time (s)</th></tr>';
+                thead.innerHTML = headerHtml;
+
+                tbody.innerHTML = cachedData.map(row => {
+                    let cells = `<td style="font-size:11px;">${row.response_created ? new Date(row.response_created).toLocaleDateString() : '-'}</td>`;
+                    cells += `<td>${row.email || '-'}</td>`;
+                    cells += `<td>${row.image_pair_id || '-'}</td>`;
+                    cells += `<td style="font-size:11px;">${row.method_a || 'N/A'}</td>`;
+                    cells += `<td style="font-size:11px;">${row.method_b || 'N/A'}</td>`;
+                    for (const q of questions) {
+                        if (q.type === 'ab_preference') {
+                            const choice = row[`${q.name}_choice`] || '-';
+                            const pref = row[`${q.name}_preferred_method`] || '-';
+                            cells += `<td>${choice}</td><td><strong>${pref}</strong></td>`;
+                            if (q.confidence) {
+                                const conf = row[`${q.name}_confidence`];
+                                cells += `<td>${conf != null ? conf : '-'}</td>`;
+                            }
+                        }
+                    }
+                    cells += `<td>${row.time_spent != null ? row.time_spent.toFixed(1) : '-'}</td>`;
+                    return `<tr>${cells}</tr>`;
+                }).join('');
             }
         }
 
@@ -261,26 +224,25 @@
             const emailInput = document.getElementById('delete-email');
             const messageDiv = document.getElementById('delete-message');
             const email = emailInput.value.trim();
-            
+
             if (!email) {
                 messageDiv.style.display = 'block';
                 messageDiv.style.color = '#e74c3c';
                 messageDiv.textContent = 'Please enter an email address.';
                 return;
             }
-            
+
             if (!confirm(`Are you sure you want to permanently delete ALL records associated with "${email}"?\n\nThis will delete:\n- Participant information\n- Demographics data\n- All survey responses\n\nThis action CANNOT be undone!`)) {
                 return;
             }
-            
+
             try {
                 messageDiv.style.display = 'block';
                 messageDiv.style.color = '#666';
                 messageDiv.textContent = 'Deleting...';
-                
-                // Get CSRF token from meta tag
+
                 const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-                
+
                 const response = await fetch('/api/admin/delete_by_email', {
                     method: 'POST',
                     headers: {
@@ -289,17 +251,14 @@
                     },
                     body: JSON.stringify({ email })
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (response.ok) {
                     messageDiv.style.color = '#52c41a';
-                    messageDiv.textContent = `✓ Successfully deleted ${result.participants_deleted} participant(s), ${result.demographics_deleted} demographics record(s), and ${result.responses_deleted} survey response(s) for "${result.email}".`;
+                    messageDiv.textContent = `Successfully deleted ${result.participants_deleted} participant(s), ${result.demographics_deleted} demographics record(s), and ${result.responses_deleted} survey response(s) for "${result.email}".`;
                     emailInput.value = '';
-                    
-                    // Reload the results table
                     await loadResults();
-                    renderTable();
                 } else {
                     messageDiv.style.color = '#e74c3c';
                     messageDiv.textContent = `Error: ${result.error}`;
@@ -310,16 +269,14 @@
             }
         }
 
-        // Load results on page load
-        loadResults();
-        
-        // Refresh every 30 seconds
-        setInterval(loadResults, 30000);
+        // Initialize
+        init();
     </script>
-    
+
     <footer class="survey-footer">
-        <p>Survey administration | Issues? <a href="mailto:survey-x7qp@adobe.com">survey-x7qp@adobe.com</a></p>
+        {% if config.survey.contact_email %}
+        <p>Survey administration | Issues? <a href="mailto:{{ config.survey.contact_email }}">{{ config.survey.contact_email }}</a></p>
+        {% endif %}
     </footer>
 </body>
 </html>
-

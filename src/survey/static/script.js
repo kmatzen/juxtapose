@@ -17,6 +17,7 @@ const CONFIG = {
 };
 
 // State management
+let surveyConfig = null;   // Full config from /api/config
 let demographicsData = null;
 let currentImageIndex = 0;
 let currentImageData = null;
@@ -72,9 +73,9 @@ window.addEventListener('resize', () => {
 async function checkDevMode() {
     try {
         const response = await fetch('/api/config');
-        const config = await response.json();
-        devMode = config.dev_mode;
-        
+        surveyConfig = await response.json();
+        devMode = surveyConfig.dev_mode;
+
         if (devMode) {
             console.log('🔧 DEV MODE ENABLED - Forms will be auto-filled');
             // Add a visible indicator
@@ -236,24 +237,39 @@ function setupImageLightbox() {
 }
 
 function fillDemographicsForm() {
-    // Auto-fill demographics form with test data
-    document.getElementById('email').value = 'test@example.com';
-    document.getElementById('occupation').value = 'software-engineer';
-    document.getElementById('technical-background').value = 'advanced';
-    document.getElementById('has-used-image-gen').value = 'extensively';
-    
-    // Check some checkboxes (they don't have IDs, so use attribute selector)
-    const checkboxValues = ['dalle', 'midjourney', 'stable-diffusion'];
-    checkboxValues.forEach(value => {
-        const checkbox = document.querySelector(`input[name="image_gen_tools[]"][value="${value}"]`);
-        if (checkbox) checkbox.checked = true;
-    });
-    
-    document.getElementById('works-on-ai').value = 'yes-industry';
-    document.getElementById('ai-usage').value = 'often';
-    document.getElementById('works-with-graphics').value = 'professional';
-    document.getElementById('ai-familiarity').value = 'advanced';
-    
+    // Auto-fill demographics form from config
+    if (!surveyConfig || !surveyConfig.demographics) return;
+
+    for (const field of surveyConfig.demographics) {
+        const el = document.getElementById(field.name);
+        if (!el) continue;
+
+        if (field.type === 'email') {
+            el.value = 'test@example.com';
+        } else if (field.type === 'text' || field.type === 'textarea') {
+            el.value = 'test';
+        } else if (field.type === 'number') {
+            el.value = '0';
+        } else if (field.type === 'select') {
+            if (field.options && field.options.length) {
+                el.value = field.options[0].value;
+            }
+        } else if (field.type === 'radio') {
+            if (field.options && field.options.length) {
+                const r = document.querySelector(`input[name="${field.name}"][value="${field.options[0].value}"]`);
+                if (r) r.checked = true;
+            }
+        } else if (field.type === 'checkbox') {
+            if (field.options && field.options.length) {
+                // Check up to first 3 checkboxes
+                field.options.slice(0, 3).forEach(opt => {
+                    const c = document.querySelector(`input[name="${field.name}[]"][value="${opt.value}"]`);
+                    if (c) c.checked = true;
+                });
+            }
+        }
+    }
+
     debugLog('✅ Demographics form auto-filled');
 }
 
@@ -323,11 +339,16 @@ async function handleDemographicsSubmit(event) {
         }
     }
     
-    // Convert checkbox arrays to comma-separated strings
-    if (Array.isArray(demographicsData.image_gen_tools)) {
-        demographicsData.image_gen_tools = demographicsData.image_gen_tools.join(', ');
-    } else if (!demographicsData.image_gen_tools) {
-        demographicsData.image_gen_tools = 'none';
+    // Convert checkbox arrays to comma-separated strings (config-driven)
+    const checkboxFields = (surveyConfig ? surveyConfig.demographics : [])
+        .filter(f => f.type === 'checkbox')
+        .map(f => f.name);
+    for (const fieldName of checkboxFields) {
+        if (Array.isArray(demographicsData[fieldName])) {
+            demographicsData[fieldName] = demographicsData[fieldName].join(', ');
+        } else if (!demographicsData[fieldName]) {
+            demographicsData[fieldName] = 'none';
+        }
     }
     
     // Add device info to submission
