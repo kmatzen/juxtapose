@@ -159,6 +159,18 @@
                 </div>
                 {% endfor %}
 
+                {% if config.survey.consent_text %}
+                <div class="form-group" style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e0e0e0;">
+                    {% if config.survey.privacy_policy_url %}
+                    <p style="margin-bottom: 10px; font-size: 14px;">Please review our <a href="{{ config.survey.privacy_policy_url }}" target="_blank" rel="noopener">privacy policy</a> before continuing.</p>
+                    {% endif %}
+                    <label class="checkbox-label" style="font-weight: normal;">
+                        <input type="checkbox" name="consent" value="yes" required>
+                        {{ config.survey.consent_text }}
+                    </label>
+                </div>
+                {% endif %}
+
                 <button type="submit" class="btn btn-primary">Continue to Survey</button>
             </form>
         </section>
