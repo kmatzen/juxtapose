@@ -155,7 +155,7 @@
 <body>
     <div class="reset-container">
         <div class="reset-box">
-            <div class="reset-icon">🔄</div>
+            <div class="reset-icon"></div>
             <h1>Reset Survey Session</h1>
             <p>This will clear your current session and allow you to take the survey again from the beginning.</p>
             
@@ -165,6 +165,7 @@
                     This feature is for shared computers. Your previous responses will remain in our database and will be included in the study results.
                 </p>
                 
+                {% if config.survey.contact_email %}
                 <div class="contact-section">
                     <strong>Need complete data removal?</strong>
                     <p style="margin-top: 8px;">
@@ -173,6 +174,7 @@
                         </a>
                     </p>
                 </div>
+                {% endif %}
             </div>
             
             <form method="POST" action="/reset_session_confirm">
@@ -182,9 +184,11 @@
                 </div>
             </form>
             
+            {% if config.survey.contact_email %}
             <div class="info-text">
                 Questions? Contact <a href="mailto:{{ config.survey.contact_email }}" style="color: #4A90E2;">{{ config.survey.contact_email }}</a>
             </div>
+            {% endif %}
         </div>
     </div>
 </body>

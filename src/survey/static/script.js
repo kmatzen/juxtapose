@@ -1437,7 +1437,7 @@ function setupSubmitValidation() {
         const allAnswered = Object.values(radioGroups).length > 0 && 
                            Object.values(radioGroups).every(answered => answered);
         
-        debugLog('📋 validateForm called:', {
+        debugLog('validateForm called:', {
             tutorialMode: window.TUTORIAL_MODE,
             tutorialCompleted: window.tutorialCompleted,
             totalGroups: Object.keys(radioGroups).length,
@@ -1449,10 +1449,10 @@ function setupSubmitValidation() {
         // In tutorial mode, keep disabled until tutorial is complete
         if (window.TUTORIAL_MODE && !window.tutorialCompleted) {
             submitBtn.disabled = true;
-            debugLog('  → Keeping disabled (tutorial not complete)');
+            debugLog('Keeping disabled (tutorial not complete)');
         } else {
             submitBtn.disabled = !allAnswered;
-            debugLog('  → Setting disabled =', !allAnswered);
+            debugLog('Setting disabled =', !allAnswered);
         }
         
         return allAnswered;

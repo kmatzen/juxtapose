@@ -124,9 +124,11 @@
                 <button type="submit" class="referral-button">Continue to Survey</button>
             </form>
             
+            {% if config.survey.contact_email %}
             <p style="margin-top: 30px; font-size: 14px; color: #999;">
                 Questions? Contact <a href="mailto:{{ config.survey.contact_email }}" style="color: #4A90E2;">{{ config.survey.contact_email }}</a>
             </p>
+            {% endif %}
         </div>
     </div>
 </body>

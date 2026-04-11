@@ -20,9 +20,11 @@
             </div>
             <button type="submit" class="btn btn-primary" style="width: 100%;">Login</button>
         </form>
+        {% if config.survey.contact_email %}
         <p class="footer-note">
             Survey issues? Email <a href="mailto:{{ config.survey.contact_email }}">{{ config.survey.contact_email }}</a>
         </p>
+        {% endif %}
     </div>
 </body>
 </html>
