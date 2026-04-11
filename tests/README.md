@@ -14,13 +14,13 @@ This directory contains automated tests for the survey application, covering bot
 Install Python test dependencies:
 
 ```bash
-uv pip install -r requirements.txt
+uv pip install .[dev]
 ```
 
 or
 
 ```bash
-pip install -r requirements.txt
+pip install ".[dev]"
 ```
 
 ### Frontend Tests
@@ -260,7 +260,7 @@ describe('My Feature', () => {
 These tests can be run automatically on:
 - Git pre-commit hooks
 - GitHub Actions workflows
-- Before deployment to Fly.io
+- Before deployment
 - Pull request validation
 
 Example GitHub Actions:

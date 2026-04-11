@@ -19,11 +19,13 @@ Built for research teams who need to collect human judgments on generated conten
 ## Quick Start
 
 ```bash
-pip install -r requirements.txt
+pip install .
 DEV_MODE=true python -m src.survey.app
 ```
 
 Open http://localhost:5000. Dev mode auto-fills forms, limits to 3 trials, and bypasses referral codes.
+
+Example survey data is in the [`examples/`](examples/) directory.
 
 ## How It Works
 
@@ -187,7 +189,7 @@ SQLite with JSON columns for demographics and responses. Migration from older sc
 ## Testing
 
 ```bash
-pip install -r requirements.txt
+pip install ".[dev]"
 python -m pytest tests/ -q
 ```
 

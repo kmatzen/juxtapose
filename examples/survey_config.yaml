@@ -1,0 +1,352 @@
+# =============================================================================
+# Survey Configuration
+# =============================================================================
+# This file defines the complete structure of your survey: what participants
+# see, what data you collect, and how the interface is laid out.
+#
+# Key concepts:
+#   - inputs:  Stimuli shared between methods (prompts, references, masks)
+#   - outputs: Results from each method, shown as A/B and randomized
+#   - questions: What you ask participants about the outputs
+#   - layout: How inputs, outputs, and questions are arranged on screen
+
+survey:
+  title: "Welcome to Our GenAI Image Evaluation Study"
+  description: "Thank you for participating! Please provide some information about your background and experience with AI systems."
+  contact_email: ""  # shown in footer and contact links; leave empty to hide
+  pairs_per_user: 30
+  dev_pairs: 3
+  # Text shown in the survey (evaluation) section
+  survey_heading: "Image Comparison"
+  survey_instruction: "Please evaluate the following two images based on the given prompt."
+  next_button_text: "Next Image Pair"
+  submit_button_text: "Submit Survey"
+  # Consent / privacy (leave empty to skip consent checkbox)
+  privacy_policy_url: ""
+  consent_text: "I consent to the collection and use of my responses for research purposes as described above."
+
+# =============================================================================
+# Demographics
+# =============================================================================
+# Fields shown before the main survey. Supported types:
+#   email, text, number, select, checkbox, radio, textarea
+#
+# The first field with type "email" is used for retake detection.
+
+demographics:
+  - name: email
+    type: email
+    label: "Email Address"
+    placeholder: "your@email.com"
+    required: true
+
+  - name: occupation
+    type: select
+    label: "Occupation/Role"
+    required: true
+    options:
+      - { value: "researcher", label: "Researcher" }
+      - { value: "software-engineer", label: "Software Engineer" }
+      - { value: "student", label: "Student" }
+      - { value: "designer", label: "Designer/Artist" }
+      - { value: "product-manager", label: "Product Manager" }
+      - { value: "data-scientist", label: "Data Scientist/ML Engineer" }
+      - { value: "other-tech", label: "Other (Technical)" }
+      - { value: "other-non-tech", label: "Other (Non-Technical)" }
+
+  - name: technical_background
+    type: select
+    label: "Technical Background Level"
+    required: true
+    options:
+      - { value: "none", label: "No technical background" }
+      - { value: "basic", label: "Basic (some programming/tech exposure)" }
+      - { value: "intermediate", label: "Intermediate (regular programming/tech work)" }
+      - { value: "advanced", label: "Advanced (expert in technical field)" }
+
+  - name: has_used_image_gen
+    type: select
+    label: "Have you used AI image generation systems?"
+    required: true
+    options:
+      - { value: "never", label: "Never" }
+      - { value: "once-or-twice", label: "Once or twice" }
+      - { value: "occasionally", label: "Occasionally (a few times)" }
+      - { value: "regularly", label: "Regularly (weekly or more)" }
+      - { value: "extensively", label: "Extensively (daily/professional use)" }
+
+  - name: image_gen_tools
+    type: checkbox
+    label: "Which AI image generation tools have you used? (Select all that apply or leave blank)"
+    options:
+      - { value: "dalle", label: "DALL-E" }
+      - { value: "midjourney", label: "Midjourney" }
+      - { value: "stable-diffusion", label: "Stable Diffusion" }
+      - { value: "firefly", label: "Adobe Firefly" }
+      - { value: "other", label: "Other" }
+
+  - name: works_on_ai_development
+    type: select
+    label: "Do you work on the development of AI systems?"
+    required: true
+    options:
+      - { value: "no", label: "No" }
+      - { value: "tangentially", label: "Tangentially (use AI tools in work)" }
+      - { value: "yes-research", label: "Yes (research/academic)" }
+      - { value: "yes-industry", label: "Yes (industry/production)" }
+
+  - name: ai_usage_frequency
+    type: select
+    label: "How often do you use AI tools (ChatGPT, etc.)?"
+    required: true
+    options:
+      - { value: "never", label: "Never" }
+      - { value: "rarely", label: "Rarely (once a month or less)" }
+      - { value: "sometimes", label: "Sometimes (weekly)" }
+      - { value: "often", label: "Often (daily)" }
+      - { value: "very-often", label: "Very often (multiple times per day)" }
+
+  - name: works_with_graphics
+    type: select
+    label: "Do you work regularly with computer graphics?"
+    required: true
+    options:
+      - { value: "no", label: "No" }
+      - { value: "hobbyist", label: "Yes (hobbyist/personal projects)" }
+      - { value: "professional", label: "Yes (professional/work)" }
+      - { value: "researcher", label: "Yes (research/academic)" }
+
+  - name: ai_familiarity
+    type: select
+    label: "How would you rate your familiarity with AI/ML concepts?"
+    required: true
+    options:
+      - { value: "none", label: "No familiarity" }
+      - { value: "basic", label: "Basic (know what AI is)" }
+      - { value: "intermediate", label: "Intermediate (understand how AI works)" }
+      - { value: "advanced", label: "Advanced (can explain ML algorithms)" }
+      - { value: "expert", label: "Expert (work with/develop AI systems)" }
+
+# =============================================================================
+# Data File
+# =============================================================================
+# Tab-separated file with one row per trial. Columns listed here define the
+# expected order. Column names are referenced by inputs, outputs, and methods.
+
+data:
+  file: "image_pairs.txt"
+  columns:
+    - prompt
+    - method_a
+    - method_b
+    - image_a_url
+    - image_b_url
+    - mask_url
+    - identity_urls
+
+# Which columns hold the method names for A and B
+methods:
+  a: method_a
+  b: method_b
+
+# =============================================================================
+# Inputs (shared context shown for each trial)
+# =============================================================================
+# Each input maps a data column to a visual widget. Optional inputs are
+# hidden automatically when the column value is empty for a given trial.
+#
+# Fields:
+#   name          Unique identifier (referenced by depends_on in questions)
+#   type          Widget type (see below)
+#   label         Heading shown above the widget
+#   column        Column name from data.columns
+#   description   (optional) Help text shown below the label
+#   optional      (optional, default false) Hide when column value is empty
+#   interactions  (optional) List: lightbox, loop, controls
+#
+# Input types:
+#   text          Plain text displayed in a prompt box
+#   image         Single image (click to enlarge if lightbox enabled)
+#   image_gallery Comma-separated URLs or a single stacked image, displayed
+#                 as a horizontal row of images
+#   video         HTML5 video player; supports loop and controls interactions
+#   audio         HTML5 audio player; supports loop interaction
+
+inputs:
+  - name: prompt
+    type: text
+    label: "Text Prompt"
+    column: prompt
+
+  - name: identity
+    type: image_gallery
+    label: "Identity Reference Images"
+    description: "The generated images should preserve the identity features from these reference images."
+    column: identity_urls
+    optional: true
+    interactions: [lightbox]
+
+  - name: mask
+    type: image
+    label: "Spatial Mask"
+    description: "The generated images should follow the spatial layout indicated by this mask (different colors represent different regions)."
+    column: mask_url
+    optional: true
+    interactions: [lightbox]
+
+# =============================================================================
+# Outputs (per-method results, A/B randomized)
+# =============================================================================
+# Each output maps two data columns (one per method) to an A/B comparison.
+# The A/B position is randomized per trial to prevent position bias.
+#
+# Fields:
+#   name          Unique identifier
+#   type          Widget type (see below)
+#   label         Heading prefix (shown as "Label A" / "Label B")
+#   column_a      Column name for method A's result
+#   column_b      Column name for method B's result
+#   interactions  (optional) List: lightbox, loop, controls
+#
+# Output types:
+#   image         Side-by-side images (click to enlarge if lightbox enabled)
+#   video         Side-by-side video players
+#   audio         Side-by-side audio players
+#   text          Side-by-side text blocks
+
+outputs:
+  - name: image
+    type: image
+    label: "Image"
+    column_a: image_a_url
+    column_b: image_b_url
+    interactions: [lightbox]
+
+# =============================================================================
+# Questions (evaluation criteria per trial)
+# =============================================================================
+# Each question becomes an evaluation section in the survey UI. Questions
+# are shown in the order defined here.
+#
+# Fields:
+#   name          Unique identifier (used as form field prefix)
+#   type          Question type (see below)
+#   label         The question text shown to participants
+#   section_label (optional) Heading above the question
+#   required      (optional, default false) Must be answered to proceed
+#   depends_on    (optional) Name of an optional input; question is hidden
+#                 when that input has no data for the current trial
+#
+# Question types:
+#
+#   ab_preference   A/B/Equal radio choice
+#     confidence    (optional, default false) Show 1-5 confidence scale
+#                   Form fields: {name}_choice, {name}_confidence
+#
+#   likert          Numeric scale rating
+#     scale         (optional, default 5) Number of points
+#                   Form field: {name}_value
+#
+#   free_text       Open text response
+#                   Form field: {name}_text
+#
+#   multiple_choice Single selection from a list
+#     options       List of {value, label} pairs
+#                   Form field: {name}_value
+
+questions:
+  - name: image_quality
+    type: ab_preference
+    section_label: "Image Quality"
+    label: "Which image looks better overall (quality, aesthetics, coherence)?"
+    confidence: true
+    required: true
+
+  - name: prompt_adherence
+    type: ab_preference
+    section_label: "Prompt Adherence"
+    label: "Which image better matches the text prompt?"
+    confidence: true
+    required: true
+
+  - name: mask_adherence
+    type: ab_preference
+    section_label: "Mask Adherence"
+    label: "Which image better follows the spatial layout defined by the mask?"
+    confidence: true
+    depends_on: mask
+
+  - name: identity_preservation
+    type: ab_preference
+    section_label: "Identity Preservation"
+    label: "Which image better preserves the identity features from the reference images?"
+    confidence: true
+    depends_on: identity
+
+# =============================================================================
+# Tutorial
+# =============================================================================
+# Interactive walkthrough shown after demographics and before the real survey.
+# Set enabled: false to skip the tutorial entirely.
+#
+# Each step has:
+#   title         Banner heading
+#   text          Banner body (supports HTML)
+#   highlight     (optional) CSS selector to highlight
+#   scrollToWithin (optional) CSS selector to scroll to inside a container
+#   highlightParent (optional) If true, highlight the parent .tile-box
+#
+# Use the special value "auto_questions" as a step to auto-generate one step
+# per visible question from the questions config.
+
+tutorial:
+  enabled: true
+  steps:
+    - title: "Before You Begin"
+      text: "Let's walk through how this survey works. We'll show you each part of the interface using a real example. Click 'Next' to continue."
+    - title: "Identity Reference Images"
+      text: "These show the specific people or objects that should appear in the generated images. Notice the colored borders -- these match colored regions in the spatial mask."
+      highlight: "#identity-section"
+    - title: "Spatial Mask"
+      text: "This mask shows where each identity should be positioned. Each colored region corresponds to one identity image above (matched by border color)."
+      highlight: ".mask-tile"
+    - title: "Inspect Regions"
+      text: "Hover over or tap any identity image to see the corresponding region highlighted in Images A and B below. This helps you verify placement."
+      highlight: "#identity-images"
+    - title: "Generated Images"
+      text: "These are two AI-generated images created using different methods. Your task is to compare them based on the criteria below."
+      highlight: "#image-a, #image-b"
+      highlightParent: true
+    - title: "Your Evaluation"
+      text: "For each question, select which image is better (A, B, or Equal) and rate your confidence from 1 (least confident) to 5 (most confident)."
+      highlight: ".questions-container"
+    - title: "Navigating Questions"
+      text: "Use the arrows on the right to scroll through questions. As you complete each question, the page will automatically advance. Once all are answered, click the arrow at the bottom to continue to the next pair."
+      highlight: ".question-navigation"
+    - auto_questions
+    - title: "Ready to Begin"
+      text: "Complete all questions on this page for practice. Once finished, click the arrow button at the bottom to begin the actual survey."
+      highlight: "#submit-btn"
+
+# =============================================================================
+# Layout (reserved for future use)
+# =============================================================================
+# Describes the intended widget arrangement. Currently the survey template uses
+# a fixed three-tile grid (controlled by the TILE_LAYOUT env var). This section
+# is passed to the frontend config API but not yet used for rendering.
+
+layout:
+  columns:
+    - width: "55%"
+      sticky: true
+      sections:
+        - widgets: [prompt]
+        - widgets: [identity, mask]
+        - widgets: [outputs]
+          label: "Generated Images"
+    - width: "45%"
+      sections:
+        - widgets: [image_quality]
+        - widgets: [prompt_adherence]
+        - widgets: [mask_adherence]
+        - widgets: [identity_preservation]

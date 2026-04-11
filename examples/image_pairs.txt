@@ -1,0 +1,7 @@
+# Example trial data for Juxtapose
+# Tab-separated: prompt, method_a, method_b, image_a_url, image_b_url, mask_url, identity_urls
+# Replace these URLs with your own data.
+
+a mountain landscape at sunset	Method-A	Method-B	https://placehold.co/512x512/0066cc/white?text=A	https://placehold.co/512x512/cc6600/white?text=B	https://placehold.co/512x512/ffcc00/black?text=Mask	https://placehold.co/512x1024/888888/white?text=Identity
+a futuristic city with flying cars	Method-A	Method-B	https://placehold.co/512x512/0066cc/white?text=A	https://placehold.co/512x512/cc6600/white?text=B	https://placehold.co/512x512/ffcc00/black?text=Mask	https://placehold.co/512x1024/888888/white?text=Identity
+a cat sitting on a bookshelf	Method-A	Method-B	https://placehold.co/512x512/0066cc/white?text=A	https://placehold.co/512x512/cc6600/white?text=B	https://placehold.co/512x512/ffcc00/black?text=Mask	https://placehold.co/512x1024/888888/white?text=Identity
