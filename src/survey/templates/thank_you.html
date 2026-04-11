@@ -16,6 +16,7 @@
                 <p>Your responses have been recorded. We appreciate your time and contribution to our research.</p>
             {% endif %}
             
+            {% if config.survey.contact_email %}
             <div class="contact-box">
                 <h3>Need Help or Have Questions?</h3>
                 <p>If you need to:</p>
@@ -26,6 +27,7 @@
                 </ul>
                 <p><strong>Contact us at:</strong> <a href="mailto:{{ config.survey.contact_email }}">{{ config.survey.contact_email }}</a></p>
             </div>
+            {% endif %}
             
             <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border: 2px solid #4A90E2; border-radius: 8px; text-align: center;">
                 <h3 style="margin-top: 0; color: #333;">Want to Retake the Survey?</h3>
@@ -48,9 +50,11 @@
         </div>
     </div>
     
+    {% if config.survey.contact_email %}
     <footer class="survey-footer">
         <p>Contact: <a href="mailto:{{ config.survey.contact_email }}">{{ config.survey.contact_email }}</a></p>
     </footer>
+    {% endif %}
 </body>
 </html>
 
