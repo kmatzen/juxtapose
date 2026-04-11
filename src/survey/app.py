@@ -6,8 +6,6 @@ from datetime import datetime, timedelta
 import json
 import random
 from functools import wraps
-import hashlib
-import secrets
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect, generate_csrf
@@ -74,12 +72,6 @@ AUDIT_LOG_FILE = '/data/audit.log' if IS_PRODUCTION else 'audit.log'
 # If empty, no referral code is required
 REFERRAL_CODES_ENV = os.environ.get('REFERRAL_CODES', '')
 REFERRAL_CODES = set(code.strip() for code in REFERRAL_CODES_ENV.split(',') if code.strip()) if REFERRAL_CODES_ENV else set()
-
-# Or set them directly here:
-if not REFERRAL_CODES:
-    REFERRAL_CODES = {
-        'ADOBE2025',
-    }
 
 # In dev mode, bypass referral code requirement
 REQUIRE_REFERRAL = bool(REFERRAL_CODES) and not DEV_MODE
@@ -1350,4 +1342,4 @@ def delete_by_email():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=DEV_MODE)
