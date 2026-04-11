@@ -152,9 +152,25 @@ methods:
 # =============================================================================
 # Inputs (shared context shown for each trial)
 # =============================================================================
-# Supported types: text, image, image_gallery, video, audio
-# Optional inputs are hidden when the column value is empty for a trial.
-# Interactions: lightbox, loop, controls
+# Each input maps a data column to a visual widget. Optional inputs are
+# hidden automatically when the column value is empty for a given trial.
+#
+# Fields:
+#   name          Unique identifier (referenced by depends_on in questions)
+#   type          Widget type (see below)
+#   label         Heading shown above the widget
+#   column        Column name from data.columns
+#   description   (optional) Help text shown below the label
+#   optional      (optional, default false) Hide when column value is empty
+#   interactions  (optional) List: lightbox, loop, controls
+#
+# Input types:
+#   text          Plain text displayed in a prompt box
+#   image         Single image (click to enlarge if lightbox enabled)
+#   image_gallery Comma-separated URLs or a single stacked image, displayed
+#                 as a horizontal row of images
+#   video         HTML5 video player; supports loop and controls interactions
+#   audio         HTML5 audio player; supports loop interaction
 
 inputs:
   - name: prompt
@@ -181,8 +197,22 @@ inputs:
 # =============================================================================
 # Outputs (per-method results, A/B randomized)
 # =============================================================================
-# Each output has column_a and column_b mapping to the data file.
-# Supported types: image, video, audio, text
+# Each output maps two data columns (one per method) to an A/B comparison.
+# The A/B position is randomized per trial to prevent position bias.
+#
+# Fields:
+#   name          Unique identifier
+#   type          Widget type (see below)
+#   label         Heading prefix (shown as "Label A" / "Label B")
+#   column_a      Column name for method A's result
+#   column_b      Column name for method B's result
+#   interactions  (optional) List: lightbox, loop, controls
+#
+# Output types:
+#   image         Side-by-side images (click to enlarge if lightbox enabled)
+#   video         Side-by-side video players
+#   audio         Side-by-side audio players
+#   text          Side-by-side text blocks
 
 outputs:
   - name: image
@@ -195,14 +225,34 @@ outputs:
 # =============================================================================
 # Questions (evaluation criteria per trial)
 # =============================================================================
-# Supported types:
-#   ab_preference  - A/B/Equal choice with optional confidence (1-5)
-#   likert         - Scale rating (set 'scale' for range, default 5)
-#   free_text      - Open text response
-#   multiple_choice - Single selection from options
+# Each question becomes an evaluation section in the survey UI. Questions
+# are shown in the order defined here.
 #
-# depends_on: name of an optional input; question is hidden when that input
-#             has no data for the current trial.
+# Fields:
+#   name          Unique identifier (used as form field prefix)
+#   type          Question type (see below)
+#   label         The question text shown to participants
+#   section_label (optional) Heading above the question
+#   required      (optional, default false) Must be answered to proceed
+#   depends_on    (optional) Name of an optional input; question is hidden
+#                 when that input has no data for the current trial
+#
+# Question types:
+#
+#   ab_preference   A/B/Equal radio choice
+#     confidence    (optional, default false) Show 1-5 confidence scale
+#                   Form fields: {name}_choice, {name}_confidence
+#
+#   likert          Numeric scale rating
+#     scale         (optional, default 5) Number of points
+#                   Form field: {name}_value
+#
+#   free_text       Open text response
+#                   Form field: {name}_text
+#
+#   multiple_choice Single selection from a list
+#     options       List of {value, label} pairs
+#                   Form field: {name}_value
 
 questions:
   - name: image_quality

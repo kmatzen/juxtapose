@@ -70,35 +70,83 @@ a mountain landscape	Method-A	Method-B	https://...a.png	https://...b.png	https:/
 
 Lines starting with `#` are comments. A sample file is auto-created if missing.
 
-### Inputs, Outputs, Questions
+### Inputs
+
+Shared context shown for each trial. Each input maps a data column to a widget.
+
+| Type | Description |
+|------|-------------|
+| `text` | Plain text in a prompt box |
+| `image` | Single image (click to enlarge with `lightbox` interaction) |
+| `image_gallery` | Row of images from comma-separated URLs or stacked image |
+| `video` | HTML5 video player (supports `loop`, `controls` interactions) |
+| `audio` | HTML5 audio player (supports `loop` interaction) |
 
 ```yaml
-inputs:        # shared context shown for each trial
+inputs:
   - name: prompt
-    type: text           # text, image, image_gallery, video, audio
+    type: text
     label: "Text Prompt"
     column: prompt
   - name: mask
     type: image
+    label: "Spatial Mask"
     column: mask_url
-    optional: true       # hidden when column value is empty
+    optional: true          # hidden when column value is empty for this trial
+    interactions: [lightbox]
+```
 
-outputs:       # per-method results, A/B randomized
+### Outputs
+
+Per-method results shown as A/B comparison. Position is randomized per trial.
+
+| Type | Description |
+|------|-------------|
+| `image` | Side-by-side images |
+| `video` | Side-by-side video players |
+| `audio` | Side-by-side audio players |
+| `text` | Side-by-side text blocks |
+
+```yaml
+outputs:
   - name: image
-    type: image          # image, video, audio, text
+    type: image
+    label: "Image"
     column_a: image_a_url
     column_b: image_b_url
+    interactions: [lightbox]
+```
 
-questions:     # evaluation criteria per trial
+### Questions
+
+Evaluation criteria shown per trial. Rendered in order. Each question becomes a form section with progressive scroll navigation.
+
+| Type | Description | Form fields |
+|------|-------------|-------------|
+| `ab_preference` | A/B/Equal radio choice with optional 1-5 confidence scale | `{name}_choice`, `{name}_confidence` |
+| `likert` | Numeric scale (configurable via `scale`, default 5) | `{name}_value` |
+| `free_text` | Open text response | `{name}_text` |
+| `multiple_choice` | Single selection from `options` list | `{name}_value` |
+
+```yaml
+questions:
   - name: image_quality
-    type: ab_preference  # ab_preference, likert, free_text, multiple_choice
+    type: ab_preference
     label: "Which image looks better?"
-    confidence: true     # show 1-5 confidence scale
+    section_label: "Image Quality"   # heading above the question
+    confidence: true                 # show 1-5 confidence scale
     required: true
   - name: mask_adherence
     type: ab_preference
     label: "Which image follows the mask better?"
-    depends_on: mask     # hidden when mask input has no data
+    depends_on: mask                 # hidden when mask input has no data
+  - name: overall_rating
+    type: likert
+    label: "Rate the overall quality"
+    scale: 7                         # 1-7 scale
+  - name: comments
+    type: free_text
+    label: "Any additional comments?"
 ```
 
 ### Methods
