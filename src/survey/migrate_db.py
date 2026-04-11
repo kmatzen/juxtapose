@@ -59,7 +59,7 @@ def _migrate_demographics(conn, cursor):
         return
 
     if 'occupation' not in columns:
-        # Neither old nor new schema — skip
+        # Neither old nor new schema -- skip
         return
 
     logger.info("Migrating demographics to JSON schema...")
@@ -130,7 +130,7 @@ def _migrate_survey_responses(conn, cursor):
         return
 
     if 'better_image' not in columns:
-        # Neither old nor new schema — skip
+        # Neither old nor new schema -- skip
         return
 
     logger.info("Migrating survey_responses to JSON schema...")

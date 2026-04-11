@@ -1,6 +1,6 @@
 # Survey Web Application
 
-A config-driven Flask survey for A/B evaluation studies. Define your survey structure in `survey_config.yaml` — demographics, stimuli, questions, and layout — and the app handles the rest.
+A config-driven Flask survey for A/B evaluation studies. Define your survey structure in `survey_config.yaml` -- demographics, stimuli, questions, and layout -- and the app handles the rest.
 
 ## Quick Start
 

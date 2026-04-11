@@ -4,7 +4,7 @@ This directory contains automated tests for the survey application, covering bot
 
 ## Test Summary
 
-**Total: 45 tests passing ✅**
+**Total: 45 tests passing -**
 - Backend (Python): 11 tests
 - Frontend (JavaScript): 34 tests
 
@@ -120,37 +120,37 @@ tests/
 ## What's Tested
 
 ### Backend Routes (`test_routes.py`)
-- ✅ Index page loads correctly
-- ✅ API config endpoint returns data
-- ✅ Demographics submission validation
-- ✅ Session management and reset
-- ✅ Tutorial route access control
-- ✅ Admin authentication
+- - Index page loads correctly
+- - API config endpoint returns data
+- - Demographics submission validation
+- - Session management and reset
+- - Tutorial route access control
+- - Admin authentication
 
 ### Backend Data Logic (`test_data_logic.py`)
-- ✅ Completed pair detection (critical bug fix)
-- ✅ `ENABLE_PROMPT_QUESTION` flag handling
-- ✅ Multiple participants with same email
-- ✅ Empty result handling
+- - Completed pair detection (critical bug fix)
+- - `ENABLE_PROMPT_QUESTION` flag handling
+- - Multiple participants with same email
+- - Empty result handling
 
 ### Frontend Validation (`frontend/validation.test.js`)
-- ✅ Form validation logic
-- ✅ Submit button state management
-- ✅ Radio button interactions
-- ✅ Incomplete form detection
-- ✅ Demographics form validation
-- ✅ Email field validation
-- ✅ Configuration constants
-- ✅ Identity color array validation
+- - Form validation logic
+- - Submit button state management
+- - Radio button interactions
+- - Incomplete form detection
+- - Demographics form validation
+- - Email field validation
+- - Configuration constants
+- - Identity color array validation
 
 ### Frontend Tutorial (`frontend/tutorial.test.js`)
-- ✅ Tutorial state management
-- ✅ Tutorial banner UI rendering
-- ✅ Step navigation (next/previous)
-- ✅ Step counter functionality
-- ✅ Element highlighting
-- ✅ Tutorial completion flow
-- ✅ Submit button control during tutorial
+- - Tutorial state management
+- - Tutorial banner UI rendering
+- - Step navigation (next/previous)
+- - Step counter functionality
+- - Element highlighting
+- - Tutorial completion flow
+- - Submit button control during tutorial
 
 ## Key Test Cases
 
@@ -187,11 +187,11 @@ tests/
 Target: **80%+ coverage** for critical paths
 
 Current coverage:
-- ✅ Backend: ~47% (516 statements, 275 missing)
-- ✅ Frontend: Unit tests for validation and tutorial logic
-- ✅ Data retrieval functions
-- ✅ Session management
-- ✅ Route access control
+- - Backend: ~47% (516 statements, 275 missing)
+- - Frontend: Unit tests for validation and tutorial logic
+- - Data retrieval functions
+- - Session management
+- - Route access control
 
 ## Adding New Tests
 
