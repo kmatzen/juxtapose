@@ -1,4 +1,4 @@
-# Survey Tool
+# Juxtapose
 
 A config-driven web application for running A/B evaluation studies. Define your entire survey -- demographics, stimuli, evaluation questions, and tutorial -- in a single YAML file. No code changes needed.
 
