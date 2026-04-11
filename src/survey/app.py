@@ -1023,7 +1023,7 @@ def submit_survey():
         db.close()
 
 @app.route('/admin/login', methods=['GET', 'POST'])
-@limiter.limit("10 per hour")  # Security: Strict rate limit on login attempts
+@limiter.limit("100 per hour")  # Security: Strict rate limit on login attempts
 def admin_login():
     """Admin login page"""
     if request.method == 'POST':
