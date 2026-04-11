@@ -1,289 +1,123 @@
 # Survey Web Application
 
-A Flask-based survey application for collecting user evaluations of question pairs. Participants evaluate 30 question pairs, comparing which question is better and which adheres better to a given prompt.
+A config-driven Flask survey for A/B evaluation studies. Define your survey structure in `survey_config.yaml` — demographics, stimuli, questions, and layout — and the app handles the rest.
 
-## Features
-
-- **Referral Code Gating** 🔒: Optional access codes to control survey participation (see `REFERRAL_CODES.md`)
-- **User Tracking**: Email-based tracking to prevent duplicate submissions
-- **Demographics Collection**: Customizable demographics for image generation studies
-- **Image Comparison**: Dual evaluation (quality + prompt adherence) with confidence levels
-- **30 Image Pairs**: Sequential evaluation with progress tracking
-- **Randomization**: Image order (A/B) is randomized 50% of the time to prevent bias
-- **Admin Interface**: Password-protected dashboard to view and export results
-- **SQLite Database**: Simple file-based storage for all responses
-- **Responsive Design**: Works on desktop and mobile devices
-- **Device Tracking**: Browser, OS, screen resolution automatically collected
-- **Dev Mode**: Auto-fill forms and use only 3 pairs for fast testing 🔧
-
-## Quick Start (Dev Mode)
-
-Want to test immediately? Run:
+## Quick Start
 
 ```bash
-./start.sh
+pip install -r requirements.txt
+DEV_MODE=true python -m src.survey.app
 ```
 
-This enables **DEV MODE** which:
-- 🔧 Auto-fills all form fields with test data
-- 🚀 Uses only 3 image pairs instead of 30
-- ⚡ Makes testing super fast!
-- 🔴 Shows a red "DEV MODE" badge in the top-right
+Dev mode auto-fills forms, limits to 3 trials, and bypasses referral codes.
 
-See `QUICKSTART.md` for more details.
+## Configuration
 
-## Setup Instructions
+Everything is defined in `survey_config.yaml`:
 
-### 1. Install uv (Recommended - Fast!)
+```yaml
+survey:
+  title: "Your Study Title"
+  contact_email: "you@example.com"
+  pairs_per_user: 30
+  dev_pairs: 3
+
+demographics:
+  - name: email
+    type: email
+    label: "Email Address"
+    required: true
+  - name: occupation
+    type: select
+    label: "Occupation"
+    options:
+      - { value: "researcher", label: "Researcher" }
+      # ...
+
+data:
+  file: "image_pairs.txt"
+  columns: [prompt, method_a, method_b, image_a_url, image_b_url, mask_url, identity_urls]
+
+methods:
+  a: method_a
+  b: method_b
+
+inputs:
+  - name: prompt
+    type: text
+    label: "Text Prompt"
+    column: prompt
+  - name: mask
+    type: image
+    label: "Spatial Mask"
+    column: mask_url
+    optional: true
+
+outputs:
+  - name: image
+    type: image
+    column_a: image_a_url
+    column_b: image_b_url
+
+questions:
+  - name: image_quality
+    type: ab_preference
+    label: "Which image looks better?"
+    confidence: true
+    required: true
+  - name: mask_adherence
+    type: ab_preference
+    label: "Which image follows the mask better?"
+    confidence: true
+    depends_on: mask
+```
+
+### Data File
+
+Tab-separated, one row per trial. Column order must match `data.columns`:
+
+```
+a mountain landscape	Method-A	Method-B	https://...a.png	https://...b.png	https://...mask.png	https://...id.png
+```
+
+Lines starting with `#` are comments.
+
+### Supported Types
+
+**Demographics:** email, text, number, select, checkbox, radio, textarea
+
+**Inputs:** text, image, image_gallery, video, audio
+
+**Outputs:** image, video, audio, text
+
+**Questions:** ab_preference (with optional confidence), likert, free_text, multiple_choice
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DEV_MODE` | `false` | Auto-fill forms, 3 trials, bypass referral |
+| `ADMIN_PASSWORD` | `admin123` | Admin dashboard password |
+| `SECRET_KEY` | dev key | Flask session secret (required in production) |
+| `REFERRAL_CODES` | `ADOBE2025` | Comma-separated access codes |
+| `TILE_LAYOUT` | `MAB` | Tile order: `MAB` or `AMB` |
+| `PORT` | `5000` | Server port |
+
+## Admin
+
+Visit `/admin/login`. The dashboard shows per-question method preferences, confidence stats, and timing. Export to CSV for analysis.
+
+## Deployment (Fly.io)
 
 ```bash
-# macOS/Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Or with homebrew
-brew install uv
-
-# Windows
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+fly launch --no-deploy --name your-survey
+fly volumes create survey_data --size 3 --region sjc
+fly secrets set ADMIN_PASSWORD="yourpass" SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+fly deploy
 ```
-
-**Why uv?** It's 10-100x faster than pip! See `UV_GUIDE.md` for details.
-
-### 2. Install Dependencies
-
-```bash
-uv sync
-```
-
-Or if you prefer pip:
-```bash
-pip install -r requirements.txt  # (will generate if needed)
-```
-
-### 3. Configure Your Image Pairs
-
-**Easy!** Just edit `image_pairs.txt` - a simple tab-separated file:
-
-```
-# Format: prompt <TAB> method_a <TAB> method_b <TAB> image_a_url <TAB> image_b_url
-A serene mountain landscape at sunset	GPT-4-Vision	DALL-E-3	https://example.com/img1a.jpg	https://example.com/img1b.jpg
-A futuristic city with flying cars	GPT-4-Vision	DALL-E-3	https://example.com/img2a.jpg	https://example.com/img2b.jpg
-```
-
-**Benefits:**
-- No Python code editing needed!
-- Easy to create in Excel/Google Sheets (export as TSV)
-- Comments supported (lines starting with #)
-- Auto-creates sample file if missing
-
-See `IMAGE_PAIRS_FORMAT.md` for complete documentation and examples.
-
-**Method Tracking:** The `method_a` and `method_b` fields identify which generation method created each image. When images are randomized (50% of the time), the method names are swapped along with the images, allowing you to see which actual method users preferred.
-
-### 4. Set Environment Variables (Optional but Recommended)
-
-```bash
-# For production, set a secure secret key
-export SECRET_KEY="your-secret-key-here"
-
-# Set admin password (default is 'admin123')
-export ADMIN_PASSWORD="your-secure-password"
-
-# Set referral codes (comma-separated) to gate survey access
-export REFERRAL_CODES="CODE1,CODE2,CODE3"
-
-# Enable dev mode for testing (auto-fill forms, only 3 pairs, bypass referral)
-export DEV_MODE=true
-
-# Optional: Set custom port
-export PORT=5000
-```
-
-### 5. Run the Application
-
-```bash
-# With uv (recommended)
-uv run python run.py
-
-# Or use the convenience script (auto-enables DEV MODE)
-./start.sh
-
-# Or directly with python (if you have dependencies installed)
-python run.py
-```
-
-The app will run on `http://localhost:5000` (or your custom PORT).
-
-## Deployment Options
-
-### Option 1: Fly.io (Recommended - Production Ready)
-
-**~$4.50/month** - Always on, persistent storage, best for SQLite!
-
-1. Install flyctl: `brew install flyctl`
-2. Sign up: `fly auth signup`
-3. Launch: `fly launch --no-deploy --name your-survey-app`
-4. Create volume: `fly volumes create survey_data --size 3 --region sjc`
-5. Allocate IPv4: `fly ips allocate-v4 --yes`
-6. Set secrets: `fly secrets set ADMIN_PASSWORD="yourpass"`
-7. Deploy: `fly deploy`
-
-**Pros:** Always on, persistent SQLite, fast, ~$4.50/month  
-**Cons:** Requires credit card, CLI installation
-
-See `FLY_DEPLOYMENT_SUCCESS.md` and `DEPLOY_INSTRUCTIONS.txt` for detailed instructions.
-
-### Option 2: Railway.app
-
-**$5 free credit per month** - Simple deployment.
-
-1. Sign up at [railway.app](https://railway.app)
-2. Deploy from GitHub repo
-3. Set environment variables
-4. Deploy!
-
-**Pros:** Very easy, good for testing  
-**Cons:** Credit-based (runs out with heavy traffic)
-
-### Option 3: Local + ngrok (Testing Only)
-
-**What is ngrok?** Creates a tunnel to your local machine.
-
-1. Download ngrok: https://ngrok.com/download
-2. Run Flask: `python app.py`
-3. Run ngrok: `ngrok http 5000`
-4. Share the public URL
-
-**Pros:** Free, instant, no server setup  
-**Cons:** Computer must stay on, URL changes each restart
-
-### Option 4: AWS EC2 / Google Cloud (If You Have Access)
-
-For full control, deploy to cloud VMs. See standard Flask deployment guides.
-
-## Using the Application
-
-### For Participants
-
-1. Visit the survey URL
-2. Fill in demographics (occupation, image gen experience, AI familiarity, etc.)
-3. Evaluate 30 image pairs:
-   - **Image Quality**: Select which image looks better (A or B) + confidence (1-5 Likert scale)
-   - **Prompt Adherence**: Select which image better matches the prompt (A or B) + confidence (1-5)
-   - Click images for a larger view (lightbox)
-4. Submit responses - participants can only complete once per email
-5. Retake warning shown if email was previously used
-
-### For Administrators
-
-1. Visit `/admin/login`
-2. Enter admin password (default: `admin123`)
-3. View dashboard with:
-   - Total participants count
-   - **Method preferences** by actual generation method (not just A/B position)
-   - Average confidence scores (image quality / prompt adherence)
-   - Toggle between Demographics View and Responses View
-   - Detailed response table with method resolution
-4. Export all results as CSV for analysis
 
 ## Database
 
-The app uses SQLite with three tables:
+SQLite with JSON columns. Demographics and responses stored as JSON for flexibility. Migration from older schemas runs automatically on startup.
 
-- **participants**: Session tracking + device information (browser, OS, screen, etc.)
-- **demographics**: User information (email, occupation, AI experience, etc.)
-- **survey_responses**: Image pair evaluations (30 rows per participant)
-  - Stores both UI choice (A/B) and actual method names
-  - Includes `method_a`, `method_b` columns for method tracking
-  - Admin queries compute which method was actually preferred
-
-Database file: `survey.db` (created automatically on first run)
-
-**Backup:** Simply copy the `survey.db` file.
-
-**Migration:** If updating from an older version without method tracking, see `MIGRATION_NOTE.md` for SQL migration scripts.
-
-## File Structure
-
-```
-survey/
-├── pyproject.toml         # Project configuration
-├── requirements.txt       # Python dependencies (generated)
-├── run.py                 # Application entry point
-├── survey.db             # SQLite database (created on first run)
-└── src/
-    └── survey/           # Main package
-        ├── __init__.py
-        ├── app.py        # Flask backend
-        ├── templates/
-        │   ├── index.html       # Main survey page
-        │   ├── thank_you.html   # Completion page
-        │   ├── admin.html       # Admin dashboard
-        │   └── admin_login.html # Admin login
-        └── static/
-            ├── style.css  # All styles
-            └── script.js  # Frontend logic
-```
-
-## Security Considerations
-
-1. **Change the admin password** in production:
-   ```bash
-   export ADMIN_PASSWORD="your-secure-password"
-   ```
-
-2. **Set a secure secret key**:
-   ```bash
-   export SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
-   ```
-
-3. **Use HTTPS**: ngrok provides this automatically. For custom domains, use Let's Encrypt.
-
-4. **Email Privacy**: Emails are stored in the database. Consider:
-   - Adding a privacy policy
-   - Hashing emails if you only need uniqueness
-   - GDPR compliance if collecting EU data
-
-5. **Rate Limiting**: For production, add rate limiting to prevent abuse.
-
-## Troubleshooting
-
-### Port already in use
-```bash
-# Find process using port 5000
-lsof -i :5000
-# Kill it
-kill -9 <PID>
-```
-
-### Database locked
-- Only one process can write to SQLite at once
-- For high traffic, migrate to PostgreSQL
-
-### ngrok connection issues
-- Free tier has connection limits
-- Upgrade to paid plan or deploy to cloud
-
-## Customization
-
-### Changing Colors
-Edit `static/style.css` - main brand color is `#4A90E2`
-
-### Adding Questions
-Edit the `QUESTION_PAIRS` list in `app.py`
-
-### Adding Demographics Fields
-1. Add fields to `templates/index.html`
-2. Update database schema in `app.py` `init_db()`
-3. Update the demographics submission handler
-
-## Support
-
-For issues or questions, check:
-- Flask documentation: https://flask.palletsprojects.com/
-- ngrok documentation: https://ngrok.com/docs
-
-## License
-
-This is a custom survey application. Use and modify as needed.
-
+File: `survey.db` (local) or `/data/survey.db` (Fly.io).
