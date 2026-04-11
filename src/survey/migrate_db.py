@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 def migrate_database():
     """Run database migrations."""
-    # Check both possible database locations
-    db_path = '/data/survey.db' if os.path.exists('/data') else 'survey.db'
+    data_dir = os.environ.get('DATA_DIR', '/data' if os.path.exists('/data') else '')
+    db_path = os.path.join(data_dir, 'survey.db') if data_dir else 'survey.db'
 
     if not os.path.exists(db_path):
         logger.info("No existing database found, skipping migration (will be created fresh)")
