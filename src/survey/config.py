@@ -41,7 +41,7 @@ def load_config(path=None):
 
 def _validate(config):
     """Validate required top-level keys."""
-    required = ['survey', 'data', 'methods', 'inputs', 'outputs', 'questions', 'layout']
+    required = ['survey', 'data', 'methods', 'inputs', 'outputs', 'questions']
     for key in required:
         if key not in config:
             raise ValueError(f"Missing required config key: {key}")
