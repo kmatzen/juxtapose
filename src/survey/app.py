@@ -700,6 +700,7 @@ def check_demographics():
 # ---------------------------------------------------------------------------
 
 @app.route('/api/submit_demographics', methods=['POST'])
+@limiter.limit("10 per hour")
 def submit_demographics():
     """Submit demographics information"""
     if 'session_id' not in session:
@@ -908,6 +909,7 @@ def _add_flat_fields(stim, trial, randomized):
 # ---------------------------------------------------------------------------
 
 @app.route('/api/submit_survey', methods=['POST'])
+@limiter.limit("60 per hour")
 def submit_survey():
     """Submit survey response for a single trial."""
     if 'session_id' not in session:
@@ -1036,7 +1038,7 @@ def _old_confidence_key(question_name):
 # ---------------------------------------------------------------------------
 
 @app.route('/admin/login', methods=['GET', 'POST'])
-@limiter.limit("100 per hour")
+@limiter.limit("10 per hour")
 def admin_login():
     """Admin login page"""
     if request.method == 'POST':
