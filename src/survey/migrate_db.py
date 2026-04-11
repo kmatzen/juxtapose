@@ -1,75 +1,32 @@
 """
 Database migration script for survey application.
-Automatically adds new columns to existing databases.
+Handles migration from old hardcoded schema to new JSON-based schema.
 """
 import sqlite3
 import os
+import json
+
 
 def migrate_database():
-    """Run database migrations to add new columns if they don't exist"""
-    db_path = 'survey.db'
-    
+    """Run database migrations."""
+    # Check both possible database locations
+    db_path = '/data/survey.db' if os.path.exists('/data') else 'survey.db'
+
     if not os.path.exists(db_path):
         print("→ No existing database found, skipping migration (will be created fresh)")
         return
-    
+
     print("→ Checking database schema...")
-    
+
     conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    
+
     try:
-        # Check if survey_responses table exists
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='survey_responses'")
-        if not cursor.fetchone():
-            print("→ survey_responses table doesn't exist yet, skipping migration")
-            conn.close()
-            return
-        
-        # Get existing columns
-        cursor.execute("PRAGMA table_info(survey_responses)")
-        columns = {col[1]: col[2] for col in cursor.fetchall()}  # {name: type}
-        
-        # Define required columns for identity/mask feature
-        required_columns = {
-            'identity_urls': 'TEXT',
-            'mask_url': 'TEXT',
-            'better_mask_match': 'TEXT',
-            'mask_confidence': 'INTEGER',
-            'better_identity_match': 'TEXT',
-            'identity_confidence': 'INTEGER'
-        }
-        
-        # Find missing columns
-        missing_columns = {
-            name: col_type 
-            for name, col_type in required_columns.items() 
-            if name not in columns
-        }
-        
-        if not missing_columns:
-            print("✓ Database schema is up to date (all columns present)")
-            conn.close()
-            return
-        
-        # Run migrations
-        print(f"→ Adding {len(missing_columns)} missing columns...")
-        
-        for col_name, col_type in missing_columns.items():
-            try:
-                sql = f"ALTER TABLE survey_responses ADD COLUMN {col_name} {col_type}"
-                cursor.execute(sql)
-                print(f"  ✓ Added column: {col_name} ({col_type})")
-            except sqlite3.OperationalError as e:
-                if 'duplicate column name' in str(e).lower():
-                    print(f"  → Column {col_name} already exists (skipped)")
-                else:
-                    print(f"  ✗ Error adding {col_name}: {e}")
-                    raise
-        
+        _migrate_demographics(conn, cursor)
+        _migrate_survey_responses(conn, cursor)
         conn.commit()
-        print("✓ Database migration completed successfully")
-        
+        print("✓ Database migration check completed")
     except Exception as e:
         print(f"✗ Migration failed: {e}")
         conn.rollback()
@@ -77,9 +34,191 @@ def migrate_database():
     finally:
         conn.close()
 
+
+def _get_columns(cursor, table):
+    """Return set of column names for a table."""
+    cursor.execute(f"PRAGMA table_info({table})")
+    return {col[1] for col in cursor.fetchall()}
+
+
+def _migrate_demographics(conn, cursor):
+    """Migrate demographics table from specific columns to JSON 'data' column."""
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='demographics'")
+    if not cursor.fetchone():
+        return
+
+    columns = _get_columns(cursor, 'demographics')
+
+    # New schema has: id, participant_id, email, data, created_at
+    # Old schema has: id, participant_id, email, occupation, has_used_image_gen, ...
+    if 'data' in columns:
+        print("  ✓ demographics table already uses JSON schema")
+        return
+
+    if 'occupation' not in columns:
+        # Neither old nor new schema — skip
+        return
+
+    print("  → Migrating demographics to JSON schema...")
+
+    # Old demographic columns (excluding id, participant_id, email, created_at)
+    old_demo_cols = [
+        'occupation', 'has_used_image_gen', 'image_gen_tools',
+        'works_on_ai_development', 'ai_usage_frequency', 'works_with_graphics',
+        'technical_background', 'ai_familiarity', 'other_data'
+    ]
+
+    # Read all old rows
+    existing_cols = columns
+    select_cols = [c for c in old_demo_cols if c in existing_cols]
+
+    rows = cursor.execute(f'''
+        SELECT id, participant_id, email, created_at,
+               {', '.join(select_cols)}
+        FROM demographics
+    ''').fetchall()
+
+    # Create new table
+    cursor.execute('''
+        CREATE TABLE demographics_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            participant_id INTEGER NOT NULL,
+            email TEXT,
+            data TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (participant_id) REFERENCES participants (id)
+        )
+    ''')
+
+    # Migrate rows
+    for row in rows:
+        row = dict(row)
+        demo_data = {'email': row.get('email', '')}
+        for col in select_cols:
+            demo_data[col] = row.get(col, '')
+
+        cursor.execute('''
+            INSERT INTO demographics_new (id, participant_id, email, data, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (row['id'], row['participant_id'], row.get('email'),
+              json.dumps(demo_data), row.get('created_at')))
+
+    # Swap tables
+    cursor.execute('DROP TABLE demographics')
+    cursor.execute('ALTER TABLE demographics_new RENAME TO demographics')
+    print(f"  ✓ Migrated {len(rows)} demographics rows to JSON schema")
+
+
+def _migrate_survey_responses(conn, cursor):
+    """Migrate survey_responses from specific columns to JSON schema."""
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='survey_responses'")
+    if not cursor.fetchone():
+        return
+
+    columns = _get_columns(cursor, 'survey_responses')
+
+    # New schema has: id, participant_id, image_pair_id, stimulus_data, responses,
+    #                 was_randomized, time_spent, created_at
+    # Old schema has: id, participant_id, image_pair_id, prompt, method_a, method_b,
+    #                 image_a_url, image_b_url, identity_urls, mask_url,
+    #                 better_image, image_confidence, ..., was_randomized, time_spent, created_at
+    if 'stimulus_data' in columns:
+        print("  ✓ survey_responses table already uses JSON schema")
+        return
+
+    if 'better_image' not in columns:
+        # Neither old nor new schema — skip
+        return
+
+    print("  → Migrating survey_responses to JSON schema...")
+
+    # Stimulus columns
+    stim_cols = ['prompt', 'method_a', 'method_b', 'image_a_url', 'image_b_url',
+                 'identity_urls', 'mask_url']
+
+    # Response columns → question name mapping
+    response_mapping = {
+        'better_image': ('image_quality', 'choice'),
+        'image_confidence': ('image_quality', 'confidence'),
+        'better_prompt_match': ('prompt_adherence', 'choice'),
+        'prompt_confidence': ('prompt_adherence', 'confidence'),
+        'better_mask_match': ('mask_adherence', 'choice'),
+        'mask_confidence': ('mask_adherence', 'confidence'),
+        'better_identity_match': ('identity_preservation', 'choice'),
+        'identity_confidence': ('identity_preservation', 'confidence'),
+    }
+
+    existing_cols = columns
+    avail_stim = [c for c in stim_cols if c in existing_cols]
+    avail_resp = {k: v for k, v in response_mapping.items() if k in existing_cols}
+
+    # Build SELECT
+    all_select = ['id', 'participant_id', 'image_pair_id', 'was_randomized',
+                  'created_at']
+    if 'time_spent' in existing_cols:
+        all_select.append('time_spent')
+    all_select.extend(avail_stim)
+    all_select.extend(avail_resp.keys())
+
+    rows = cursor.execute(f'SELECT {", ".join(all_select)} FROM survey_responses').fetchall()
+
+    # Create new table
+    cursor.execute('''
+        CREATE TABLE survey_responses_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            participant_id INTEGER NOT NULL,
+            image_pair_id INTEGER,
+            stimulus_data TEXT,
+            responses TEXT,
+            was_randomized INTEGER DEFAULT 0,
+            time_spent REAL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (participant_id) REFERENCES participants (id)
+        )
+    ''')
+
+    for row in rows:
+        row = dict(row)
+
+        # Build stimulus_data JSON
+        stimulus = {}
+        for col in avail_stim:
+            stimulus[col] = row.get(col, '')
+
+        # Build responses JSON
+        responses = {}
+        for old_col, (q_name, field) in avail_resp.items():
+            val = row.get(old_col)
+            if val is not None:
+                if q_name not in responses:
+                    responses[q_name] = {}
+                if field == 'confidence' and val is not None:
+                    try:
+                        val = int(val)
+                    except (ValueError, TypeError):
+                        pass
+                responses[q_name][field] = val
+
+        cursor.execute('''
+            INSERT INTO survey_responses_new
+            (id, participant_id, image_pair_id, stimulus_data, responses,
+             was_randomized, time_spent, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            row['id'], row['participant_id'], row.get('image_pair_id'),
+            json.dumps(stimulus), json.dumps(responses),
+            row.get('was_randomized', 0),
+            row.get('time_spent'),
+            row.get('created_at'),
+        ))
+
+    # Swap tables
+    cursor.execute('DROP TABLE survey_responses')
+    cursor.execute('ALTER TABLE survey_responses_new RENAME TO survey_responses')
+    print(f"  ✓ Migrated {len(rows)} survey responses to JSON schema")
+
+
 if __name__ == "__main__":
-    # Can be run standalone for manual migration
     print("=== Database Migration Tool ===")
     migrate_database()
     print("=== Migration Complete ===")
-
