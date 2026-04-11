@@ -188,24 +188,16 @@ Visit `/admin/login`. The dashboard shows:
 
 ## Deployment
 
-A `Dockerfile` and `Procfile` are included for container-based hosting. Set environment variables for production:
+For production, set `DATA_DIR` to a persistent directory and provide a strong `SECRET_KEY`:
 
 ```bash
-SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
-ADMIN_PASSWORD="your-secure-password"
-DATA_DIR="/data"              # persistent volume mount for database + logs
+export SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+export ADMIN_PASSWORD="your-secure-password"
+export DATA_DIR="/path/to/persistent/data"
+gunicorn src.survey.app:app --bind 0.0.0.0:8000
 ```
 
 When `DATA_DIR` is set (or `/data` exists), the app enables production mode: requires `SECRET_KEY`, enforces HTTPS cookies, and stores data in that directory.
-
-```bash
-docker build -t survey .
-docker run -p 8000:8000 \
-  -v survey_data:/data \
-  -e SECRET_KEY="..." \
-  -e ADMIN_PASSWORD="..." \
-  survey
-```
 
 ## Database
 
