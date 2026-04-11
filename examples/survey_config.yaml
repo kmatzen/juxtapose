@@ -134,7 +134,7 @@ demographics:
 # expected order. Column names are referenced by inputs, outputs, and methods.
 
 data:
-  file: "examples/image_pairs.txt"
+  file: "image_pairs.txt"
   columns:
     - prompt
     - method_a

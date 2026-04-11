@@ -1,6 +1,0 @@
-# Image Pairs Configuration
-# Format: prompt	method_a	method_b	image_a_url	image_b_url	mask_url	identity_url
-# Lines starting with # are comments and will be ignored
-# You can use full URLs or relative paths to images in the static folder
-
-a teacher, a hamster, a chalkboard, a desk, a book, a globe, a ruler - in bright classroom with large windows	Method-A	Method-B	https://matzen-adobe.s3.us-west-2.amazonaws.com/incoming/osaha/t2i_compbench_viz/viz_20251117-120855/images/example1_ia.png	https://matzen-adobe.s3.us-west-2.amazonaws.com/incoming/osaha/t2i_compbench_viz/viz_20251117-120855/images/example1_prec.png	https://matzen-adobe.s3.us-west-2.amazonaws.com/incoming/osaha/t2i_compbench_viz/viz_20251117-120855/images/example1_masks.png	https://matzen-adobe.s3.us-west-2.amazonaws.com/incoming/osaha/t2i_compbench_viz/viz_20251117-120855/images/example1_ids.png
