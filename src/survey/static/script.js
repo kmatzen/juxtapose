@@ -193,7 +193,7 @@ function setupEventListeners() {
         debugLog('Setting up survey form submit handler');
         surveyForm.addEventListener('submit', handleSurveySubmit);
     } else {
-        console.error('❌ Survey form not found during setup');
+        console.error('Survey form not found during setup');
     }
     
     // Image lightbox
@@ -1515,84 +1515,36 @@ function getCSRFToken() {
 if (window.TUTORIAL_MODE) {
     // Initialize tutorial state
     window.tutorialCompleted = false;
-    
+
     let currentTutorialStep = 0;
-    const baseTutorialSteps = [
-        {
-            title: "Before You Begin",
-            text: "Let's walk through how this survey works. We'll show you each part of the interface using a real example. Click 'Next' to continue.",
-            highlight: null
-        },
-    ];
-    
-    // Add prompt step only if enabled
-    if (window.SHOW_PROMPT) {
-        baseTutorialSteps.push({
-            title: "Text Prompt",
-            text: "This is the text description that was used to generate the images below. It describes what should appear in the generated images.",
-            highlight: ".prompt-box"
-        });
-    }
-    
-    baseTutorialSteps.push(
-        {
-            title: "Identity Reference Images",
-            text: "These show the specific people or objects that should appear in the generated images. Notice the colored borders - these match colored regions in the spatial mask.",
-            highlight: "#identity-section"
-        },
-        {
-            title: "Spatial Mask",
-            text: "This mask shows where each identity should be positioned. Each colored region corresponds to one identity image above (matched by border color).",
-            highlight: ".mask-tile"
-        },
-        {
-            title: "Inspect Regions",
-            text: "Hover over or tap any identity image to see the corresponding region highlighted in Images A and B below. This helps you verify placement.",
-            highlight: "#identity-images"
-        },
-        {
-            title: "Generated Images",
-            text: "These are two AI-generated images created using different methods. Your task is to compare them based on the criteria below.",
-            highlight: "#image-a, #image-b",
-            highlightParent: true  // Highlight the parent tile-box containers
-        },
-        {
-            title: "Your Evaluation",
-            text: "You'll answer three questions comparing Images A and B. For each question, select which image is better (A, B, or Equal) and rate your confidence from 1 (least confident) to 5 (most confident).",
-            highlight: ".questions-container"
-        },
-        {
-            title: "Navigating Questions",
-            text: "Use the arrows on the right to scroll through questions. As you complete each question, the page will automatically advance. Once all are answered, click the arrow at the bottom to continue to the next pair.",
-            highlight: ".question-navigation"
-        },
-        {
-            title: "Question 1: Overall Quality",
-            text: "<strong>Which image looks better overall (quality, aesthetics, coherence)?</strong><br>Click on each of Image A and Image B to view them larger and judge the general quality. Look for blurriness, artifacts, and harmonization.",
-            highlight: ".questions-container",
-            scrollToWithin: "#image_quality-evaluation"
-        },
-        {
-            title: "Question 2: Mask Structure",
-            text: "<strong>Which image better follows the structure defined by the mask?</strong><br>Hover over each of the identity images which will overlay corresponding masks on both Image A and Image B. Judge which one follows the structure of the mask better.",
-            highlight: ".questions-container",
-            scrollToWithin: "#mask_adherence-evaluation"
-        },
-        {
-            title: "Question 3: Identity Preservation",
-            text: "<strong>Which image better preserves the identity features from the reference images?</strong><br>Hover over each of the reference images which will overlay corresponding masks on both Image A and Image B. Compare the identity of the subject in the selected areas with the corresponding reference image. If a chosen area doesn't contain the corresponding reference, it should be penalized.",
-            highlight: ".questions-container",
-            scrollToWithin: "#identity_preservation-evaluation"
-        },
-        {
-            title: "Ready to Begin",
-            text: "Complete all questions on this page for practice. Once finished, click the arrow button at the bottom to begin the actual survey.",
-            highlight: "#submit-btn"
+
+    // Build tutorial steps from config (with auto_questions expansion)
+    function buildTutorialSteps() {
+        if (!surveyConfig || !surveyConfig.tutorial || !surveyConfig.tutorial.steps) {
+            return [{title: "Tutorial", text: "No tutorial steps configured.", highlight: null}];
         }
-    );
-    
-    // Assign the constructed steps array
-    const tutorialSteps = baseTutorialSteps;
+
+        const steps = [];
+        for (const step of surveyConfig.tutorial.steps) {
+            if (step === 'auto_questions') {
+                // Expand into one step per visible question
+                const questions = surveyConfig.questions || [];
+                questions.forEach((q, i) => {
+                    steps.push({
+                        title: q.section_label || q.label || q.name,
+                        text: '<strong>' + q.label + '</strong>',
+                        highlight: '.questions-container',
+                        scrollToWithin: '#' + q.name + '-evaluation',
+                    });
+                });
+            } else {
+                steps.push(step);
+            }
+        }
+        return steps;
+    }
+
+    let tutorialSteps = [];
 
     function showTutorialStep(step) {
         const banner = document.getElementById('tutorial-banner');
@@ -1721,31 +1673,31 @@ if (window.TUTORIAL_MODE) {
             debugLog('Triggering form validation');
             window.triggerFormValidation();
         } else {
-            console.error('❌ triggerFormValidation not available');
+            console.error('triggerFormValidation not available');
         }
     }
     
     // Start tutorial after survey loads
     window.addEventListener('load', () => {
+        // Build steps from config (config is loaded by now via checkDevMode)
+        tutorialSteps = buildTutorialSteps();
+
         // Disable submit button until tutorial is complete
         const submitBtn = document.getElementById('submit-btn');
         if (submitBtn) {
             submitBtn.disabled = true;
             submitBtn.title = 'Complete the tutorial first';
-            
-            // Add click handler for debugging
+
             submitBtn.addEventListener('click', (e) => {
                 debugLog('Submit button clicked');
-                debugLog('  - Button disabled:', submitBtn.disabled);
-                debugLog('  - Tutorial completed:', window.tutorialCompleted);
                 if (submitBtn.disabled) {
                     debugLog('  Button is disabled, click prevented');
                     e.preventDefault();
                 }
             });
         }
-        
-        // Show tutorial immediately - images will load with indicators
+
+        // Show tutorial immediately
         showTutorialStep(0);
     });
 }
