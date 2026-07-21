@@ -1,5 +1,7 @@
 # Database
 survey.db
+survey.db-wal
+survey.db-shm
 
 # Python
 __pycache__/
