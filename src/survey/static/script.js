@@ -73,6 +73,9 @@ window.addEventListener('resize', () => {
 async function checkDevMode() {
     try {
         const response = await fetch('/api/config');
+        if (!response.ok) {
+            throw new Error(`Config request failed with status ${response.status}`);
+        }
         surveyConfig = await response.json();
         devMode = surveyConfig.dev_mode;
 
@@ -86,6 +89,9 @@ async function checkDevMode() {
         }
     } catch (error) {
         console.error('Error checking dev mode:', error);
+        // surveyConfig is required for the whole survey to work; make the
+        // failure visible instead of silently rendering an empty survey.
+        showError('Could not load the survey configuration. Please refresh the page or try again later.', true);
     }
 }
 
@@ -854,6 +860,9 @@ function displayConditioningInputs(data) {
             maskImg.onload = () => {
                 processMaskForOverlays(maskImg);
             };
+            maskImg.onerror = () => {
+                console.error('Failed to load mask image:', maskUrl);
+            };
         }
     }
 }
@@ -901,6 +910,12 @@ function loadStackedGallery(container, url, label, outputImages) {
             slicedImg.alt = `${label} ${i + 1}`;
             slicedImg.className = 'identity-image';
             slicedImg.setAttribute('data-identity-index', i);
+            // Border color comes from the single IDENTITY_COLORS source of truth
+            // (keeps the thumbnail border in sync with the mask overlay colors).
+            const identityColor = IDENTITY_COLORS[i % IDENTITY_COLORS.length];
+            if (identityColor) {
+                slicedImg.style.borderColor = `rgb(${identityColor[0]}, ${identityColor[1]}, ${identityColor[2]})`;
+            }
             slicedImg.onclick = () => openLightbox(slicedImg.src, `${label} ${i + 1}`);
             container.appendChild(slicedImg);
         }
@@ -1233,23 +1248,28 @@ function hideMaskOverlay() {
     });
 }
 
-function showError(message) {
+function showError(message, persistent = false) {
     // Create error element if it doesn't exist
     let errorDiv = document.querySelector('.error-message');
     if (!errorDiv) {
         errorDiv = document.createElement('div');
         errorDiv.className = 'error-message';
-        const activeSection = document.querySelector('.section.active');
-        activeSection.insertBefore(errorDiv, activeSection.firstChild);
+        errorDiv.setAttribute('role', 'alert');
+        // Prefer the active section; fall back to <body> if none is active yet
+        // (e.g. an error during initial config load, before a section shows).
+        const host = document.querySelector('.section.active') || document.body;
+        host.insertBefore(errorDiv, host.firstChild);
     }
-    
+
     errorDiv.textContent = message;
     errorDiv.classList.add('show');
-    
-    // Hide after 5 seconds
-    setTimeout(() => {
-        errorDiv.classList.remove('show');
-    }, 5000);
+
+    // Persistent errors (e.g. the survey failed to load) stay until reload.
+    if (!persistent) {
+        setTimeout(() => {
+            errorDiv.classList.remove('show');
+        }, 5000);
+    }
 }
 
 // ==================================================================

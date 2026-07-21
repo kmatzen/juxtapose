@@ -516,50 +516,13 @@ p {
 }
 
 /* ========================================================================
-   COLOR CODING FOR IDENTITY IMAGES - Update to match spatial mask colors
-   Each identity gets a unique color that corresponds to a region in the mask
+   COLOR CODING FOR IDENTITY IMAGES
+   Each identity gets a unique color that corresponds to a region in the mask.
+   The palette is defined once in script.js (IDENTITY_COLORS) and applied to
+   each thumbnail's border-color inline, so it stays in sync with the mask
+   overlay colors. The 4px solid border defined on .identity-image above
+   provides the default; JS overrides border-color per index.
    ======================================================================== */
-
-/* Actual colors matching spatial mask regions */
-.identity-image[data-identity-index="0"] {
-    border-color: #FF0000;  /* Red - RGB(255, 0, 0) - matches first mask region */
-}
-
-.identity-image[data-identity-index="1"] {
-    border-color: #00FF00;  /* Green - RGB(0, 255, 0) - matches second mask region */
-}
-
-.identity-image[data-identity-index="2"] {
-    border-color: #0000FF;  /* Blue - RGB(0, 0, 255) - matches third mask region */
-}
-
-.identity-image[data-identity-index="3"] {
-    border-color: #FFFF00;  /* Yellow - RGB(255, 255, 0) - matches fourth mask region */
-}
-
-.identity-image[data-identity-index="4"] {
-    border-color: #FF00FF;  /* Magenta - RGB(255, 0, 255) - matches fifth mask region */
-}
-
-.identity-image[data-identity-index="5"] {
-    border-color: #00FFFF;  /* Cyan - RGB(0, 255, 255) - matches sixth mask region */
-}
-
-.identity-image[data-identity-index="6"] {
-    border-color: #FF8000;  /* Orange - RGB(255, 128, 0) - matches seventh mask region */
-}
-
-.identity-image[data-identity-index="7"] {
-    border-color: #8000FF;  /* Purple - RGB(128, 0, 255) - matches eighth mask region */
-}
-
-.identity-image[data-identity-index="8"] {
-    border-color: #0080FF;  /* Light Blue - RGB(0, 128, 255) - matches ninth mask region */
-}
-
-.identity-image[data-identity-index="9"] {
-    border-color: #808080;  /* Gray - RGB(128, 128, 128) - matches tenth mask region */
-}
 
 .mask-image-container {
     display: flex;
