@@ -689,8 +689,19 @@ p {
     background: #f8f9fa;
 }
 
+/* Visually hide the input but keep it in the accessibility tree and tab
+   order so the control is keyboard-operable and announced by screen readers.
+   (display:none would remove it from both.) */
 .radio-label input[type="radio"] {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
 
 .radio-label input[type="radio"]:checked + span,
@@ -702,6 +713,12 @@ p {
 .radio-label:has(input[type="radio"]:checked) {
     border-color: #4A90E2;
     background: #e3f2fd;
+}
+
+/* Visible focus indicator when the hidden input is focused via keyboard */
+.radio-label:focus-within {
+    outline: 3px solid #4A90E2;
+    outline-offset: 2px;
 }
 
 /* Likert Scale */
@@ -816,8 +833,22 @@ p {
     cursor: pointer;
 }
 
+/* Visually hidden but focusable (see .radio-label input note above). */
 .likert-label input[type="radio"] {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.likert-label:focus-within span {
+    outline: 3px solid #4A90E2;
+    outline-offset: 2px;
 }
 
 .likert-label span {
