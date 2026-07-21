@@ -10,5 +10,9 @@ venv/
 .DS_Store
 .git
 .gitignore
-*.md
+node_modules
+tests
+htmlcov
+.coverage
+audit.log
 

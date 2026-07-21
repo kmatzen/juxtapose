@@ -6,13 +6,14 @@ import logging
 from datetime import datetime, timedelta
 import json
 import random
+import hmac
 from functools import wraps
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 
 from src.survey.config import (
-    load_config, get_email_field, build_column_map,
+    load_config, get_email_field,
     get_inputs_by_name, get_outputs_by_name, get_questions_by_name,
 )
 
@@ -65,9 +66,12 @@ if TILE_LAYOUT not in ['AMB', 'MAB']:
     logger.warning("Invalid TILE_LAYOUT '%s'. Using default 'MAB'. Valid options: AMB, MAB", TILE_LAYOUT)
     TILE_LAYOUT = 'MAB'
 
-# Security: Warn if weak admin password in production
+# Security: Refuse to start with the default admin password in production
 if ADMIN_PASSWORD == 'admin123' and IS_PRODUCTION:
-    logger.warning("Using default admin password! Set ADMIN_PASSWORD environment variable!")
+    raise ValueError(
+        "ADMIN_PASSWORD must be set to a strong value in production "
+        "(the default 'admin123' is not allowed)."
+    )
 
 # Audit log file
 AUDIT_LOG_FILE = os.path.join(DATA_DIR, 'audit.log') if DATA_DIR else 'audit.log'
@@ -252,9 +256,18 @@ def set_security_headers(response):
 # ---------------------------------------------------------------------------
 
 def get_db():
-    """Get database connection"""
-    db = sqlite3.connect(DATABASE)
+    """Get database connection.
+
+    Honors app.config['DATABASE'] when set (used by the test suite for
+    isolation) and falls back to the module-level DATABASE otherwise.
+    Enables WAL mode and a busy timeout so concurrent gunicorn workers
+    don't immediately error with 'database is locked'.
+    """
+    path = app.config.get('DATABASE') or DATABASE
+    db = sqlite3.connect(path, timeout=30)
     db.row_factory = sqlite3.Row
+    db.execute('PRAGMA journal_mode=WAL')
+    db.execute('PRAGMA foreign_keys=ON')
     return db
 
 
@@ -1045,10 +1058,10 @@ def _old_confidence_key(question_name):
 def admin_login():
     """Admin login page"""
     if request.method == 'POST':
-        password = request.form.get('password')
+        password = request.form.get('password') or ''
         ip = get_remote_address()
 
-        if password == ADMIN_PASSWORD:
+        if hmac.compare_digest(password, ADMIN_PASSWORD):
             session['admin_authenticated'] = True
             session.permanent = True
             audit_log('ADMIN_LOGIN_SUCCESS', {'ip': ip})
