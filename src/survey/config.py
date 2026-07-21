@@ -123,11 +123,6 @@ def get_email_field(config):
     return None
 
 
-def build_column_map(config):
-    """Build a mapping from column names to their index in data.columns."""
-    return {col: i for i, col in enumerate(config['data']['columns'])}
-
-
 def get_inputs_by_name(config):
     """Return dict of input configs keyed by name."""
     return {inp['name']: inp for inp in config.get('inputs', [])}
