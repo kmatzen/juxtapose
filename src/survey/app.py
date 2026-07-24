@@ -6,13 +6,14 @@ import logging
 from datetime import datetime, timedelta
 import json
 import random
+import hmac
 from functools import wraps
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 
 from src.survey.config import (
-    load_config, get_email_field, build_column_map,
+    load_config, get_email_field,
     get_inputs_by_name, get_outputs_by_name, get_questions_by_name,
 )
 
@@ -65,9 +66,12 @@ if TILE_LAYOUT not in ['AMB', 'MAB']:
     logger.warning("Invalid TILE_LAYOUT '%s'. Using default 'MAB'. Valid options: AMB, MAB", TILE_LAYOUT)
     TILE_LAYOUT = 'MAB'
 
-# Security: Warn if weak admin password in production
+# Security: Refuse to start with the default admin password in production
 if ADMIN_PASSWORD == 'admin123' and IS_PRODUCTION:
-    logger.warning("Using default admin password! Set ADMIN_PASSWORD environment variable!")
+    raise ValueError(
+        "ADMIN_PASSWORD must be set to a strong value in production "
+        "(the default 'admin123' is not allowed)."
+    )
 
 # Audit log file
 AUDIT_LOG_FILE = os.path.join(DATA_DIR, 'audit.log') if DATA_DIR else 'audit.log'
@@ -252,9 +256,18 @@ def set_security_headers(response):
 # ---------------------------------------------------------------------------
 
 def get_db():
-    """Get database connection"""
-    db = sqlite3.connect(DATABASE)
+    """Get database connection.
+
+    Honors app.config['DATABASE'] when set (used by the test suite for
+    isolation) and falls back to the module-level DATABASE otherwise.
+    Enables WAL mode and a busy timeout so concurrent gunicorn workers
+    don't immediately error with 'database is locked'.
+    """
+    path = app.config.get('DATABASE') or DATABASE
+    db = sqlite3.connect(path, timeout=30)
     db.row_factory = sqlite3.Row
+    db.execute('PRAGMA journal_mode=WAL')
+    db.execute('PRAGMA foreign_keys=ON')
     return db
 
 
@@ -1036,6 +1049,110 @@ def _old_confidence_key(question_name):
     }
     return mapping.get(question_name, f'{question_name}_confidence')
 
+
+# Columns selected for both admin views (results JSON and CSV export).
+_ADMIN_RESULT_SELECT = '''
+    SELECT
+        p.session_id, p.referral_code, p.created_at as participant_created,
+        p.browser, p.browser_version, p.os,
+        p.screen_width, p.screen_height, p.pixel_ratio, p.color_depth,
+        d.email, d.data as demographics_data,
+        s.image_pair_id, s.stimulus_data, s.responses,
+        s.was_randomized, s.time_spent, s.created_at as response_created
+    FROM participants p
+    LEFT JOIN demographics d ON p.id = d.participant_id
+    LEFT JOIN survey_responses s ON p.id = s.participant_id
+    WHERE s.id IS NOT NULL
+'''
+
+# Old-style preferred_method column names, kept for CSV/consumer backward compat.
+_OLD_PREFERRED_METHOD_KEYS = {
+    'image_quality': 'preferred_method_image',
+    'prompt_adherence': 'preferred_method_prompt',
+    'mask_adherence': 'preferred_method_mask',
+    'identity_preservation': 'preferred_method_identity',
+}
+
+
+def _flatten_result_row(row, include_old_preferred=False):
+    """Flatten one joined result row into a flat dict for admin views.
+
+    Unpacks demographics/stimulus/responses JSON and derives the per-question
+    choice/confidence/preferred_method fields (plus old-style aliases for
+    backward compatibility). Shared by admin_results and admin_export.
+
+    Args:
+        row: sqlite3.Row from _ADMIN_RESULT_SELECT.
+        include_old_preferred: also emit old-style preferred_method_* fields
+            (admin_results does; the CSV export historically did not).
+    """
+    r = dict(row)
+
+    # Unpack demographics JSON
+    if r.get('demographics_data'):
+        try:
+            r.update(json.loads(r['demographics_data']))
+        except (json.JSONDecodeError, TypeError):
+            pass
+    r.pop('demographics_data', None)
+
+    # Unpack stimulus data
+    stim = {}
+    if r.get('stimulus_data'):
+        try:
+            stim = json.loads(r['stimulus_data'])
+        except (json.JSONDecodeError, TypeError):
+            pass
+    methods = stim.get('methods', {})
+    r['method_a'] = methods.get('a', stim.get('method_a', ''))
+    r['method_b'] = methods.get('b', stim.get('method_b', ''))
+
+    for inp_name, inp_val in stim.get('inputs', {}).items():
+        r[f'input_{inp_name}'] = inp_val
+    for key in ('prompt', 'image_a_url', 'image_b_url', 'identity_urls', 'mask_url'):
+        if key in stim:
+            r[key] = stim[key]
+    r.pop('stimulus_data', None)
+
+    # Unpack responses and compute preferred methods
+    resp = {}
+    if r.get('responses'):
+        try:
+            resp = json.loads(r['responses'])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    for q_name, q_data in resp.items():
+        if isinstance(q_data, dict):
+            choice = q_data.get('choice', '')
+            confidence = q_data.get('confidence')
+            r[f'{q_name}_choice'] = choice
+            r[f'{q_name}_confidence'] = confidence
+
+            if choice == 'A':
+                preferred = r.get('method_a', '')
+            elif choice == 'B':
+                preferred = r.get('method_b', '')
+            elif choice == 'equal':
+                preferred = 'equal'
+            else:
+                preferred = None
+            if preferred is not None:
+                r[f'{q_name}_preferred_method'] = preferred
+
+            # Old-style flat field names for backward compatibility
+            r[_old_choice_key(q_name)] = choice
+            r[_old_confidence_key(q_name)] = confidence
+            if include_old_preferred and preferred is not None:
+                old_pref_key = _OLD_PREFERRED_METHOD_KEYS.get(q_name)
+                if old_pref_key:
+                    r[old_pref_key] = preferred
+        else:
+            r[q_name] = q_data
+
+    r.pop('responses', None)
+    return r
+
 # ---------------------------------------------------------------------------
 # Admin
 # ---------------------------------------------------------------------------
@@ -1045,10 +1162,10 @@ def _old_confidence_key(question_name):
 def admin_login():
     """Admin login page"""
     if request.method == 'POST':
-        password = request.form.get('password')
+        password = request.form.get('password') or ''
         ip = get_remote_address()
 
-        if password == ADMIN_PASSWORD:
+        if hmac.compare_digest(password, ADMIN_PASSWORD):
             session['admin_authenticated'] = True
             session.permanent = True
             audit_log('ADMIN_LOGIN_SUCCESS', {'ip': ip})
@@ -1081,103 +1198,12 @@ def admin():
 def admin_results():
     """Get all survey results (flattened from JSON)."""
     db = get_db()
-    results = db.execute('''
-        SELECT
-            p.session_id, p.referral_code, p.created_at as participant_created,
-            p.browser, p.browser_version, p.os,
-            p.screen_width, p.screen_height, p.pixel_ratio, p.color_depth,
-            d.email, d.data as demographics_data,
-            s.image_pair_id, s.stimulus_data, s.responses,
-            s.was_randomized, s.time_spent, s.created_at as response_created
-        FROM participants p
-        LEFT JOIN demographics d ON p.id = d.participant_id
-        LEFT JOIN survey_responses s ON p.id = s.participant_id
-        WHERE s.id IS NOT NULL
-        ORDER BY s.created_at DESC
-    ''').fetchall()
+    results = db.execute(
+        _ADMIN_RESULT_SELECT + ' ORDER BY s.created_at DESC'
+    ).fetchall()
     db.close()
 
-    flat = []
-    for row in results:
-        r = dict(row)
-
-        # Unpack demographics JSON
-        if r.get('demographics_data'):
-            try:
-                r.update(json.loads(r['demographics_data']))
-            except (json.JSONDecodeError, TypeError):
-                pass
-        r.pop('demographics_data', None)
-
-        # Unpack stimulus data
-        stim = {}
-        if r.get('stimulus_data'):
-            try:
-                stim = json.loads(r['stimulus_data'])
-            except (json.JSONDecodeError, TypeError):
-                pass
-        methods = stim.get('methods', {})
-        r['method_a'] = methods.get('a', stim.get('method_a', ''))
-        r['method_b'] = methods.get('b', stim.get('method_b', ''))
-
-        # Flatten inputs
-        for inp_name, inp_val in stim.get('inputs', {}).items():
-            r[f'input_{inp_name}'] = inp_val
-        # Also keep flat stimulus keys
-        for key in ('prompt', 'image_a_url', 'image_b_url', 'identity_urls', 'mask_url'):
-            if key in stim:
-                r[key] = stim[key]
-
-        r.pop('stimulus_data', None)
-
-        # Unpack responses and compute preferred methods
-        resp = {}
-        if r.get('responses'):
-            try:
-                resp = json.loads(r['responses'])
-            except (json.JSONDecodeError, TypeError):
-                pass
-
-        for q_name, q_data in resp.items():
-            if isinstance(q_data, dict):
-                choice = q_data.get('choice', '')
-                r[f'{q_name}_choice'] = choice
-                r[f'{q_name}_confidence'] = q_data.get('confidence')
-                # Compute preferred method
-                if choice == 'A':
-                    r[f'{q_name}_preferred_method'] = r.get('method_a', '')
-                elif choice == 'B':
-                    r[f'{q_name}_preferred_method'] = r.get('method_b', '')
-                elif choice == 'equal':
-                    r[f'{q_name}_preferred_method'] = 'equal'
-
-                # Also produce old-style flat field names for backward compat
-                old_choice = _old_choice_key(q_name)
-                old_conf = _old_confidence_key(q_name)
-                r[old_choice] = choice
-                r[old_conf] = q_data.get('confidence')
-
-                # Old-style preferred_method fields
-                old_pref_mapping = {
-                    'image_quality': 'preferred_method_image',
-                    'prompt_adherence': 'preferred_method_prompt',
-                    'mask_adherence': 'preferred_method_mask',
-                    'identity_preservation': 'preferred_method_identity',
-                }
-                old_pref_key = old_pref_mapping.get(q_name)
-                if old_pref_key:
-                    if choice == 'A':
-                        r[old_pref_key] = r.get('method_a', '')
-                    elif choice == 'B':
-                        r[old_pref_key] = r.get('method_b', '')
-                    elif choice == 'equal':
-                        r[old_pref_key] = 'equal'
-            else:
-                r[q_name] = q_data
-
-        r.pop('responses', None)
-        flat.append(r)
-
+    flat = [_flatten_result_row(row, include_old_preferred=True) for row in results]
     return jsonify(flat)
 
 
@@ -1189,75 +1215,15 @@ def admin_export():
     from io import StringIO
 
     db = get_db()
-    results = db.execute('''
-        SELECT
-            p.session_id, p.referral_code, p.created_at as participant_created,
-            p.browser, p.browser_version, p.os,
-            p.screen_width, p.screen_height, p.pixel_ratio, p.color_depth,
-            d.email, d.data as demographics_data,
-            s.image_pair_id, s.stimulus_data, s.responses,
-            s.was_randomized, s.time_spent, s.created_at as response_created
-        FROM participants p
-        LEFT JOIN demographics d ON p.id = d.participant_id
-        LEFT JOIN survey_responses s ON p.id = s.participant_id
-        WHERE s.id IS NOT NULL
-        ORDER BY p.id, s.image_pair_id
-    ''').fetchall()
+    results = db.execute(
+        _ADMIN_RESULT_SELECT + ' ORDER BY p.id, s.image_pair_id'
+    ).fetchall()
     db.close()
 
     flat = []
     all_keys = set()
     for row in results:
-        r = dict(row)
-        if r.get('demographics_data'):
-            try:
-                r.update(json.loads(r['demographics_data']))
-            except (json.JSONDecodeError, TypeError):
-                pass
-        r.pop('demographics_data', None)
-
-        stim = {}
-        if r.get('stimulus_data'):
-            try:
-                stim = json.loads(r['stimulus_data'])
-            except (json.JSONDecodeError, TypeError):
-                pass
-        methods = stim.get('methods', {})
-        r['method_a'] = methods.get('a', stim.get('method_a', ''))
-        r['method_b'] = methods.get('b', stim.get('method_b', ''))
-        for inp_name, inp_val in stim.get('inputs', {}).items():
-            r[f'input_{inp_name}'] = inp_val
-        for key in ('prompt', 'image_a_url', 'image_b_url', 'identity_urls', 'mask_url'):
-            if key in stim:
-                r[key] = stim[key]
-        r.pop('stimulus_data', None)
-
-        resp = {}
-        if r.get('responses'):
-            try:
-                resp = json.loads(r['responses'])
-            except (json.JSONDecodeError, TypeError):
-                pass
-        for q_name, q_data in resp.items():
-            if isinstance(q_data, dict):
-                choice = q_data.get('choice', '')
-                r[f'{q_name}_choice'] = choice
-                r[f'{q_name}_confidence'] = q_data.get('confidence')
-                if choice == 'A':
-                    r[f'{q_name}_preferred_method'] = r.get('method_a', '')
-                elif choice == 'B':
-                    r[f'{q_name}_preferred_method'] = r.get('method_b', '')
-                elif choice == 'equal':
-                    r[f'{q_name}_preferred_method'] = 'equal'
-                # Old-style flat fields
-                old_choice = _old_choice_key(q_name)
-                old_conf = _old_confidence_key(q_name)
-                r[old_choice] = choice
-                r[old_conf] = q_data.get('confidence')
-            else:
-                r[q_name] = q_data
-        r.pop('responses', None)
-
+        r = _flatten_result_row(row, include_old_preferred=False)
         all_keys.update(r.keys())
         flat.append(r)
 

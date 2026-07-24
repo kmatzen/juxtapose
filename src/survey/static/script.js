@@ -73,6 +73,9 @@ window.addEventListener('resize', () => {
 async function checkDevMode() {
     try {
         const response = await fetch('/api/config');
+        if (!response.ok) {
+            throw new Error(`Config request failed with status ${response.status}`);
+        }
         surveyConfig = await response.json();
         devMode = surveyConfig.dev_mode;
 
@@ -86,6 +89,9 @@ async function checkDevMode() {
         }
     } catch (error) {
         console.error('Error checking dev mode:', error);
+        // surveyConfig is required for the whole survey to work; make the
+        // failure visible instead of silently rendering an empty survey.
+        showError('Could not load the survey configuration. Please refresh the page or try again later.', true);
     }
 }
 
@@ -205,33 +211,71 @@ function setupImageLightbox() {
     const lightboxImage = document.getElementById('lightbox-image');
     const lightboxCaption = document.querySelector('.lightbox-caption');
     const closeBtn = document.querySelector('.lightbox-close');
-    
+
+    // Dialog semantics for assistive technology
+    lightbox.setAttribute('role', 'dialog');
+    lightbox.setAttribute('aria-modal', 'true');
+    lightbox.setAttribute('aria-label', 'Enlarged image view');
+    closeBtn.setAttribute('aria-label', 'Close enlarged image');
+
+    // Element that had focus before the lightbox opened, to restore on close
+    let lastFocused = null;
+
     // Function to open lightbox
     window.openLightbox = function(imageSrc, caption) {
+        lastFocused = document.activeElement;
         lightboxImage.src = imageSrc;
+        lightboxImage.alt = caption || 'Enlarged image';
         lightboxCaption.textContent = caption;
         lightbox.classList.add('show');
+        closeBtn.focus();  // move focus into the dialog
     };
-    
+
     // Function to close lightbox
     const closeLightbox = () => {
         lightbox.classList.remove('show');
+        if (lastFocused && typeof lastFocused.focus === 'function') {
+            lastFocused.focus();  // restore focus to the trigger
+        }
+        lastFocused = null;
     };
-    
+
+    // Attach a keyboard- and pointer-accessible zoom trigger to an image.
+    // Used everywhere an image should open the lightbox.
+    window.attachLightboxTrigger = function(img, getSrc, caption) {
+        img.setAttribute('role', 'button');
+        img.setAttribute('tabindex', '0');
+        img.setAttribute('aria-label', `View ${caption} enlarged`);
+        img.style.cursor = 'pointer';
+        img.addEventListener('click', () => window.openLightbox(getSrc(), caption));
+        img.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+                e.preventDefault();
+                window.openLightbox(getSrc(), caption);
+            }
+        });
+    };
+
     // Close button
     closeBtn.addEventListener('click', closeLightbox);
-    
+
     // Close on background click
     lightbox.addEventListener('click', (e) => {
         if (e.target === lightbox) {
             closeLightbox();
         }
     });
-    
-    // Close on Escape key
+
+    // Keyboard handling while open: Escape closes; Tab is trapped on the
+    // single focusable element (the close button).
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && lightbox.classList.contains('show')) {
+        if (!lightbox.classList.contains('show')) return;
+        if (e.key === 'Escape') {
             closeLightbox();
+        } else if (e.key === 'Tab') {
+            // Only the close button is focusable inside the dialog
+            e.preventDefault();
+            closeBtn.focus();
         }
     });
 }
@@ -533,9 +577,9 @@ async function loadImagePair(index) {
             imgALoader.src = data.image_a_url;
             imgBLoader.src = data.image_b_url;
             
-            // Add click handlers for lightbox
-            imageA.onclick = () => openLightbox(data.image_a_url, 'Image A');
-            imageB.onclick = () => openLightbox(data.image_b_url, 'Image B');
+            // Add keyboard- and pointer-accessible lightbox triggers
+            attachLightboxTrigger(imageA, () => data.image_a_url, 'Image A');
+            attachLightboxTrigger(imageB, () => data.image_b_url, 'Image B');
             
             // Update progress
             document.getElementById('current-question').textContent = index + 1;
@@ -717,35 +761,48 @@ function showRetakeModal() {
         const modal = document.getElementById('retake-modal');
         const confirmBtn = document.getElementById('retake-confirm');
         const cancelBtn = document.getElementById('retake-cancel');
-        
-        // Show modal
-        modal.classList.add('show');
-        
-        // Handle confirm
-        const handleConfirm = () => {
+        const lastFocused = document.activeElement;
+
+        // Dialog semantics for assistive technology
+        modal.setAttribute('role', 'dialog');
+        modal.setAttribute('aria-modal', 'true');
+        modal.setAttribute('aria-labelledby', 'retake-modal-title');
+
+        const cleanup = () => {
             modal.classList.remove('show');
             confirmBtn.removeEventListener('click', handleConfirm);
             cancelBtn.removeEventListener('click', handleCancel);
-            resolve(true);
+            modal.removeEventListener('click', handleBackdrop);
+            document.removeEventListener('keydown', handleKeydown);
+            if (lastFocused && typeof lastFocused.focus === 'function') {
+                lastFocused.focus();  // restore focus to the trigger
+            }
         };
-        
-        // Handle cancel
-        const handleCancel = () => {
-            modal.classList.remove('show');
-            confirmBtn.removeEventListener('click', handleConfirm);
-            cancelBtn.removeEventListener('click', handleCancel);
-            resolve(false);
+
+        const handleConfirm = () => { cleanup(); resolve(true); };
+        const handleCancel = () => { cleanup(); resolve(false); };
+        const handleBackdrop = (e) => { if (e.target === modal) handleCancel(); };
+
+        // Escape cancels; Tab is trapped between the two buttons
+        const handleKeydown = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                handleCancel();
+            } else if (e.key === 'Tab') {
+                e.preventDefault();
+                const target = document.activeElement === cancelBtn ? confirmBtn : cancelBtn;
+                target.focus();
+            }
         };
-        
+
         confirmBtn.addEventListener('click', handleConfirm);
         cancelBtn.addEventListener('click', handleCancel);
-        
-        // Close on background click
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                handleCancel();
-            }
-        });
+        modal.addEventListener('click', handleBackdrop);
+        document.addEventListener('keydown', handleKeydown);
+
+        // Show modal and move focus into it (default to the safe action)
+        modal.classList.add('show');
+        cancelBtn.focus();
     });
 }
 
@@ -799,9 +856,12 @@ function displayConditioningInputs(data) {
         if (maskImg && maskUrl) {
             maskImg.crossOrigin = 'anonymous';
             maskImg.src = maskUrl;
-            maskImg.onclick = () => openLightbox(maskUrl, maskInput.label || 'Mask');
+            attachLightboxTrigger(maskImg, () => maskUrl, maskInput.label || 'Mask');
             maskImg.onload = () => {
                 processMaskForOverlays(maskImg);
+            };
+            maskImg.onerror = () => {
+                console.error('Failed to load mask image:', maskUrl);
             };
         }
     }
@@ -850,6 +910,12 @@ function loadStackedGallery(container, url, label, outputImages) {
             slicedImg.alt = `${label} ${i + 1}`;
             slicedImg.className = 'identity-image';
             slicedImg.setAttribute('data-identity-index', i);
+            // Border color comes from the single IDENTITY_COLORS source of truth
+            // (keeps the thumbnail border in sync with the mask overlay colors).
+            const identityColor = IDENTITY_COLORS[i % IDENTITY_COLORS.length];
+            if (identityColor) {
+                slicedImg.style.borderColor = `rgb(${identityColor[0]}, ${identityColor[1]}, ${identityColor[2]})`;
+            }
             slicedImg.onclick = () => openLightbox(slicedImg.src, `${label} ${i + 1}`);
             container.appendChild(slicedImg);
         }
@@ -959,10 +1025,36 @@ function setupIdentityHoverHandlers() {
     identityImages.forEach(img => {
         const index = parseInt(img.getAttribute('data-identity-index'));
         
-        // Add ARIA attributes for screen readers
+        // Add ARIA attributes for screen readers and make it keyboard-focusable
         img.setAttribute('role', 'button');
-        img.setAttribute('aria-label', `Identity ${index + 1} - Hover or tap to highlight corresponding region in generated images`);
-        
+        img.setAttribute('tabindex', '0');
+        img.setAttribute('aria-pressed', 'false');
+        img.setAttribute('aria-label', `Identity ${index + 1} - Hover, tap, or press Enter to highlight corresponding region in generated images`);
+
+        // Keyboard: Enter/Space toggles the overlay (mirrors the tap handler)
+        img.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+            e.preventDefault();
+            if (activeOverlayIndex === index) {
+                hideMaskOverlay();
+                activeOverlayIndex = null;
+                img.setAttribute('aria-pressed', 'false');
+            } else {
+                showMaskOverlay(index);
+                activeOverlayIndex = index;
+                img.setAttribute('aria-pressed', 'true');
+            }
+        });
+
+        // Clear the pressed state when focus leaves and the overlay hides
+        img.addEventListener('blur', () => {
+            if (activeOverlayIndex === index) {
+                hideMaskOverlay();
+                activeOverlayIndex = null;
+                img.setAttribute('aria-pressed', 'false');
+            }
+        });
+
         // Desktop: hover events
         img.addEventListener('mouseenter', () => {
             showMaskOverlay(index);
@@ -1156,23 +1248,28 @@ function hideMaskOverlay() {
     });
 }
 
-function showError(message) {
+function showError(message, persistent = false) {
     // Create error element if it doesn't exist
     let errorDiv = document.querySelector('.error-message');
     if (!errorDiv) {
         errorDiv = document.createElement('div');
         errorDiv.className = 'error-message';
-        const activeSection = document.querySelector('.section.active');
-        activeSection.insertBefore(errorDiv, activeSection.firstChild);
+        errorDiv.setAttribute('role', 'alert');
+        // Prefer the active section; fall back to <body> if none is active yet
+        // (e.g. an error during initial config load, before a section shows).
+        const host = document.querySelector('.section.active') || document.body;
+        host.insertBefore(errorDiv, host.firstChild);
     }
-    
+
     errorDiv.textContent = message;
     errorDiv.classList.add('show');
-    
-    // Hide after 5 seconds
-    setTimeout(() => {
-        errorDiv.classList.remove('show');
-    }, 5000);
+
+    // Persistent errors (e.g. the survey failed to load) stay until reload.
+    if (!persistent) {
+        setTimeout(() => {
+            errorDiv.classList.remove('show');
+        }, 5000);
+    }
 }
 
 // ==================================================================

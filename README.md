@@ -171,7 +171,20 @@ export DATA_DIR="/path/to/persistent/data"
 gunicorn src.survey.app:app --bind 0.0.0.0:8000
 ```
 
-When `DATA_DIR` is set, the app enables production mode: requires `SECRET_KEY`, enforces HTTPS cookies, and stores the database and audit log in that directory.
+When `DATA_DIR` is set, the app enables production mode: requires `SECRET_KEY`, refuses to start with the default `ADMIN_PASSWORD`, enforces HTTPS cookies, and stores the database and audit log in that directory.
+
+### Docker
+
+```bash
+docker build -t juxtapose .
+docker run -p 8000:8000 \
+  -e SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')" \
+  -e ADMIN_PASSWORD="your-secure-password" \
+  -v juxtapose-data:/data \
+  juxtapose
+```
+
+The image sets `DATA_DIR=/data` (production mode) and runs gunicorn as a non-root user.
 
 ## Admin Dashboard
 

@@ -65,9 +65,27 @@
         let cachedData = [];
         let adminConfig = null;
 
+        // Escape any server-supplied value before interpolating into innerHTML.
+        // Participant data (emails, free-text demographics, method names) is
+        // untrusted and must never be inserted as raw HTML.
+        function esc(value) {
+            if (value == null) return '';
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         async function init() {
-            const cfgRes = await fetch('/api/config');
-            adminConfig = await cfgRes.json();
+            try {
+                const cfgRes = await fetch('/api/config');
+                if (!cfgRes.ok) throw new Error('Failed to load config');
+                adminConfig = await cfgRes.json();
+            } catch (error) {
+                console.error('Error loading config:', error);
+            }
             await loadResults();
             setInterval(loadResults, 30000);
         }
@@ -100,11 +118,11 @@
                             if (c) confValues.push(c);
                         });
 
-                        const summary = Object.keys(prefs).map(m => `${m}: ${prefs[m]}`).join(', ') || 'No data';
+                        const summary = Object.keys(prefs).map(m => `${esc(m)}: ${prefs[m]}`).join(', ') || 'No data';
                         const card = document.createElement('div');
                         card.className = 'stat-card';
                         card.style.cssText = 'margin-bottom: 10px;';
-                        card.innerHTML = `<div class="stat-number" style="font-size:14px;line-height:1.4;">${summary}</div><div class="stat-label">Preferences: ${q.section_label || q.name}</div>`;
+                        card.innerHTML = `<div class="stat-number" style="font-size:14px;line-height:1.4;">${summary}</div><div class="stat-label">Preferences: ${esc(q.section_label || q.name)}</div>`;
                         prefCards.appendChild(card);
                     }
 
@@ -149,7 +167,7 @@
                 let headerHtml = '<tr><th>Email</th><th>Referral</th><th>Browser</th><th>OS</th><th>Screen</th>';
                 for (const f of demoFields) {
                     if (f.type === 'email') continue;
-                    headerHtml += `<th>${f.label}</th>`;
+                    headerHtml += `<th>${esc(f.label)}</th>`;
                 }
                 headerHtml += '<th>Responses</th></tr>';
                 thead.innerHTML = headerHtml;
@@ -167,14 +185,14 @@
                 const pairsPerUser = (adminConfig && adminConfig.survey && adminConfig.survey.pairs_per_user) || 30;
 
                 tbody.innerHTML = Object.values(participantMap).map(p => {
-                    let cells = `<td>${p.email || '-'}</td>`;
-                    cells += `<td>${p.referral_code || '-'}</td>`;
-                    cells += `<td style="font-size:11px;">${p.browser || '-'} ${p.browser_version || ''}</td>`;
-                    cells += `<td>${p.os || '-'}</td>`;
-                    cells += `<td style="font-size:11px;">${p.screen_width || '?'}×${p.screen_height || '?'}</td>`;
+                    let cells = `<td>${esc(p.email) || '-'}</td>`;
+                    cells += `<td>${esc(p.referral_code) || '-'}</td>`;
+                    cells += `<td style="font-size:11px;">${esc(p.browser) || '-'} ${esc(p.browser_version)}</td>`;
+                    cells += `<td>${esc(p.os) || '-'}</td>`;
+                    cells += `<td style="font-size:11px;">${esc(p.screen_width || '?')}×${esc(p.screen_height || '?')}</td>`;
                     for (const f of demoFields) {
                         if (f.type === 'email') continue;
-                        cells += `<td>${p[f.name] || '-'}</td>`;
+                        cells += `<td>${esc(p[f.name]) || '-'}</td>`;
                     }
                     cells += `<td><strong>${p.responseCount}/${pairsPerUser}</strong></td>`;
                     return `<tr>${cells}</tr>`;
@@ -185,7 +203,7 @@
                 let headerHtml = '<tr><th>Date</th><th>Email</th><th>Pair#</th><th>Method A</th><th>Method B</th>';
                 for (const q of questions) {
                     if (q.type === 'ab_preference') {
-                        const label = q.section_label || q.name;
+                        const label = esc(q.section_label || q.name);
                         headerHtml += `<th>Choice (${label})</th><th>Preferred (${label})</th>`;
                         if (q.confidence) headerHtml += `<th>Conf (${label})</th>`;
                     }
@@ -194,19 +212,19 @@
                 thead.innerHTML = headerHtml;
 
                 tbody.innerHTML = cachedData.map(row => {
-                    let cells = `<td style="font-size:11px;">${row.response_created ? new Date(row.response_created).toLocaleDateString() : '-'}</td>`;
-                    cells += `<td>${row.email || '-'}</td>`;
-                    cells += `<td>${row.image_pair_id || '-'}</td>`;
-                    cells += `<td style="font-size:11px;">${row.method_a || 'N/A'}</td>`;
-                    cells += `<td style="font-size:11px;">${row.method_b || 'N/A'}</td>`;
+                    let cells = `<td style="font-size:11px;">${row.response_created ? esc(new Date(row.response_created).toLocaleDateString()) : '-'}</td>`;
+                    cells += `<td>${esc(row.email) || '-'}</td>`;
+                    cells += `<td>${esc(row.image_pair_id) || '-'}</td>`;
+                    cells += `<td style="font-size:11px;">${esc(row.method_a) || 'N/A'}</td>`;
+                    cells += `<td style="font-size:11px;">${esc(row.method_b) || 'N/A'}</td>`;
                     for (const q of questions) {
                         if (q.type === 'ab_preference') {
-                            const choice = row[`${q.name}_choice`] || '-';
-                            const pref = row[`${q.name}_preferred_method`] || '-';
+                            const choice = esc(row[`${q.name}_choice`]) || '-';
+                            const pref = esc(row[`${q.name}_preferred_method`]) || '-';
                             cells += `<td>${choice}</td><td><strong>${pref}</strong></td>`;
                             if (q.confidence) {
                                 const conf = row[`${q.name}_confidence`];
-                                cells += `<td>${conf != null ? conf : '-'}</td>`;
+                                cells += `<td>${conf != null ? esc(conf) : '-'}</td>`;
                             }
                         }
                     }
