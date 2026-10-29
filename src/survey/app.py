@@ -895,6 +895,11 @@ def get_image_pair(pair_index):
         return jsonify({'error': 'Image pair not found'}), 404
 
     randomized = random.random() < 0.5
+    # Answers are attributed from this record, never from what the browser posts back.
+    pair_randomized = session.get('pair_randomized', {})
+    pair_randomized[str(pair_id)] = randomized
+    session['pair_randomized'] = pair_randomized
+
     stim = _build_stimulus_data(trial, randomized)
     stim['total_trials'] = len(user_pair_ids)
 
@@ -962,20 +967,19 @@ def submit_survey():
             return jsonify({'error': 'Participant not found'}), 404
 
         trial_id = data.get('image_pair_id')
+        trial = next((p for p in IMAGE_PAIRS if p['id'] == trial_id), None)
 
-        # Build stimulus_data and responses JSON from the incoming data
-        stimulus_data = {}
+        if trial is None:
+            return jsonify({'error': 'Image pair not found'}), 404
+
+        # The browser reports answers only; the served order is the session's record.
+        randomized = bool(session.get('pair_randomized', {}).get(str(trial_id)))
+        stimulus_data = _build_stimulus_data(trial, randomized)
+        _add_flat_fields(stimulus_data, trial, randomized)
+        for counter_key in ('total_trials', 'total_pairs'):
+            stimulus_data.pop(counter_key, None)
+
         responses = {}
-
-        # Extract stimulus data (all the trial/image info)
-        for key in ('prompt', 'method_a', 'method_b', 'image_a_url', 'image_b_url',
-                     'identity_urls', 'mask_url'):
-            if key in data:
-                stimulus_data[key] = data[key]
-
-        # Also store any structured stimulus data if provided
-        if 'stimulus_data' in data:
-            stimulus_data.update(data['stimulus_data'])
 
         # Extract responses - try structured format first, fall back to flat
         if 'responses' in data and isinstance(data['responses'], dict):
@@ -998,7 +1002,7 @@ def submit_survey():
 
         stimulus_json = json.dumps(stimulus_data)
         responses_json = json.dumps(responses)
-        was_randomized = 1 if data.get('was_randomized') else 0
+        was_randomized = 1 if randomized else 0
         time_spent = data.get('time_spent')
 
         existing = db.execute(

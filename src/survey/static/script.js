@@ -106,10 +106,8 @@ async function checkDemographicsSubmitted() {
                 // Show survey progress bar
                 document.getElementById('survey-progress').style.display = 'block';
                 
-                // Resume from where user left off
-                // completed_pairs tells us how many pairs are done, so load the next one
-                const nextPairIndex = data.completed_pairs || 0;
-                await loadImagePair(nextPairIndex);
+                // The server already left finished trials out of this session's list.
+                await loadImagePair(0);
             }
         }
     } catch (error) {
@@ -1426,6 +1424,11 @@ function isQuestionGroupComplete(questionIndex) {
     return Object.values(radioGroups).every(selected => selected);
 }
 
+function isInHiddenSection(el) {
+    const section = el.closest('.evaluation-section');
+    return !!section && section.style.display === 'none';
+}
+
 function setupSubmitValidation() {
     const submitBtn = document.getElementById('submit-btn');
     const surveyForm = document.getElementById('survey-form');
@@ -1436,7 +1439,8 @@ function setupSubmitValidation() {
     function validateForm() {
         // Get ALL radio inputs and group by name
         const radioGroups = {};
-        const allRadios = surveyForm.querySelectorAll('input[type="radio"]');
+        const allRadios = Array.from(surveyForm.querySelectorAll('input[type="radio"]'))
+            .filter(radio => !isInHiddenSection(radio));
         
         allRadios.forEach(radio => {
             if (!radioGroups[radio.name]) {
