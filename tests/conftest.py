@@ -47,6 +47,29 @@ def runner(app):
 
 
 @pytest.fixture
+def referral_client(tmp_path, monkeypatch):
+    """REFERRAL_CODES is read at import, so a gating test must re-import the app with it set."""
+    def make(codes):
+        import importlib
+        from src.survey import app as app_module
+        monkeypatch.setenv('REFERRAL_CODES', codes)
+        monkeypatch.setenv('DEV_MODE', 'false')
+        importlib.reload(app_module)
+        # The reload resets the module globals conftest isolated, so re-isolate them.
+        monkeypatch.setattr(app_module, 'DATABASE', str(tmp_path / 'survey.db'))
+        monkeypatch.setattr(app_module, 'AUDIT_LOG_FILE', str(tmp_path / 'audit.log'))
+        app_module.app.config.update({
+            'TESTING': True,
+            'SECRET_KEY': 'test_secret_key',
+            'WTF_CSRF_ENABLED': False,
+        })
+        with app_module.app.app_context():
+            app_module.init_db()
+        return app_module.app.test_client()
+    return make
+
+
+@pytest.fixture
 def sample_image_pair():
     """Sample image pair data for testing"""
     return {
