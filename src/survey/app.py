@@ -1008,7 +1008,11 @@ def submit_survey():
         stimulus_json = json.dumps(stimulus_data)
         responses_json = json.dumps(responses)
         was_randomized = 1 if randomized else 0
-        time_spent = data.get('time_spent')
+        # A non-number sits in this REAL column as text, and AVG() counts it as zero seconds.
+        try:
+            time_spent = float(data.get('time_spent'))
+        except (TypeError, ValueError):
+            time_spent = None
 
         existing = db.execute(
             'SELECT id FROM survey_responses WHERE participant_id = ? AND image_pair_id = ?',

@@ -50,7 +50,7 @@ function buildResponsesHeader(questions) {
 }
 
 function formatTimeSpent(value) {
-    // SQLite stores time_spent untyped as sent; a non-number threw and blanked the table.
+    // Rows stored before the server coerced this column can hold text; blanking the table is worse.
     if (value === null || value === undefined || value === '') return '-';
     const n = Number(value);
     return Number.isFinite(n) ? n.toFixed(1) : '-';
