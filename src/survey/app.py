@@ -118,7 +118,8 @@ def _load_trials_from_file(file_path_relative, start_id=1):
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             for line_num, line in enumerate(f, 1):
-                line = line.strip()
+                # Stripping whitespace here would delete trailing empty fields, skipping valid rows.
+                line = line.rstrip('\r\n')
                 if not line or line.startswith('#'):
                     continue
 
