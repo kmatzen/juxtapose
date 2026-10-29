@@ -16,10 +16,8 @@ test('participant completes the whole study in a real browser', async ({ page })
     await answerTrial(page);
     answered++;
   }
-  await page.screenshot({ path: 'docs/screenshots/01-survey-trial.png', fullPage: true });
 
   await completeSurvey(page, TRIALS - answered);
-  await page.screenshot({ path: 'docs/screenshots/02-thank-you.png', fullPage: true });
 });
 
 // A reload restores the session's assignment, so the server must skip what is already answered

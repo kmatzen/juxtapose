@@ -47,7 +47,6 @@ test('cancelling a retake keeps the participant’s earlier answers', async ({ b
   const pageB = await second.newPage();
   await submitDemographics(pageB, email);
   await expect(pageB.locator('#retake-modal')).toBeVisible();
-  await pageB.screenshot({ path: 'docs/screenshots/04-retake-modal.png', fullPage: true });
   await pageB.locator('#retake-cancel').click();
   await expect(pageB.locator('#retake-modal')).toBeHidden();
   await second.close();
