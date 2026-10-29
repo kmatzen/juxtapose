@@ -2,6 +2,7 @@ const { defineConfig, devices } = require('@playwright/test');
 
 const PORT = process.env.E2E_PORT || '5055';
 const BASE = `http://127.0.0.1:${PORT}`;
+const ADMIN_STATE = 'test-results/admin-auth.json';
 
 module.exports = defineConfig({
   testDir: './tests/e2e',
@@ -20,11 +21,24 @@ module.exports = defineConfig({
     trace: 'retain-on-failure',
   },
   projects: [
-    { name: 'desktop', use: { ...devices['Desktop Chrome'] }, testIgnore: /mobile.*\.spec\.js/ },
-    { name: 'mobile', use: { ...devices['Pixel 7'] }, testMatch: /mobile.*\.spec\.js/ },
+    { name: 'auth', testMatch: /auth\.setup\.js/ },
+    {
+      name: 'desktop',
+      use: { ...devices['Desktop Chrome'], storageState: ADMIN_STATE },
+      testIgnore: [/mobile.*\.spec\.js/, /auth\.setup\.js/],
+      dependencies: ['auth'],
+    },
+    {
+      name: 'mobile',
+      use: { ...devices['Pixel 7'], storageState: ADMIN_STATE },
+      testMatch: /mobile.*\.spec\.js/,
+      dependencies: ['auth'],
+    },
   ],
   webServer: {
-    command: 'bash tests/e2e/fixture/server.sh',
+    // Building here means any entry point (npx playwright test, npm run test:e2e, CI) tests
+    // current assets; a stale static_dist silently serves the page the test did not write.
+    command: 'npm run build --silent && bash tests/e2e/fixture/server.sh',
     url: `${BASE}/health`,
     env: { PORT },
     reuseExistingServer: !process.env.CI,

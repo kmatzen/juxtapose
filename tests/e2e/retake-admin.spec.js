@@ -4,14 +4,10 @@ const {
 } = require('./helpers/survey');
 
 const TRIALS = parseInt(process.env.E2E_ROWS || '4', 10);
-const PASSWORD = process.env.ADMIN_PASSWORD || 'e2e-admin-password';
-
+// The admin session cookie is seeded by tests/e2e/auth.setup.js; logging in per test would
+// spend the IP-keyed 10/hour budget on the shared fixture server.
 async function loginAdmin(page) {
-  await page.goto('/admin/login');
-  await page.fill('#password', PASSWORD);
-  await page.locator('form button, form input[type="submit"]').first().click().catch(async () => {
-    await page.locator('form').evaluate((f) => f.submit());
-  });
+  await page.goto('/admin');
   await expect(page).toHaveURL(/\/admin$/);
 }
 

@@ -30,7 +30,8 @@ Override with `E2E_ROWS`, `E2E_RUN_DIR`, `PYTHON` (default `/tmp/jlvenv/bin/pyth
 | `survey-flow.spec.js` | demographics → 4 trials → thank-you; reload mid-study |
 | `canvas-overlay.spec.js` | mask pixels decoded into per-identity masks; hover paints the overlay on both outputs; stacked gallery slicing; empty optional column is submittable |
 | `retake-admin.spec.js` | comma-separated gallery = N images; Cancel keeps answers; confirm deletes them |
-| `admin-dashboard.spec.js` | participant-supplied text renders as text; stats + paging; CSV one column per value |
+| `admin-dashboard.spec.js` | participant-supplied text renders as text; stats + paging; CSV one column per value; grid stays inside the page |
+| `mobile-admin.spec.js` | the wide admin grid scrolls inside its container at phone width |
 | `mobile-survey.spec.js` | no horizontal overflow at phone width, tiles stack |
 
 `docs/screenshots/` is written by the suite and committed so the PR can show the app.
@@ -51,3 +52,11 @@ Override with `E2E_ROWS`, `E2E_RUN_DIR`, `PYTHON` (default `/tmp/jlvenv/bin/pyth
 
 The fixture ships two optional-free rows because the app samples trials per session: one row
 could be sampled out and the case would silently stop being covered.
+
+## Two things that bite
+
+- The webServer runs `npm run build` first. Plain `npx playwright test` skips the `pretest:e2e`
+  hook, and a stale `src/survey/static_dist/` then serves a page your test never wrote.
+- `/admin/login` is rate-limited per IP (10/hour) and every test shares one 127.0.0.1.
+  `auth.setup.js` signs in once and hands the session to the other projects via storageState,
+  so specs `goto('/admin')` instead of logging in.

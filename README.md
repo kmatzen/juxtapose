@@ -158,7 +158,16 @@ Set `enabled: false` to skip the tutorial.
 
 ## Deployment
 
-For production, set `DATA_DIR` to a persistent directory and provide a strong `SECRET_KEY`:
+Build the frontend first: Vite emits `src/survey/static_dist/`, which the app serves at
+`/dist/`. The build reads nothing from the environment, and a checkout with no build falls back
+to `src/survey/static/`, so `npm` is only needed to change the frontend.
+
+```bash
+npm ci
+npm run build
+```
+
+Then set `DATA_DIR` to a persistent directory and provide a strong `SECRET_KEY`:
 
 ```bash
 export SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
@@ -167,7 +176,8 @@ export DATA_DIR="/path/to/persistent/data"
 gunicorn src.survey.app:app --bind 0.0.0.0:8000
 ```
 
-When `DATA_DIR` is set, the app enables production mode: requires `SECRET_KEY` and a non-default `ADMIN_PASSWORD`, enforces HTTPS cookies, and stores the database and audit log in that directory.
+`static_dist/` is read at boot, so a deploy replaces the code and the build together, then
+restarts. When `DATA_DIR` is set, the app enables production mode: requires `SECRET_KEY` and a non-default `ADMIN_PASSWORD`, enforces HTTPS cookies, and stores the database and audit log in that directory.
 
 ## Admin Dashboard
 
@@ -185,9 +195,16 @@ SQLite with JSON columns for demographics and responses. Migration from older sc
 ## Testing
 
 ```bash
-pip install ".[dev]"
-python -m pytest tests/ -q
+pip install ".[dev]" && npm ci
+python -m pytest tests/ -q     # 113 backend tests
+npm test                       # 71 jsdom tests driving the real script.js
+npm run test:unit              # 32 unit tests on frontend/src modules
+npm run test:e2e               # 19 real-browser tests (builds, boots its own server)
 ```
+
+The survey's rules (question gating, answer assembly, payload shape, progress) live in
+`frontend/src/study-state.ts` with no DOM, so they are unit-tested directly; `script.js` calls
+into it and keeps only DOM work.
 
 ## License
 

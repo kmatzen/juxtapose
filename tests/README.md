@@ -47,14 +47,17 @@ npm exec playwright install chromium   # browser tier only
 # Backend tests
 uv run pytest -v
 
-# Frontend tests
+# Frontend unit tests (Vitest, imports frontend/src modules directly)
+npm run test:unit
+
+# Frontend jsdom tests (drive the real src/survey/static/script.js)
 npm test
 
 # Browser tests (boots its own app + fixture study)
 npm run test:e2e
 
-# Both together
-uv run pytest -v && npm test && npm run test:e2e
+# Everything
+uv run pytest -v && npm run test:unit && npm test && npm run test:e2e
 ```
 
 ### Backend Tests (Python)
@@ -93,7 +96,22 @@ pytest -x
 
 ### Frontend Tests (JavaScript)
 
-**Run all tests:**
+Two runners, split by what they need:
+
+| Tier | Runner | Files | Needs a build? |
+|------|--------|-------|----------------|
+| Pure modules | Vitest | `frontend/test/*.test.ts` | no, imports `.ts` directly |
+| Real `script.js` in jsdom | Jest | `tests/frontend/*.test.js` | `pretest` builds `frontend/.cjs/study-state.cjs` |
+
+`script.js` reads the study-state core from `window.JX` in the browser and from the CJS build
+under jsdom, so the rules are exercised in both worlds without being copied.
+
+**Run the unit tests:**
+```bash
+npm run test:unit
+```
+
+**Run the jsdom tests:**
 ```bash
 npm test
 ```
@@ -121,11 +139,10 @@ npm test -- frontend/validation.test.js
 tests/
 ├── __init__.py
 ├── conftest.py                     # Pytest fixtures and configuration
-├── test_*.py                       # 107 backend tests, one file per area
+├── test_*.py                       # 113 backend tests, one file per area
 ├── frontend/
 │   ├── setup.js                    # window flags, IntersectionObserver, console silencing
 │   ├── helpers/survey-env.js       # DOM fixture mirroring index.html + fetch/Image stubs
-│   ├── admin-render.test.js        # 9  – admin table escaping and rendering
 │   ├── gallery.test.js             # 2  – image_gallery comma list vs stacked sheet
 │   ├── hidden-section-validation.test.js  # 4  – hidden optional sections
 │   ├── image-loading.test.js       # 11 – loadImagePair, in-flight lock, failure paths
@@ -212,7 +229,8 @@ Target: **80%+ coverage** for critical paths
 
 Current coverage:
 - - Backend: 78% (860 statements, 192 missed)
-- - Frontend: 70% of statements (`script.js` 69%, `admin.js` 83%); `npm run test:coverage` fails below the thresholds in `jest.config.js`
+- - Frontend jsdom: 68% of statements in `script.js`; `npm run test:coverage` fails below the thresholds in `jest.config.js`
+- - Frontend unit: the study-state rules and the admin column specs, run by `npm run test:unit`
 - - Not covered by jsdom: canvas mask-overlay rendering (the Playwright tier covers it), dev-mode auto-fill helpers
 
 ## Adding New Tests
@@ -275,6 +293,13 @@ describe('My Feature', () => {
 - Test environment: `jsdom` (browser simulation)
 - Test discovery: `tests/frontend/**/*.test.js`
 - Coverage target: `src/survey/static/**/*.js`
+- `pretest` builds the CJS core (`frontend/.cjs/study-state.cjs`) that `script.js` requires here
+
+### Frontend unit (Vitest)
+- Configuration: `frontend/vitest.config.mts`
+- Test environment: `jsdom`
+- Test discovery: `frontend/test/**/*.test.ts`
+- Runs against TypeScript sources directly; no build step
 
 ## CI/CD Integration
 

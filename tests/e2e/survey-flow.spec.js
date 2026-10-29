@@ -24,6 +24,12 @@ test('participant completes the whole study in a real browser', async ({ page })
 
 // A reload restores the session's assignment, so the server must skip what is already answered
 // and report the position inside the study, not restart the counter.
+test('the page boots the built bundle, not a source file', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('html')).toHaveJSProperty('dataset.build', 'vite');
+  await expect(page.locator('script[src*="/dist/assets/survey-"]')).toHaveCount(1);
+});
+
 test('reloading mid-study resumes on an unserved trial', async ({ page }) => {
   const email = uniqueEmail('resume');
   await startSurvey(page, email);

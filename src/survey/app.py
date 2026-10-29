@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for, abort
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, abort, send_from_directory
 import sqlite3
 import uuid
 import os
@@ -236,6 +236,62 @@ def set_security_headers(response):
     if IS_PRODUCTION:
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     return response
+
+# ---------------------------------------------------------------------------
+# Built frontend assets
+# ---------------------------------------------------------------------------
+STATIC_DIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static_dist')
+
+
+def _built_assets():
+    """Files emitted by `npm run build`; empty means the app is running from source assets."""
+    found = set()
+    for _, _, files in os.walk(STATIC_DIST):
+        found.update(files)
+    return found
+
+
+BUILT_ASSETS = _built_assets()
+
+
+def _manifest_entries():
+    """Vite manifest keyed by entry basename; an asset-only build has no TS entries."""
+    # Vite writes the manifest under .vite/ since v6; the root path is the older layout.
+    for relative in (os.path.join('.vite', 'manifest.json'), 'manifest.json'):
+        try:
+            with open(os.path.join(STATIC_DIST, relative)) as manifest:
+                data = json.load(manifest)
+            break
+        except (OSError, ValueError):
+            continue
+    else:
+        return {}
+    return {os.path.splitext(os.path.basename(key))[0]: value.get('file')
+            for key, value in data.items() if value.get('isEntry')}
+
+
+BUNDLE_ENTRIES = _manifest_entries()
+
+
+@app.route('/dist/<path:filename>')
+def dist_asset(filename):
+    return send_from_directory(STATIC_DIST, filename)
+
+
+@app.template_global()
+def asset(filename):
+    """Prefer the built asset; falling back to static keeps a clone with no npm working."""
+    if filename in BUILT_ASSETS:
+        return f'/dist/{filename}'
+    return url_for('static', filename=filename)
+
+
+@app.template_global()
+def bundle(name):
+    """Hashed entry chunk, e.g. bundle('main'); None keeps an unbuilt checkout rendering."""
+    entry = BUNDLE_ENTRIES.get(name)
+    return f'/dist/{entry}' if entry else None
+
 
 # ---------------------------------------------------------------------------
 # Database
