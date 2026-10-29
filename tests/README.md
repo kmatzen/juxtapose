@@ -4,13 +4,18 @@ This directory contains automated tests for the survey application, covering bot
 
 ## Test Summary
 
-**Total: 180 tests passing -**
+**Total: 193 tests passing, 2 skipped as documented defects -**
 - Backend (Python): 104 tests
-- Frontend (JavaScript): 76 tests
+- Frontend (JavaScript, jsdom): 76 tests
+- Browser (Playwright/Chromium): 13 tests, 2 `fixme`
 
 Frontend suites `require()` the real `src/survey/static/script.js` (the file ends
 with a browser-inert `module.exports` guard). Never re-implement app logic inside a
 test: an inline copy passes while the shipped script rots.
+
+The Playwright tier drives the running app in Chromium and owns what jsdom cannot do:
+canvas mask decoding, image decoding, phone-width layout, whole-study journeys
+(`tests/e2e/README.md`).
 
 ## Setup
 
@@ -32,6 +37,7 @@ Install JavaScript test dependencies:
 
 ```bash
 npm install
+npm exec playwright install chromium   # browser tier only
 ```
 
 ## Running Tests
@@ -44,8 +50,11 @@ uv run pytest -v
 # Frontend tests
 npm test
 
+# Browser tests (boots its own app + fixture study)
+npm run test:e2e
+
 # Both together
-uv run pytest -v && npm test
+uv run pytest -v && npm test && npm run test:e2e
 ```
 
 ### Backend Tests (Python)
@@ -125,6 +134,15 @@ tests/
 │   ├── submissions.test.js         # 16 – what the browser posts, retake confirmation
 │   ├── tutorial.test.js            # 4  – tutorial walkthrough and submit gate
 │   └── validation.test.js          # 10 – submit gating, CSRF lookup
+├── e2e/
+│   ├── README.md                   # fixture, coverage, the two fixme defects
+│   ├── fixture/{make_run.py,serve.py,server.sh}
+│   ├── helpers/survey.js           # journey helpers against the live app
+│   ├── survey-flow.spec.js         # 2  – whole study, reload mid-study (fixme)
+│   ├── canvas-overlay.spec.js      # 4  – mask decoding, hover overlay, slicing, optional columns
+│   ├── retake-admin.spec.js        # 3  – gallery, retake cancel/confirm
+│   ├── admin-dashboard.spec.js     # 3  – escaping, stats/paging, CSV shape
+│   └── mobile-survey.spec.js       # 2  – phone-width layout
 └── README.md                       # This file
 ```
 
@@ -195,7 +213,7 @@ Target: **80%+ coverage** for critical paths
 Current coverage:
 - - Backend: 78% (860 statements, 192 missed)
 - - Frontend: 70% of statements (`script.js` 69%, `admin.js` 83%); `npm run test:coverage` fails below the thresholds in `jest.config.js`
-- - Not covered in the browser suites: canvas mask-overlay rendering and the dev-mode auto-fill helpers
+- - Not covered by jsdom: canvas mask-overlay rendering (the Playwright tier covers it), dev-mode auto-fill helpers
 
 ## Adding New Tests
 
@@ -309,7 +327,6 @@ open coverage-frontend/index.html
 ## Continuous Improvement
 
 Future test additions:
-- [ ] End-to-end tests using Playwright
 - [ ] API integration tests
 - [ ] Database migration tests
 - [ ] Performance/load tests

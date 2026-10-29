@@ -41,3 +41,6 @@ coverage
 .coverage
 audit.log
 coverage-frontend/
+
+test-results/
+playwright-report/
