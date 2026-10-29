@@ -6,6 +6,7 @@ const {
     flush,
     loadSurvey,
     script,
+    stubLocation,
     stubScrolling,
     surveyDom,
 } = require('./helpers/survey-env');
@@ -46,6 +47,14 @@ describe('loadImagePair renders a pair', () => {
 
     test('updates the pair counters and progress bar', async () => {
         await loadPair({}, 1);
+        expect(el('current-question').textContent).toBe('2');
+        expect(el('total-questions').textContent).toBe(String(PAIR.total_pairs));
+        expect(el('progress-bar-fill').style.width).toBe(`${(1 / 3) * 100}%`);
+    });
+
+    test('a resumed pair counts from the server position, not the reloaded index', async () => {
+        await loadPair({ trials_remaining: 2 }, 0);
+
         expect(el('current-question').textContent).toBe('2');
         expect(el('total-questions').textContent).toBe(String(PAIR.total_pairs));
         expect(el('progress-bar-fill').style.width).toBe(`${(1 / 3) * 100}%`);
@@ -121,7 +130,7 @@ describe('loadImagePair failure paths', () => {
     afterEach(() => error.mockRestore());
 
     test('a non-ok response surfaces an error and renders no images', async () => {
-        global.fetch = apiMock({ '/api/get_image_pair': { ok: false, status: 404, json: { error: 'no pairs' } } });
+        global.fetch = apiMock({ '/api/get_image_pair': { ok: false, status: 500, json: { error: 'boom' } } });
 
         await script.loadImagePair(0);
         await flush();
@@ -142,6 +151,17 @@ describe('loadImagePair failure paths', () => {
             .toBe('Network error. Please check your connection.');
     });
 
+    test('a 404 means nothing is owed, so it hands over to the index route', async () => {
+        const location = stubLocation('/survey');
+        global.fetch = apiMock({ '/api/get_image_pair': { ok: false, status: 404, json: { error: 'Invalid image pair index' } } });
+
+        await script.loadImagePair(0);
+        await flush();
+
+        expect(location.href).toBe('/');
+        expect(document.querySelector('.error-message')).toBeNull();
+    });
+
     test('a second pair clears the previous pair overlays and answers', async () => {
         await loadPair({ id: 1 });
         answer('image_choice', 'A');
@@ -153,5 +173,28 @@ describe('loadImagePair failure paths', () => {
 
         expect(document.querySelectorAll('.mask-overlay')).toHaveLength(0);
         expect(document.querySelector('input[name="image_choice"]:checked')).toBeNull();
+    });
+});
+
+describe('a trial with empty optional columns clears the previous trial tiles', () => {
+    test('identity and mask tiles go away instead of showing trial N-1', async () => {
+        await loadPair();
+        expect(el('identity-section').style.display).toBe('block');
+        expect(document.querySelectorAll('#identity-images .identity-image')).toHaveLength(2);
+
+        await loadPair({ id: 8, mask_url: '', identity_urls: '' }, 1);
+
+        expect(el('identity-section').style.display).toBe('none');
+        expect(document.querySelectorAll('#identity-images .identity-image')).toHaveLength(0);
+        expect(el('mask-image').hasAttribute('src')).toBe(false);
+        expect(document.querySelector('.mask-tile').style.display).toBe('none');
+    });
+
+    test('tiles stay on screen when the columns carry values', async () => {
+        await loadPair();
+
+        expect(el('identity-section').style.display).toBe('block');
+        expect(el('mask-image').getAttribute('src')).toBe(PAIR.mask_url);
+        expect(document.querySelector('.mask-tile').style.display).toBe('');
     });
 });

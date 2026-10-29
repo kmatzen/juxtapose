@@ -109,7 +109,7 @@ test('the trial with no mask is submittable and the study completes', async ({ p
   await expect(page.getByRole('heading', { name: 'Thank You!' })).toBeVisible({ timeout: 20000 });
 });
 
-test.fixme('a trial with empty optional columns hides the mask and identity tiles', async ({ page }) => {
+test('a trial with empty optional columns hides the mask and identity tiles', async ({ page }) => {
   await startSurvey(page, uniqueEmail('stale'));
 
   let found = false;

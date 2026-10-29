@@ -4,10 +4,10 @@ This directory contains automated tests for the survey application, covering bot
 
 ## Test Summary
 
-**Total: 193 tests passing, 2 skipped as documented defects -**
-- Backend (Python): 104 tests
-- Frontend (JavaScript, jsdom): 76 tests
-- Browser (Playwright/Chromium): 13 tests, 2 `fixme`
+**Total: 202 tests passing -**
+- Backend (Python): 107 tests
+- Frontend (JavaScript, jsdom): 80 tests
+- Browser (Playwright/Chromium): 15 tests
 
 Frontend suites `require()` the real `src/survey/static/script.js` (the file ends
 with a browser-inert `module.exports` guard). Never re-implement app logic inside a
@@ -121,7 +121,7 @@ npm test -- frontend/validation.test.js
 tests/
 ├── __init__.py
 ├── conftest.py                     # Pytest fixtures and configuration
-├── test_*.py                       # 104 backend tests, one file per area
+├── test_*.py                       # 107 backend tests, one file per area
 ├── frontend/
 │   ├── setup.js                    # window flags, IntersectionObserver, console silencing
 │   ├── helpers/survey-env.js       # DOM fixture mirroring index.html + fetch/Image stubs
@@ -135,11 +135,11 @@ tests/
 │   ├── tutorial.test.js            # 4  – tutorial walkthrough and submit gate
 │   └── validation.test.js          # 10 – submit gating, CSRF lookup
 ├── e2e/
-│   ├── README.md                   # fixture, coverage, the two fixme defects
+│   ├── README.md                   # fixture, coverage, the two regressions it killed
 │   ├── fixture/{make_run.py,serve.py,server.sh}
 │   ├── helpers/survey.js           # journey helpers against the live app
-│   ├── survey-flow.spec.js         # 2  – whole study, reload mid-study (fixme)
-│   ├── canvas-overlay.spec.js      # 4  – mask decoding, hover overlay, slicing, optional columns
+│   ├── survey-flow.spec.js         # 2  – whole study, resume after a reload
+│   ├── canvas-overlay.spec.js      # 5  – mask decoding, hover overlay, slicing, optional columns
 │   ├── retake-admin.spec.js        # 3  – gallery, retake cancel/confirm
 │   ├── admin-dashboard.spec.js     # 3  – escaping, stats/paging, CSV shape
 │   └── mobile-survey.spec.js       # 2  – phone-width layout

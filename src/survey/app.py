@@ -354,6 +354,24 @@ def _build_stimulus_data(trial, randomized):
     return data
 
 
+def _get_session_email():
+    """Email of the participant this session submitted demographics for, None before that."""
+    if 'session_id' not in session:
+        return None
+    db = get_db()
+    try:
+        row = db.execute('''
+            SELECT d.email
+            FROM demographics d
+            JOIN participants p ON d.participant_id = p.id
+            WHERE p.session_id = ?
+            ORDER BY d.id DESC LIMIT 1
+        ''', (session['session_id'],)).fetchone()
+        return row['email'] if row else None
+    finally:
+        db.close()
+
+
 def _get_completed_trial_ids_for_email(email):
     """Get list of trial IDs fully completed by this email address."""
     if not email:
@@ -841,21 +859,7 @@ def get_image_pair(pair_index):
 
     # Initialize user's pair list
     if 'user_image_pairs' not in session or session.get('session_dev_mode') != DEV_MODE:
-        user_email = None
-        if 'session_id' in session:
-            db = get_db()
-            try:
-                demo = db.execute('''
-                    SELECT d.email
-                    FROM demographics d
-                    JOIN participants p ON d.participant_id = p.id
-                    WHERE p.session_id = ?
-                    ORDER BY d.id DESC LIMIT 1
-                ''', (session['session_id'],)).fetchone()
-                if demo:
-                    user_email = demo['email']
-            finally:
-                db.close()
+        user_email = _get_session_email()
 
         completed_pair_ids = _get_completed_trial_ids_for_email(user_email) if user_email else []
         available_pairs = [p for p in IMAGE_PAIRS if p['id'] not in completed_pair_ids]
@@ -875,10 +879,16 @@ def get_image_pair(pair_index):
 
     user_pair_ids = session.get('user_image_pairs', [])
 
-    if pair_index < 0 or pair_index >= len(user_pair_ids):
+    # The client counts indices against the assignment, so completed trials are skipped in place.
+    completed_ids = set(_get_completed_trial_ids_for_email(_get_session_email()))
+    position = pair_index
+    while position < len(user_pair_ids) and user_pair_ids[position] in completed_ids:
+        position += 1
+
+    if position >= len(user_pair_ids):
         return jsonify({'error': 'Invalid image pair index'}), 404
 
-    pair_id = user_pair_ids[pair_index]
+    pair_id = user_pair_ids[position]
     trial = next((p for p in IMAGE_PAIRS if p['id'] == pair_id), None)
 
     if not trial:
@@ -892,6 +902,7 @@ def get_image_pair(pair_index):
 
     stim = _build_stimulus_data(trial, randomized)
     stim['total_trials'] = len(user_pair_ids)
+    stim['trials_remaining'] = len(user_pair_ids) - position
 
     # Add flat fields for backward compatibility with current JS
     _add_flat_fields(stim, trial, randomized)

@@ -519,7 +519,9 @@ async function loadImagePair(index) {
             imageB.onclick = () => openLightbox(data.image_b_url, 'Image B');
             
             // Update progress
-            document.getElementById('current-question').textContent = index + 1;
+            // A resumed session restarts at index 0, so the position comes from the server.
+            const remaining = data.trials_remaining ?? (data.total_pairs - index);
+            document.getElementById('current-question').textContent = data.total_pairs - remaining + 1;
             document.getElementById('total-questions').textContent = data.total_pairs;
             totalImagePairs = data.total_pairs;
             
@@ -530,7 +532,7 @@ async function loadImagePair(index) {
                     `You will see ${data.total_pairs} image ${pairWord} in total.`;
             }
             
-            const progressPercent = ((index) / data.total_pairs) * 100;
+            const progressPercent = ((data.total_pairs - remaining) / data.total_pairs) * 100;
             document.getElementById('progress-bar-fill').style.width = progressPercent + '%';
             
             // Reset form
@@ -560,6 +562,11 @@ async function loadImagePair(index) {
             }
             
         } else {
+            if (response.status === 404) {
+                // Nothing owed on this session; the index route serves the thank-you screen.
+                window.location.href = '/';
+                return;
+            }
             showError('Failed to load image pair. Please refresh the page.');
             console.error('Error:', data.error);
         }
@@ -742,15 +749,23 @@ function displayConditioningInputs(data) {
     const maskInput = (surveyConfig ? surveyConfig.inputs : []).find(i => i.type === 'image');
     const outputImages = getOutputImageElements();
 
-    // Show identity section if data available
     const identitySection = document.getElementById('identity-section');
-    if (identitySection) identitySection.style.display = 'block';
+    const galleryUrl = galleryInput ? (data[galleryInput.column] || '').trim() : '';
+    const maskUrl = maskInput ? (data[maskInput.column] || '').trim() : '';
+
+    // Tiles persist across trials: a leftover mask paints overlays from pixels this trial lacks.
+    clearConditioningTiles();
+    if (identitySection) {
+        identitySection.style.display = galleryUrl ? 'block' : 'none';
+    }
+    document.querySelectorAll('.mask-tile').forEach(tile => {
+        tile.style.display = maskUrl ? '' : 'none';
+    });
 
     // Display image_gallery input (identity images)
-    if (galleryInput) {
-        const galleryUrl = (data[galleryInput.column] || '').trim();
+    if (galleryInput && galleryUrl) {
         const container = document.getElementById('identity-images');
-        if (container && galleryUrl) {
+        if (container) {
             container.innerHTML = '';
             const label = galleryInput.label || 'Reference';
             // A comma list is N separate images; a lone URL is one stacked sheet to slice.
@@ -772,17 +787,28 @@ function displayConditioningInputs(data) {
     }
 
     // Display mask image and set up overlay processing
-    if (maskInput) {
-        const maskUrl = data[maskInput.column] || '';
-        const maskImg = document.getElementById('mask-image');
-        if (maskImg && maskUrl) {
-            maskImg.crossOrigin = 'anonymous';
-            maskImg.src = maskUrl;
-            maskImg.onclick = () => openLightbox(maskUrl, maskInput.label || 'Mask');
-            maskImg.onload = () => {
-                processMaskForOverlays(maskImg);
-            };
-        }
+    const maskImg = document.getElementById('mask-image');
+    if (maskInput && maskUrl && maskImg) {
+        maskImg.crossOrigin = 'anonymous';
+        maskImg.src = maskUrl;
+        maskImg.onclick = () => openLightbox(maskUrl, maskInput.label || 'Mask');
+        maskImg.onload = () => {
+            processMaskForOverlays(maskImg);
+        };
+    }
+}
+
+function clearConditioningTiles() {
+    const container = document.getElementById('identity-images');
+    if (container) {
+        container.innerHTML = '';
+    }
+    const maskImg = document.getElementById('mask-image');
+    if (maskImg) {
+        // Removing the attribute avoids resolving an empty src against the page URL.
+        maskImg.removeAttribute('src');
+        maskImg.onclick = null;
+        maskImg.onload = null;
     }
 }
 

@@ -22,22 +22,24 @@ test('participant completes the whole study in a real browser', async ({ page })
   await page.screenshot({ path: 'docs/screenshots/02-thank-you.png', fullPage: true });
 });
 
-// get_image_pair maps index 0 to the first *assigned* trial, not the first *uncompleted*
-// one, so a participant who reloads after 2 of 4 trials re-answers trial 1.
-test.fixme('reloading mid-study resumes on an unserved trial', async ({ page }) => {
+// A reload restores the session's assignment, so the server must skip what is already answered
+// and report the position inside the study, not restart the counter.
+test('reloading mid-study resumes on an unserved trial', async ({ page }) => {
   const email = uniqueEmail('resume');
   await startSurvey(page, email);
 
-  const served = [await pairSignature(page)];
+  const answered = [];
   for (let i = 0; i < 2; i++) {
     const before = await pairSignature(page);
     await answerTrial(page);
+    answered.push(before);
     await expect.poll(() => pairSignature(page), { timeout: 15000 }).not.toBe(before);
-    served.push(await pairSignature(page));
   }
 
   await page.goto('/');
   await expect(page.locator('#survey-section')).toBeVisible();
-  const after = await pairSignature(page);
-  expect(served, 'resume must not re-serve a completed trial').not.toContain(after);
+  expect(answered, 'resume must not re-serve an answered trial').not.toContain(await pairSignature(page));
+  await expect(page.locator('#current-question')).toHaveText('3');
+  await expect(page.locator('#total-questions')).toHaveText(String(TRIALS));
 });
+

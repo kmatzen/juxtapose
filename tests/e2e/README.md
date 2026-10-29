@@ -35,14 +35,19 @@ Override with `E2E_ROWS`, `E2E_RUN_DIR`, `PYTHON` (default `/tmp/jlvenv/bin/pyth
 
 `docs/screenshots/` is written by the suite and committed so the PR can show the app.
 
-## Two tests are `fixme` — they document live defects
+## Two regressions this suite found and killed
 
-- `reloading mid-study resumes on an unserved trial`: `get_image_pair` maps index 0 to the
-  first *assigned* trial, not the first *uncompleted* one, so reloading after 2 of 4 trials
-  re-serves trial 1.
-- `a trial with empty optional columns hides the mask and identity tiles`:
-  `displayConditioningInputs` sets `identitySection.style.display='block'` unconditionally
-  and only touches `#mask-image` / the gallery container when the value is non-empty, so a
-  trial with an empty `mask_url` shows the **previous** trial's mask and identity images
-  while the questions for them are correctly hidden. `survey_config.yaml` documents
-  `optional` as "Hide when column value is empty".
+- **Resume re-served answered trials.** `get_image_pair` served `user_image_pairs[index]`, and
+  a reload restores the pre-completion assignment, so a participant who reloaded after 2 of 4
+  trials got trial 1 back. Completed trials are now skipped in place — the client counts indices
+  against the assignment, so filtering the list would shift it and skip trials — and the pair
+  payload carries `trials_remaining` so the counter shows the true position after a reload.
+- **Empty optional columns showed the previous trial's images.** `displayConditioningInputs`
+  forced `#identity-section` visible and only touched `#mask-image` and the identity container
+  when the incoming value was non-empty, so a trial with an empty `mask_url` kept the previous
+  trial's mask on screen while its mask questions were correctly hidden: a rating recorded
+  against a mask the trial does not have. `clearConditioningTiles()` now runs first, and both
+  tiles hide when their column is empty.
+
+The fixture ships two optional-free rows because the app samples trials per session: one row
+could be sampled out and the case would silently stop being covered.
