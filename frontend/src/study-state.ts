@@ -24,12 +24,65 @@ export type DemographicsField = {
     options?: { value: string; label: string }[];
 };
 
+export type OutputConfig = {
+    name: string;
+    type: string;
+    column_a?: string;
+    column_b?: string;
+};
+
+export type TutorialStepConfig = {
+    title?: string;
+    text?: string;
+    highlight?: string | null;
+    highlightParent?: boolean;
+    scrollToWithin?: string;
+};
+
 export type StudyConfig = {
     questions?: QuestionConfig[];
     inputs?: InputConfig[];
+    outputs?: OutputConfig[];
     demographics?: DemographicsField[];
+    tutorial?: { steps?: (TutorialStepConfig | 'auto_questions')[] };
     dev_mode?: boolean;
 };
+
+export type TutorialStep = {
+    title: string;
+    text: string;
+    emphasis?: string;
+    highlight?: string | null;
+    highlightParent?: boolean;
+    scrollToWithin?: string;
+};
+
+// 'auto_questions' is a placeholder the author writes once; it expands to one step per question.
+export function buildTutorialSteps(config: StudyConfig): TutorialStep[] {
+    const configured = config.tutorial?.steps;
+    if (!configured?.length) {
+        return [{ title: 'Tutorial', text: 'No tutorial steps configured.', highlight: null }];
+    }
+
+    const steps: TutorialStep[] = [];
+    for (const step of configured) {
+        if (step === 'auto_questions') {
+            for (const q of config.questions ?? []) {
+                const label = q.label ?? q.name;
+                steps.push({
+                    title: q.section_label ?? label,
+                    text: label,
+                    emphasis: label,
+                    highlight: '.questions-container',
+                    scrollToWithin: `#${q.name}-evaluation`,
+                });
+            }
+        } else {
+            steps.push({ ...step, title: step.title ?? '', text: step.text ?? '' });
+        }
+    }
+    return steps;
+}
 
 export type Trial = {
     id: number;
