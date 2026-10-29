@@ -5,6 +5,8 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 RUN="${E2E_RUN_DIR:-${TMPDIR:-/tmp}/juxtapose-e2e}"
 PYTHON="${PYTHON:-/tmp/jlvenv/bin/python}"
+# The dev venv is not everywhere: fall back to the interpreter CI installed the app into.
+[ -x "$PYTHON" ] || PYTHON=python3
 ROWS="${E2E_ROWS:-4}"
 PORT="${PORT:-5055}"
 
