@@ -617,23 +617,33 @@ function showRetakeModal() {
         const modal = document.getElementById('retake-modal');
         const confirmBtn = document.getElementById('retake-confirm');
         const cancelBtn = document.getElementById('retake-cancel');
-        
         // Show modal
         modal.classList.add('show');
-        
+        // The backdrop is fixed to the viewport, so an unlocked page scrolls undimmed content
+        // out from under a decision the participant has not made yet.
+        const scrollY = window.scrollY;
+        document.documentElement.style.setProperty('--modal-scroll-y', `${scrollY}px`);
+        document.documentElement.classList.add('modal-open');
+
+        const dismiss = () => {
+            modal.classList.remove('show');
+            document.documentElement.classList.remove('modal-open');
+            // While the body was out of flow the document had nothing to scroll, so the
+            // restore only lands once layout is back.
+            requestAnimationFrame(() => window.scrollTo(0, scrollY));
+            confirmBtn.removeEventListener('click', handleConfirm);
+            cancelBtn.removeEventListener('click', handleCancel);
+        };
+
         // Handle confirm
         const handleConfirm = () => {
-            modal.classList.remove('show');
-            confirmBtn.removeEventListener('click', handleConfirm);
-            cancelBtn.removeEventListener('click', handleCancel);
+            dismiss();
             resolve(true);
         };
-        
+
         // Handle cancel
         const handleCancel = () => {
-            modal.classList.remove('show');
-            confirmBtn.removeEventListener('click', handleConfirm);
-            cancelBtn.removeEventListener('click', handleCancel);
+            dismiss();
             resolve(false);
         };
         
@@ -1630,6 +1640,7 @@ if (typeof module !== 'undefined' && module.exports) {
         getCSRFToken,
         initializeProgressiveQuestions,
         isQuestionGroupComplete,
+        showRetakeModal,
         loadImagePair,
         navigateQuestion,
         setupEventListeners,

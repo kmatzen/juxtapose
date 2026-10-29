@@ -43,7 +43,6 @@ test('participant-submitted answers reach the dashboard as text, not markup', as
   await expect(adminPage.locator('#results-body')).toContainText(PAYLOAD);
   expect(await adminPage.evaluate(() => window.__xss)).toBeUndefined();
   expect(dialogs).toBe(0);
-  await adminPage.screenshot({ path: 'docs/screenshots/05-admin-dashboard.png', fullPage: true });
   await admin.close();
 });
 

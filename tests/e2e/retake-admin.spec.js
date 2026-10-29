@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const {
-  startSurvey, submitDemographics, answerTrial, completeSurvey, gotoTrialWithMask, uniqueEmail,
+  startSurvey, submitDemographics, fillDemographics, answerTrial, completeSurvey, gotoTrialWithMask, uniqueEmail,
 } = require('./helpers/survey');
 
 const TRIALS = parseInt(process.env.E2E_ROWS || '4', 10);
@@ -45,11 +45,21 @@ test('cancelling a retake keeps the participant’s earlier answers', async ({ b
 
   const second = await browser.newContext();
   const pageB = await second.newPage();
-  await submitDemographics(pageB, email);
+  await pageB.goto('/');
+  await fillDemographics(pageB, email);
+  await pageB.evaluate(() => window.scrollTo(0, 300));
+  await pageB.locator('#demographics-form button[type="submit"]').click();
   await expect(pageB.locator('#retake-modal')).toBeVisible();
-  await pageB.screenshot({ path: 'docs/screenshots/04-retake-modal.png', fullPage: true });
+  // A wheel is what a participant actually does; scrollTo() is programmatic and works on an
+  // overflow:hidden scroll container, so it would not prove the lock.
+  await pageB.mouse.move(200, 300);
+  await pageB.mouse.wheel(0, 400);
+  expect(await pageB.evaluate(() => window.scrollY),
+    'the backdrop is viewport-fixed, so the page must not scroll undimmed content behind it').toBe(0);
   await pageB.locator('#retake-cancel').click();
   await expect(pageB.locator('#retake-modal')).toBeHidden();
+  // Cancel reloads the page, so the scroll restore is not observable here; the jsdom suite
+  // covers the restore mechanism itself.
   await second.close();
 
   expect((await rowsFor(admin, email)).length, 'Cancel must not delete study data').toBe(TRIALS);
@@ -72,7 +82,10 @@ test('confirming a retake clears earlier answers and logs the deletion', async (
 
   const second = await browser.newContext();
   const pageB = await second.newPage();
-  await submitDemographics(pageB, email);
+  await pageB.goto('/');
+  await fillDemographics(pageB, email);
+  await pageB.evaluate(() => window.scrollTo(0, 300));
+  await pageB.locator('#demographics-form button[type="submit"]').click();
   await expect(pageB.locator('#retake-modal')).toBeVisible();
   await pageB.locator('#retake-confirm').click();
   await expect(pageB.locator('#survey-section')).toBeVisible();
