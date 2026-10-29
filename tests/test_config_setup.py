@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # The README's six required keys, nothing else. No layout section: the README never documents one.
@@ -100,6 +102,41 @@ def test_generate_pairs_output_loads_without_skips(tmp_path, caplog):
     assert len(trials) == 9
     assert trials[0]['method_a'] == 'Method-A'
     assert trials[0]['prompt'] == 'A serene mountain landscape at sunset'
+
+
+def test_missing_data_file_raises_naming_the_path(tmp_path):
+    """A missing data file must not be replaced by placeholder trials."""
+    from src.survey import app as app_module
+
+    missing = str(tmp_path / 'no_such_study.tsv')
+    with pytest.raises(FileNotFoundError) as excinfo:
+        app_module._load_trials_from_file(missing)
+
+    assert 'no_such_study.tsv' in str(excinfo.value)
+    assert not os.path.exists(missing)
+
+
+def test_missing_data_file_fails_startup_without_writing_samples(tmp_path):
+    """Startup must fail, not author a study out of placeholder rows."""
+    config_path, _ = write_minimal_setup(tmp_path)
+    env = dict(os.environ)
+    env.update({
+        'SURVEY_CONFIG': config_path,
+        'IMAGE_PAIRS_FILE': str(tmp_path / 'definitely_missing.tsv'),
+        'DATA_DIR': str(tmp_path),
+        'SECRET_KEY': 'a-real-secret-for-this-test',
+        'ADMIN_PASSWORD': 'a-real-password-for-this-test',
+        'PYTHONPATH': os.pathsep.join(sys.path),
+    })
+
+    result = subprocess.run(
+        [sys.executable, '-c', 'import src.survey.app'],
+        env=env, cwd=str(tmp_path), capture_output=True, text=True,
+    )
+
+    assert result.returncode != 0
+    assert 'definitely_missing.tsv' in result.stderr
+    assert list(REPO_ROOT.glob('sample-*')) == []
 
 
 def test_app_boots_on_generated_pairs_file(tmp_path):

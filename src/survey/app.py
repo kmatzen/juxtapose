@@ -150,18 +150,12 @@ def _load_trials_from_file(file_path_relative, start_id=1):
         return trials
 
     except FileNotFoundError:
-        logger.error("%s not found at %s", file_path_relative, file_path)
-        logger.info("Creating sample file with placeholder data")
-
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(f"# Trial data - tab-separated\n")
-            f.write(f"# Columns: {chr(9).join(columns)}\n\n")
-            for i in range(1, 4):
-                vals = [f"sample-{col}-{i}" for col in columns]
-                f.write('\t'.join(vals) + '\n')
-
-        logger.info("Created %s with sample data", file_path)
-        return _load_trials_from_file(file_path_relative, start_id)
+        # Inventing placeholder trials here would collect real responses against fake stimuli.
+        raise FileNotFoundError(
+            f"Trial data file not found: {file_path} "
+            f"(data.file is '{file_path_relative}'; generate one with generate_pairs.py "
+            "or set IMAGE_PAIRS_FILE)"
+        ) from None
 
     except Exception as e:
         logger.error("Error loading %s: %s", file_path_relative, e)
