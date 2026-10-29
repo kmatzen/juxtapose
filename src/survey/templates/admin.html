@@ -50,6 +50,8 @@
 
         <div style="margin-bottom: 20px;">
             <button class="btn btn-primary" onclick="toggleView()">Toggle View</button>
+            <button class="btn btn-primary" id="load-more" onclick="loadMore()" style="display:none; margin-left: 10px;">Load more</button>
+            <span id="row-count" style="margin-left: 10px; color: #ccc;"></span>
             <span id="view-mode" style="margin-left: 10px; font-weight: 600; color: white;">Demographics View</span>
         </div>
 
@@ -65,67 +67,67 @@
         let currentView = 'demographics';
         let cachedData = [];
         let adminConfig = null;
+        let stats = null;
+        let totalRows = 0;
+        const PAGE_SIZE = 200;
 
         async function init() {
             const cfgRes = await fetch('/api/config');
             adminConfig = await cfgRes.json();
-            await loadResults();
-            setInterval(loadResults, 30000);
+            await refresh();
+            setInterval(refresh, 30000);
         }
 
-        async function loadResults() {
+        async function refresh() {
+            await Promise.all([loadStats(), loadRows()]);
+        }
+
+        async function loadStats() {
             try {
-                const response = await fetch('/api/admin/results');
+                const response = await fetch('/api/admin/stats');
+                stats = await response.json();
+                renderStats();
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        async function loadRows(offset) {
+            try {
+                const page = offset || 0;
+                const response = await fetch(`/api/admin/results?limit=${PAGE_SIZE}&offset=${page}`);
                 const data = await response.json();
-                cachedData = data;
-
-                // Total unique participants
-                const emails = new Set(data.map(r => r.email).filter(Boolean));
-                document.getElementById('total-responses').textContent = emails.size || new Set(data.map(r => r.session_id)).size;
-
-                // Build method preference stats per ab_preference question
-                const prefCards = document.getElementById('method-pref-cards');
-                prefCards.innerHTML = '';
-
-                if (adminConfig && adminConfig.questions) {
-                    const confValues = [];
-
-                    for (const q of adminConfig.questions) {
-                        if (q.type !== 'ab_preference') continue;
-
-                        const prefs = {};
-                        data.forEach(r => {
-                            const pm = r[`${q.name}_preferred_method`];
-                            if (pm) prefs[pm] = (prefs[pm] || 0) + 1;
-                            const c = r[`${q.name}_confidence`];
-                            if (c) confValues.push(c);
-                        });
-
-                        const summary = Object.keys(prefs).map(m => `${m}: ${prefs[m]}`).join(', ') || 'No data';
-                        const card = document.createElement('div');
-                        card.className = 'stat-card';
-                        card.style.cssText = 'margin-bottom: 10px;';
-                        card.innerHTML = `<div class="stat-number" style="font-size:14px;line-height:1.4;">${esc(summary)}</div><div class="stat-label">Preferences: ${esc(q.section_label || q.name)}</div>`;
-                        prefCards.appendChild(card);
-                    }
-
-                    const avgConf = confValues.length > 0
-                        ? (confValues.reduce((a, b) => a + b, 0) / confValues.length).toFixed(1)
-                        : '-';
-                    document.getElementById('avg-confidence').textContent = avgConf;
-                }
-
-                // Average time
-                const responsesWithTime = data.filter(r => r.time_spent != null);
-                const avgTime = responsesWithTime.length > 0
-                    ? (responsesWithTime.reduce((sum, r) => sum + r.time_spent, 0) / responsesWithTime.length).toFixed(1)
-                    : '-';
-                document.getElementById('avg-time').textContent = avgTime;
-
+                cachedData = page > 0 ? cachedData.concat(data.rows) : data.rows;
+                totalRows = data.total;
                 renderTable();
             } catch (error) {
                 console.error('Error loading results:', error);
                 document.getElementById('results-body').innerHTML = '<tr><td colspan="15">Error loading results</td></tr>';
+            }
+        }
+
+        async function loadMore() {
+            await loadRows(cachedData.length);
+        }
+
+        function renderStats() {
+            if (!stats) return;
+            document.getElementById('total-responses').textContent = stats.participants;
+            document.getElementById('avg-confidence').textContent = stats.avg_confidence ?? '-';
+            document.getElementById('avg-time').textContent = stats.avg_time ?? '-';
+
+            const prefCards = document.getElementById('method-pref-cards');
+            prefCards.innerHTML = '';
+
+            for (const q of (adminConfig && adminConfig.questions) || []) {
+                if (q.type !== 'ab_preference') continue;
+                const prefs = (stats.preferences && stats.preferences[q.name]) || {};
+                const summary = Object.keys(prefs).map(m => `${m}: ${prefs[m]}`).join(', ') || 'No data';
+                const card = document.createElement('div');
+                card.className = 'stat-card';
+                card.style.cssText = 'margin-bottom: 10px;';
+                card.innerHTML = `<div class="stat-number" style="font-size:14px;line-height:1.4;">${esc(summary)}</div><div class="stat-label">Preferences: ${esc(q.section_label || q.name)}</div>`;
+                prefCards.appendChild(card);
             }
         }
 
@@ -168,6 +170,11 @@
                 thead.innerHTML = buildResponsesHeader(questions);
                 tbody.innerHTML = buildResponsesRows(cachedData, questions);
             }
+
+            document.getElementById('load-more').style.display =
+                cachedData.length < totalRows ? 'inline-block' : 'none';
+            document.getElementById('row-count').textContent =
+                `Showing ${cachedData.length} of ${totalRows} responses`;
         }
 
         function exportCSV() {
@@ -212,7 +219,7 @@
                     messageDiv.style.color = '#52c41a';
                     messageDiv.textContent = `Successfully deleted ${result.participants_deleted} participant(s), ${result.demographics_deleted} demographics record(s), and ${result.responses_deleted} survey response(s) for "${result.email}".`;
                     emailInput.value = '';
-                    await loadResults();
+                    await refresh();
                 } else {
                     messageDiv.style.color = '#e74c3c';
                     messageDiv.textContent = `Error: ${result.error}`;

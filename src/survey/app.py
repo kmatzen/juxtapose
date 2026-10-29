@@ -1113,12 +1113,7 @@ def admin():
     return render_template('admin.html', config=CONFIG)
 
 
-@app.route('/api/admin/results')
-@require_admin
-def admin_results():
-    """Get all survey results (flattened from JSON)."""
-    db = get_db()
-    results = db.execute('''
+_ADMIN_RESULTS_SELECT = '''
         SELECT
             p.session_id, p.referral_code, p.created_at as participant_created,
             p.browser, p.browser_version, p.os,
@@ -1130,92 +1125,143 @@ def admin_results():
         LEFT JOIN demographics d ON p.id = d.participant_id
         LEFT JOIN survey_responses s ON p.id = s.participant_id
         WHERE s.id IS NOT NULL
-        ORDER BY s.created_at DESC
-    ''').fetchall()
+'''
+
+ADMIN_PAGE_SIZE = 200
+ADMIN_MAX_PAGE_SIZE = 1000
+
+
+def _flatten_result(row):
+    """Expand one joined row's JSON columns into the flat fields the dashboard and CSV share."""
+    r = dict(row)
+
+    if r.get('demographics_data'):
+        try:
+            r.update(json.loads(r['demographics_data']))
+        except (json.JSONDecodeError, TypeError):
+            pass
+    r.pop('demographics_data', None)
+
+    stim = {}
+    if r.get('stimulus_data'):
+        try:
+            stim = json.loads(r['stimulus_data'])
+        except (json.JSONDecodeError, TypeError):
+            pass
+    methods = stim.get('methods', {})
+    r['method_a'] = methods.get('a', stim.get('method_a', ''))
+    r['method_b'] = methods.get('b', stim.get('method_b', ''))
+
+    for inp_name, inp_val in stim.get('inputs', {}).items():
+        r[f'input_{inp_name}'] = inp_val
+    for key in ('prompt', 'image_a_url', 'image_b_url', 'identity_urls', 'mask_url'):
+        if key in stim:
+            r[key] = stim[key]
+    r.pop('stimulus_data', None)
+
+    resp = {}
+    if r.get('responses'):
+        try:
+            resp = json.loads(r['responses'])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    for q_name, q_data in resp.items():
+        if isinstance(q_data, dict):
+            choice = q_data.get('choice', '')
+            r[f'{q_name}_choice'] = choice
+            r[f'{q_name}_confidence'] = q_data.get('confidence')
+            if choice == 'A':
+                r[f'{q_name}_preferred_method'] = r.get('method_a', '')
+            elif choice == 'B':
+                r[f'{q_name}_preferred_method'] = r.get('method_b', '')
+            elif choice == 'equal':
+                r[f'{q_name}_preferred_method'] = 'equal'
+
+            old_choice = _old_choice_key(q_name)
+            old_conf = _old_confidence_key(q_name)
+            r[old_choice] = choice
+            r[old_conf] = q_data.get('confidence')
+
+            old_pref_mapping = {
+                'image_quality': 'preferred_method_image',
+                'prompt_adherence': 'preferred_method_prompt',
+                'mask_adherence': 'preferred_method_mask',
+                'identity_preservation': 'preferred_method_identity',
+            }
+            old_pref_key = old_pref_mapping.get(q_name)
+            if old_pref_key:
+                if choice == 'A':
+                    r[old_pref_key] = r.get('method_a', '')
+                elif choice == 'B':
+                    r[old_pref_key] = r.get('method_b', '')
+                elif choice == 'equal':
+                    r[old_pref_key] = 'equal'
+        else:
+            r[q_name] = q_data
+    r.pop('responses', None)
+    return r
+
+
+@app.route('/api/admin/results')
+@require_admin
+def admin_results():
+    """One page of results; the dashboard polls this every 30s, so it must not ship the study."""
+    limit = request.args.get('limit', ADMIN_PAGE_SIZE, type=int) or ADMIN_PAGE_SIZE
+    limit = max(1, min(limit, ADMIN_MAX_PAGE_SIZE))
+    offset = max(request.args.get('offset', 0, type=int) or 0, 0)
+
+    db = get_db()
+    rows = db.execute(
+        _ADMIN_RESULTS_SELECT + ' ORDER BY s.created_at DESC LIMIT ? OFFSET ?',
+        (limit, offset)
+    ).fetchall()
+    total = db.execute('SELECT COUNT(*) AS n FROM survey_responses').fetchone()['n']
     db.close()
 
-    flat = []
-    for row in results:
-        r = dict(row)
+    return jsonify({
+        'rows': [_flatten_result(r) for r in rows],
+        'total': total,
+        'limit': limit,
+        'offset': offset,
+    })
 
-        # Unpack demographics JSON
-        if r.get('demographics_data'):
-            try:
-                r.update(json.loads(r['demographics_data']))
-            except (json.JSONDecodeError, TypeError):
-                pass
-        r.pop('demographics_data', None)
 
-        # Unpack stimulus data
-        stim = {}
-        if r.get('stimulus_data'):
-            try:
-                stim = json.loads(r['stimulus_data'])
-            except (json.JSONDecodeError, TypeError):
-                pass
-        methods = stim.get('methods', {})
-        r['method_a'] = methods.get('a', stim.get('method_a', ''))
-        r['method_b'] = methods.get('b', stim.get('method_b', ''))
+@app.route('/api/admin/stats')
+@require_admin
+def admin_stats():
+    """Aggregate dashboard numbers: the counts the poll needs, not the rows behind them."""
+    db = get_db()
+    totals = db.execute('''
+        SELECT COUNT(*) AS responses,
+               COUNT(DISTINCT COALESCE(NULLIF(d.email, ''), p.session_id)) AS participants,
+               AVG(s.time_spent) AS avg_time
+        FROM participants p
+        LEFT JOIN demographics d ON p.id = d.participant_id
+        JOIN survey_responses s ON s.participant_id = p.id
+    ''').fetchone()
+    raw = db.execute('SELECT stimulus_data, responses FROM survey_responses').fetchall()
+    db.close()
 
-        # Flatten inputs
-        for inp_name, inp_val in stim.get('inputs', {}).items():
-            r[f'input_{inp_name}'] = inp_val
-        # Also keep flat stimulus keys
-        for key in ('prompt', 'image_a_url', 'image_b_url', 'identity_urls', 'mask_url'):
-            if key in stim:
-                r[key] = stim[key]
+    preferences = {}
+    confidences = []
+    for row in raw:
+        flat = _flatten_result(row)
+        for key, value in flat.items():
+            if key.endswith('_preferred_method'):
+                if value:
+                    prefs = preferences.setdefault(key[:-len('_preferred_method')], {})
+                    prefs[value] = prefs.get(value, 0) + 1
+            elif key.endswith('_confidence') and value is not None:
+                confidences.append(value)
 
-        r.pop('stimulus_data', None)
-
-        # Unpack responses and compute preferred methods
-        resp = {}
-        if r.get('responses'):
-            try:
-                resp = json.loads(r['responses'])
-            except (json.JSONDecodeError, TypeError):
-                pass
-
-        for q_name, q_data in resp.items():
-            if isinstance(q_data, dict):
-                choice = q_data.get('choice', '')
-                r[f'{q_name}_choice'] = choice
-                r[f'{q_name}_confidence'] = q_data.get('confidence')
-                # Compute preferred method
-                if choice == 'A':
-                    r[f'{q_name}_preferred_method'] = r.get('method_a', '')
-                elif choice == 'B':
-                    r[f'{q_name}_preferred_method'] = r.get('method_b', '')
-                elif choice == 'equal':
-                    r[f'{q_name}_preferred_method'] = 'equal'
-
-                # Also produce old-style flat field names for backward compat
-                old_choice = _old_choice_key(q_name)
-                old_conf = _old_confidence_key(q_name)
-                r[old_choice] = choice
-                r[old_conf] = q_data.get('confidence')
-
-                # Old-style preferred_method fields
-                old_pref_mapping = {
-                    'image_quality': 'preferred_method_image',
-                    'prompt_adherence': 'preferred_method_prompt',
-                    'mask_adherence': 'preferred_method_mask',
-                    'identity_preservation': 'preferred_method_identity',
-                }
-                old_pref_key = old_pref_mapping.get(q_name)
-                if old_pref_key:
-                    if choice == 'A':
-                        r[old_pref_key] = r.get('method_a', '')
-                    elif choice == 'B':
-                        r[old_pref_key] = r.get('method_b', '')
-                    elif choice == 'equal':
-                        r[old_pref_key] = 'equal'
-            else:
-                r[q_name] = q_data
-
-        r.pop('responses', None)
-        flat.append(r)
-
-    return jsonify(flat)
+    return jsonify({
+        'responses': totals['responses'],
+        'participants': totals['participants'],
+        'avg_time': round(totals['avg_time'], 1) if totals['avg_time'] is not None else None,
+        'avg_confidence': round(sum(confidences) / len(confidences), 1) if confidences else None,
+        'preferences': preferences,
+    })
 
 
 @app.route('/api/admin/export')
@@ -1245,56 +1291,7 @@ def admin_export():
     flat = []
     all_keys = set()
     for row in results:
-        r = dict(row)
-        if r.get('demographics_data'):
-            try:
-                r.update(json.loads(r['demographics_data']))
-            except (json.JSONDecodeError, TypeError):
-                pass
-        r.pop('demographics_data', None)
-
-        stim = {}
-        if r.get('stimulus_data'):
-            try:
-                stim = json.loads(r['stimulus_data'])
-            except (json.JSONDecodeError, TypeError):
-                pass
-        methods = stim.get('methods', {})
-        r['method_a'] = methods.get('a', stim.get('method_a', ''))
-        r['method_b'] = methods.get('b', stim.get('method_b', ''))
-        for inp_name, inp_val in stim.get('inputs', {}).items():
-            r[f'input_{inp_name}'] = inp_val
-        for key in ('prompt', 'image_a_url', 'image_b_url', 'identity_urls', 'mask_url'):
-            if key in stim:
-                r[key] = stim[key]
-        r.pop('stimulus_data', None)
-
-        resp = {}
-        if r.get('responses'):
-            try:
-                resp = json.loads(r['responses'])
-            except (json.JSONDecodeError, TypeError):
-                pass
-        for q_name, q_data in resp.items():
-            if isinstance(q_data, dict):
-                choice = q_data.get('choice', '')
-                r[f'{q_name}_choice'] = choice
-                r[f'{q_name}_confidence'] = q_data.get('confidence')
-                if choice == 'A':
-                    r[f'{q_name}_preferred_method'] = r.get('method_a', '')
-                elif choice == 'B':
-                    r[f'{q_name}_preferred_method'] = r.get('method_b', '')
-                elif choice == 'equal':
-                    r[f'{q_name}_preferred_method'] = 'equal'
-                # Old-style flat fields
-                old_choice = _old_choice_key(q_name)
-                old_conf = _old_confidence_key(q_name)
-                r[old_choice] = choice
-                r[old_conf] = q_data.get('confidence')
-            else:
-                r[q_name] = q_data
-        r.pop('responses', None)
-
+        r = _flatten_result(row)
         all_keys.update(r.keys())
         flat.append(r)
 

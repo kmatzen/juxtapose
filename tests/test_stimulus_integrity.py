@@ -82,7 +82,7 @@ def test_admin_preferred_method_follows_the_served_pair(client):
     with client.session_transaction() as sess:
         sess['admin_authenticated'] = True
 
-    rows = client.get('/api/admin/results').get_json()
+    rows = client.get('/api/admin/results').get_json()['rows']
     mine = [r for r in rows if r['image_pair_id'] == pair['id']]
     assert len(mine) == 1
     assert mine[0]['image_quality_preferred_method'] == pair['method_a']

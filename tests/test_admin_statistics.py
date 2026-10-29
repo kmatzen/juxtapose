@@ -20,7 +20,7 @@ def test_admin_results_empty_database(client):
 
     response = client.get('/api/admin/results')
     assert response.status_code == 200
-    data = json.loads(response.data)
+    data = json.loads(response.data)['rows']
     assert isinstance(data, list)
 
 
@@ -76,7 +76,7 @@ def test_admin_results_with_data(client):
 
     response = client.get('/api/admin/results')
     assert response.status_code == 200
-    data = json.loads(response.data)
+    data = json.loads(response.data)['rows']
 
     assert isinstance(data, list)
     assert len(data) >= 1
@@ -143,7 +143,7 @@ def test_admin_results_multiple_participants(client):
 
     response = client.get('/api/admin/results')
     assert response.status_code == 200
-    data = json.loads(response.data)
+    data = json.loads(response.data)['rows']
 
     assert len(data) >= 3
 
@@ -201,7 +201,7 @@ def test_admin_results_preferred_method_calculation(client):
 
     response = client.get('/api/admin/results')
     assert response.status_code == 200
-    data = json.loads(response.data)
+    data = json.loads(response.data)['rows']
 
     for tc in test_cases:
         record = next((r for r in data if r.get('email') == tc['email']), None)
@@ -232,7 +232,7 @@ def test_admin_results_with_null_demographics(client):
 
     response = client.get('/api/admin/results')
     assert response.status_code == 200
-    data = json.loads(response.data)
+    data = json.loads(response.data)['rows']
     assert isinstance(data, list)
 
 
@@ -270,7 +270,7 @@ def test_admin_results_with_device_info(client):
 
     response = client.get('/api/admin/results')
     assert response.status_code == 200
-    data = json.loads(response.data)
+    data = json.loads(response.data)['rows']
 
     record = next((r for r in data if r.get('email') == unique_email), None)
     assert record is not None
@@ -316,7 +316,7 @@ def test_admin_results_with_referral_code(client):
 
     response = client.get('/api/admin/results')
     assert response.status_code == 200
-    data = json.loads(response.data)
+    data = json.loads(response.data)['rows']
 
     record = next((r for r in data if r.get('email') == unique_email), None)
     assert record is not None
@@ -361,7 +361,7 @@ def test_admin_results_ordering(client):
 
     response = client.get('/api/admin/results')
     assert response.status_code == 200
-    data = json.loads(response.data)
+    data = json.loads(response.data)['rows']
 
     indices = []
     for email in emails:
@@ -383,5 +383,5 @@ def test_admin_results_json_format(client):
     assert response.status_code == 200
     assert response.headers['Content-Type'] == 'application/json'
 
-    data = json.loads(response.data)
+    data = json.loads(response.data)['rows']
     assert isinstance(data, list)
