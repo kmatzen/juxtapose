@@ -308,6 +308,10 @@ def init_db():
         )
     ''')
 
+    # IF NOT EXISTS, so a study database predating this gets indexed on its next boot.
+    db.execute('CREATE INDEX IF NOT EXISTS idx_demographics_email ON demographics (email)')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_responses_participant ON survey_responses (participant_id)')
+
     db.commit()
     db.close()
 
