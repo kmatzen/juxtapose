@@ -106,14 +106,6 @@ def _apply_defaults(config):
         if q['type'] == 'likert':
             q.setdefault('scale', 5)
 
-    for col in config['layout'].get('columns', []):
-        col.setdefault('sticky', False)
-        col.setdefault('width', 'auto')
-        for section in col.get('sections', []):
-            section.setdefault('direction', 'column')
-            section.setdefault('label', '')
-            section.setdefault('widgets', [])
-
 
 def get_email_field(config):
     """Return the name of the email demographics field, or None."""
