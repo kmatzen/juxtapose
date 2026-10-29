@@ -1,7 +1,6 @@
 // Do not swap `window` for a plain object here: script.js binds listeners to the real window at require time.
 
 // script.js reads these at load time, so a tutorial-mode suite sets TUTORIAL_MODE before requiring it.
-window.DEV_MODE = false;
 window.TUTORIAL_MODE = false;
 window.tutorialCompleted = false;
 

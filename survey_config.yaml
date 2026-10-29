@@ -8,7 +8,6 @@
 #   - inputs:  Stimuli shared between methods (prompts, references, masks)
 #   - outputs: Results from each method, shown as A/B and randomized
 #   - questions: What you ask participants about the outputs
-#   - layout: How inputs, outputs, and questions are arranged on screen
 
 survey:
   title: "Welcome to Our GenAI Image Evaluation Study"
@@ -16,11 +15,6 @@ survey:
   contact_email: ""  # shown in footer and contact links; leave empty to hide
   pairs_per_user: 30
   dev_pairs: 3
-  # Text shown in the survey (evaluation) section
-  survey_heading: "Image Comparison"
-  survey_instruction: "Please evaluate the following two images based on the given prompt."
-  next_button_text: "Next Image Pair"
-  submit_button_text: "Submit Survey"
   # Consent / privacy (leave empty to skip consent checkbox)
   privacy_policy_url: ""
   consent_text: "I consent to the collection and use of my responses for research purposes as described above."
@@ -316,26 +310,3 @@ tutorial:
     - title: "Ready to Begin"
       text: "Complete all questions on this page for practice. Once finished, click the arrow button at the bottom to begin the actual survey."
       highlight: "#submit-btn"
-
-# =============================================================================
-# Layout (reserved for future use)
-# =============================================================================
-# Describes the intended widget arrangement. Currently the survey template uses
-# a fixed three-tile grid (controlled by the TILE_LAYOUT env var). This section
-# is passed to the frontend config API but not yet used for rendering.
-
-layout:
-  columns:
-    - width: "55%"
-      sticky: true
-      sections:
-        - widgets: [prompt]
-        - widgets: [identity, mask]
-        - widgets: [outputs]
-          label: "Generated Images"
-    - width: "45%"
-      sections:
-        - widgets: [image_quality]
-        - widgets: [prompt_adherence]
-        - widgets: [mask_adherence]
-        - widgets: [identity_preservation]

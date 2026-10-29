@@ -2,15 +2,7 @@
 const CONFIG = {
     // Touch interaction
     TAP_THRESHOLD_PX: 10,          // Max movement distance to count as tap (not scroll)
-    MIN_TOUCH_TARGET_SIZE_PX: 44,  // Minimum touch target size for accessibility
-    
-    // Image display
-    MIN_IMAGE_DIMENSION_PX: 200,    // Minimum size for generated images
-    MIN_IDENTITY_IMAGE_PX: 50,      // Minimum size for identity images
-    
-    // Layout
-    MOBILE_BREAKPOINT_PX: 768,      // Width threshold for mobile layout
-    
+
     // Timing
     AUTO_FILL_DELAY_MS: 500,        // Delay before auto-filling forms in dev mode
     IMAGE_PRELOAD_DELAY_MS: 100     // Delay before auto-filling survey in dev mode
@@ -23,12 +15,6 @@ let currentImageIndex = 0;
 let currentImageData = null;
 let totalImagePairs = 30;
 
-// Debug logging helper - only logs in dev mode
-const debugLog = (...args) => {
-    if (window.DEV_MODE) {
-        console.log(...args);
-    }
-};
 let deviceInfo = {};
 let devMode = false;
 let pairStartTime = null;  // Track when user starts viewing current pair
@@ -44,7 +30,6 @@ document.addEventListener('DOMContentLoaded', async function() {
 // Recalculate heights only on orientation change or significant resize
 let resizeTimeout;
 let lastWidth = window.innerWidth;
-let lastHeight = window.innerHeight;
 let lastOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
 
 window.addEventListener('resize', () => {
@@ -63,7 +48,6 @@ window.addEventListener('resize', () => {
         
         if (orientationChanged || widthChange > 100) {
             lastWidth = currentWidth;
-            lastHeight = currentHeight;
             lastOrientation = currentOrientation;
             setQuestionsHeight();
         }
@@ -188,7 +172,6 @@ function setupEventListeners() {
     // Survey form submission
     const surveyForm = document.getElementById('survey-form');
     if (surveyForm) {
-        debugLog('Setting up survey form submit handler');
         surveyForm.addEventListener('submit', handleSurveySubmit);
     } else {
         console.error('Survey form not found during setup');
@@ -271,8 +254,6 @@ function fillDemographicsForm() {
     // Auto-check consent checkbox if present
     const consent = document.querySelector('input[name="consent"]');
     if (consent) consent.checked = true;
-
-    debugLog('Demographics form auto-filled');
 }
 
 function fillSurveyForm() {
@@ -305,8 +286,6 @@ function fillSurveyForm() {
         }
     }
 
-    debugLog('Survey form auto-filled');
-    
     // Trigger form validation to enable submit button
     if (window.triggerFormValidation) {
         window.triggerFormValidation();
@@ -401,14 +380,10 @@ async function postDemographics(payload) {
 
 async function loadImagePair(index) {
     try {
-        debugLog(`Fetching image pair ${index}...`);
         const response = await fetch(`/api/get_image_pair/${index}`);
         const data = await response.json();
-        
-        debugLog('API response:', { ok: response.ok, status: response.status });
-        
+
         if (response.ok) {
-            debugLog('Image pair data received:', { id: data.id, hasImageA: !!data.image_a_url, hasImageB: !!data.image_b_url });
             currentImageData = data;
             currentImageIndex = index;
             
@@ -509,21 +484,16 @@ async function loadImagePair(index) {
                         
                         // Start timing for this pair (when images are ready and form is enabled)
                         pairStartTime = Date.now();
-                        
-                        // Verify images loaded (don't reveal method names to avoid bias)
-                        debugLog(`Loaded comparison ${data.id} of ${data.total_pairs}`);
                     }
                 }
             };
             
             imgALoader.onload = () => {
-                debugLog('Image A loaded successfully');
                 aLoaded = true;
                 checkBothLoaded();
             };
             
             imgBLoader.onload = () => {
-                debugLog('Image B loaded successfully');
                 bLoaded = true;
                 checkBothLoaded();
             };
@@ -541,7 +511,6 @@ async function loadImagePair(index) {
             };
             
             // Start loading
-            debugLog('Starting image load...');
             imgALoader.src = data.image_a_url;
             imgBLoader.src = data.image_b_url;
             
@@ -601,17 +570,10 @@ async function loadImagePair(index) {
 }
 
 async function handleSurveySubmit(event) {
-    debugLog('handleSurveySubmit called', {
-        tutorialMode: window.TUTORIAL_MODE,
-        currentIndex: currentImageIndex,
-        imageData: currentImageData ? currentImageData.id : 'none'
-    });
     event.preventDefault();
-    
+
     // If in tutorial mode, mark tutorial complete and redirect to real survey
     if (window.TUTORIAL_MODE) {
-        debugLog('Tutorial form submitted - marking complete and redirecting');
-        
         // Mark tutorial as complete in session
         try {
             await fetch('/api/complete_tutorial', {
@@ -622,16 +584,14 @@ async function handleSurveySubmit(event) {
                 }
             });
         } catch (error) {
-            debugLog('Note: Could not mark tutorial complete, but continuing anyway');
+            // Marking the tutorial complete is best-effort; the redirect is the point.
         }
         
         // Redirect to real survey
         window.location.href = '/';
         return;
     }
-    
-    debugLog('Preparing to submit real survey response...');
-    
+
     const formData = new FormData(event.target);
     const surveyResponse = Object.fromEntries(formData.entries());
 
@@ -697,20 +657,12 @@ async function handleSurveySubmit(event) {
         const result = await response.json();
         
         if (response.ok && result.success) {
-            debugLog('Survey response submitted:', {
-                completed: result.completed,
-                currentIndex: currentImageIndex,
-                nextIndex: currentImageIndex + 1
-            });
-            
             if (result.completed) {
                 // All image pairs completed, redirect to thank you page
-                debugLog('All pairs completed! Redirecting to thank you page...');
                 window.location.href = '/';
             } else {
                 // Load next image pair
                 currentImageIndex++;
-                debugLog(`Loading next pair: ${currentImageIndex}`);
                 await loadImagePair(currentImageIndex);
                 window.scrollTo(0, 0);
             }
@@ -1318,7 +1270,6 @@ function setQuestionsHeight() {
     
     // Update cached viewport
     lastWidth = m.vw;
-    lastHeight = m.vh;
     lastOrientation = m.isLandscape ? 'landscape' : 'portrait';
     
     scaleVisualContent(availableVisualHeight, m);
@@ -1469,23 +1420,13 @@ function setupSubmitValidation() {
         // All groups must have a selection
         const allAnswered = Object.values(radioGroups).length > 0 && 
                            Object.values(radioGroups).every(answered => answered);
-        
-        debugLog('validateForm called:', {
-            tutorialMode: window.TUTORIAL_MODE,
-            tutorialCompleted: window.tutorialCompleted,
-            totalGroups: Object.keys(radioGroups).length,
-            allAnswered: allAnswered,
-            currentDisabled: submitBtn.disabled
-        });
-        
+
         // Enable/disable submit button
         // In tutorial mode, keep disabled until tutorial is complete
         if (window.TUTORIAL_MODE && !window.tutorialCompleted) {
             submitBtn.disabled = true;
-            debugLog('Keeping disabled (tutorial not complete)');
         } else {
             submitBtn.disabled = !allAnswered;
-            debugLog('Setting disabled =', !allAnswered);
         }
         
         return allAnswered;
@@ -1717,12 +1658,10 @@ if (window.TUTORIAL_MODE) {
 
     function completeTutorial() {
         // Just enable the form - tutorial will be marked complete when user submits
-        debugLog('Tutorial walkthrough complete');
         window.tutorialCompleted = true;
         
         // Trigger form validation to enable button if form is filled
         if (window.triggerFormValidation) {
-            debugLog('Triggering form validation');
             window.triggerFormValidation();
         } else {
             console.error('triggerFormValidation not available');
@@ -1741,9 +1680,7 @@ if (window.TUTORIAL_MODE) {
             submitBtn.title = 'Complete the tutorial first';
 
             submitBtn.addEventListener('click', (e) => {
-                debugLog('Submit button clicked');
                 if (submitBtn.disabled) {
-                    debugLog('  Button is disabled, click prevented');
                     e.preventDefault();
                 }
             });

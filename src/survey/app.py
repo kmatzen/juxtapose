@@ -12,8 +12,7 @@ from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 
 from src.survey.config import (
-    load_config, get_email_field, build_column_map,
-    get_inputs_by_name, get_outputs_by_name, get_questions_by_name,
+    load_config, get_email_field, get_inputs_by_name,
 )
 
 logger = logging.getLogger(__name__)
@@ -95,8 +94,6 @@ DATABASE = os.path.join(DATA_DIR, 'survey.db') if DATA_DIR else 'survey.db'
 CONFIG = load_config()
 SURVEY = CONFIG['survey']
 INPUTS_BY_NAME = get_inputs_by_name(CONFIG)
-OUTPUTS_BY_NAME = get_outputs_by_name(CONFIG)
-QUESTIONS_BY_NAME = get_questions_by_name(CONFIG)
 EMAIL_FIELD = get_email_field(CONFIG)
 
 # Derive feature flags from config (env vars override)
@@ -190,13 +187,6 @@ def load_tutorial_pair():
 IMAGE_PAIRS = load_image_pairs()
 TUTORIAL_PAIR = load_tutorial_pair()
 
-# Run database migrations before initializing
-try:
-    from src.survey.migrate_db import migrate_database
-    migrate_database()
-except Exception as e:
-    logger.warning("Migration failed (might be first run): %s", e)
-
 # Security: Audit logging
 def audit_log(action, details, user_ip=None):
     """Log security-sensitive actions"""
@@ -242,7 +232,6 @@ def set_security_headers(response):
     """Add security headers to all responses"""
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
-    response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     if IS_PRODUCTION:
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
@@ -507,7 +496,6 @@ def index():
                         logger.debug("Showing survey (force_new)")
                     return render_template('index.html', config=CONFIG,
                                            tile_layout=TILE_LAYOUT,
-                                           enable_prompt_question=ENABLE_PROMPT_QUESTION,
                                            show_prompt=SHOW_PROMPT)
                 if DEV_MODE:
                     logger.debug("Showing thank you page (survey complete)")
@@ -524,7 +512,6 @@ def index():
 
     return render_template('index.html', config=CONFIG,
                            tile_layout=TILE_LAYOUT,
-                           enable_prompt_question=ENABLE_PROMPT_QUESTION,
                            show_prompt=SHOW_PROMPT)
 
 
@@ -653,7 +640,6 @@ def tutorial():
     session['tutorial_mode'] = True
     return render_template('index.html', config=CONFIG,
                            tile_layout=TILE_LAYOUT,
-                           enable_prompt_question=ENABLE_PROMPT_QUESTION,
                            show_prompt=SHOW_PROMPT,
                            tutorial_mode=True)
 
@@ -681,7 +667,6 @@ def get_config():
         'inputs': CONFIG.get('inputs', []),
         'outputs': CONFIG.get('outputs', []),
         'questions': CONFIG.get('questions', []),
-        'layout': CONFIG.get('layout', {}),
         'methods': CONFIG.get('methods', {}),
         'tutorial': CONFIG.get('tutorial', {}),
     })

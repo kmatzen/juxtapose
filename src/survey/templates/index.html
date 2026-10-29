@@ -377,10 +377,6 @@
         {% endif %}
     </footer>
 
-    <script>
-        // Configuration from server
-        window.SHOW_PROMPT = {{ 'true' if show_prompt else 'false' }};
-    </script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
