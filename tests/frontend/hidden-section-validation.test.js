@@ -2,8 +2,6 @@
 const path = require('path');
 
 const SCRIPT_PATH = path.join(__dirname, '../../src/survey/static/script.js');
-// setup.js swaps window for a plain object; script.js touches window.addEventListener at load.
-global.window = global;
 const script = require(SCRIPT_PATH);
 
 const SURVEY_CONFIG = {

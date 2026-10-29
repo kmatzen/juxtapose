@@ -1,206 +1,92 @@
-/**
- * Tests for form validation logic
- */
+const {
+    answer,
+    loadSurvey,
+    script,
+    stubScrolling,
+    surveyDom,
+} = require('./helpers/survey-env');
 
-const { describe, test, expect, beforeEach } = require('@jest/globals');
+const submitBtn = () => document.getElementById('submit-btn');
 
-// Mock the CONFIG object from script.js
-global.CONFIG = {
-    TAP_THRESHOLD_PX: 10,
-    TUTORIAL_LOAD_DELAY_MS: 500,
-    MIN_IMAGE_DIMENSION_PX: 200
-};
+function answerEverything() {
+    answer('image_choice', 'A');
+    answer('image_confidence', '3');
+    answer('mask_choice', 'B');
+    answer('mask_confidence', '5');
+}
 
-// Mock the IDENTITY_COLORS array
-global.IDENTITY_COLORS = [
-    [255, 0, 0],      // 0: Red
-    [0, 255, 0],      // 1: Green
-    [0, 0, 255],      // 2: Blue
-    [255, 255, 0],    // 3: Yellow
-    [255, 0, 255],    // 4: Magenta
-    [0, 255, 255],    // 5: Cyan
-    [255, 128, 0],    // 6: Orange
-    [128, 0, 255],    // 7: Purple
-    [0, 128, 255],    // 8: Light Blue
-    [128, 128, 128]   // 9: Gray
-];
+beforeEach(async () => {
+    surveyDom();
+    stubScrolling();
+    await loadSurvey();
+    script.setupSubmitValidation();
+});
 
-describe('Form Validation Logic', () => {
-    let submitBtn;
-    let questionGroups;
-
-    beforeEach(() => {
-        // Setup DOM
-        document.body.innerHTML = `
-            <form id="survey-form">
-                <div class="question-group" data-group="0">
-                    <div class="btn-group">
-                        <input type="radio" name="better_image" value="A">
-                        <input type="radio" name="better_image" value="B">
-                        <input type="radio" name="better_image" value="Equal">
-                    </div>
-                    <div class="btn-group">
-                        <input type="radio" name="image_confidence" value="1">
-                        <input type="radio" name="image_confidence" value="3">
-                        <input type="radio" name="image_confidence" value="5">
-                    </div>
-                </div>
-                <div class="question-group" data-group="1">
-                    <div class="btn-group">
-                        <input type="radio" name="better_mask_match" value="A">
-                        <input type="radio" name="better_mask_match" value="B">
-                        <input type="radio" name="better_mask_match" value="Equal">
-                    </div>
-                    <div class="btn-group">
-                        <input type="radio" name="mask_confidence" value="1">
-                        <input type="radio" name="mask_confidence" value="3">
-                        <input type="radio" name="mask_confidence" value="5">
-                    </div>
-                </div>
-                <button id="submit-btn" type="submit" disabled>Submit</button>
-            </form>
-        `;
-        
-        submitBtn = document.getElementById('submit-btn');
-        questionGroups = document.querySelectorAll('.question-group');
+describe('submit gating', () => {
+    test('submit starts disabled with an empty form', () => {
+        expect(submitBtn().disabled).toBe(true);
+        expect(window.triggerFormValidation()).toBe(false);
     });
 
-    test('submit button is disabled when no fields are filled', () => {
-        expect(submitBtn.disabled).toBe(true);
+    test('a half answered question group keeps submit disabled', () => {
+        answer('image_choice', 'A');
+        answer('mask_choice', 'A');
+        expect(submitBtn().disabled).toBe(true);
     });
 
-    test('submit button is disabled when only some questions are answered', () => {
-        // Answer first question only
-        const imageRadio = document.querySelector('input[name="better_image"][value="A"]');
-        imageRadio.checked = true;
-        
-        // Manually check if form is complete
-        const allAnswered = Array.from(questionGroups).every(group => {
-            const allBtnGroups = group.querySelectorAll('.btn-group');
-            const choiceInputs = allBtnGroups[0].querySelectorAll('input[type="radio"]');
-            const confidenceInputs = allBtnGroups[1].querySelectorAll('input[type="radio"]');
-            const choiceSelected = Array.from(choiceInputs).some(input => input.checked);
-            const confidenceSelected = Array.from(confidenceInputs).some(input => input.checked);
-            return choiceSelected && confidenceSelected;
-        });
-        
-        expect(allAnswered).toBe(false);
+    test('submit enables once every radio group in the form has an answer', () => {
+        answerEverything();
+        expect(submitBtn().disabled).toBe(false);
+        expect(window.triggerFormValidation()).toBe(true);
     });
 
-    test('form is valid when all required questions are answered', () => {
-        // Answer all questions
-        document.querySelector('input[name="better_image"][value="A"]').checked = true;
-        document.querySelector('input[name="image_confidence"][value="3"]').checked = true;
-        document.querySelector('input[name="better_mask_match"][value="B"]').checked = true;
-        document.querySelector('input[name="mask_confidence"][value="5"]').checked = true;
-        
-        // Manually check if form is complete
-        const allAnswered = Array.from(questionGroups).every(group => {
-            const allBtnGroups = group.querySelectorAll('.btn-group');
-            const choiceInputs = allBtnGroups[0].querySelectorAll('input[type="radio"]');
-            const confidenceInputs = allBtnGroups[1].querySelectorAll('input[type="radio"]');
-            const choiceSelected = Array.from(choiceInputs).some(input => input.checked);
-            const confidenceSelected = Array.from(confidenceInputs).some(input => input.checked);
-            return choiceSelected && confidenceSelected;
-        });
-        
-        expect(allAnswered).toBe(true);
+    test('clearing the last answer of a group disables submit again', () => {
+        answerEverything();
+        expect(submitBtn().disabled).toBe(false);
+
+        document.querySelectorAll('input[name="mask_confidence"]').forEach(r => { r.checked = false; });
+
+        expect(window.triggerFormValidation()).toBe(false);
+        expect(submitBtn().disabled).toBe(true);
     });
 
-    test('can select different radio button values', () => {
-        const radioA = document.querySelector('input[name="better_image"][value="A"]');
-        const radioB = document.querySelector('input[name="better_image"][value="B"]');
-        
-        radioA.checked = true;
-        expect(radioA.checked).toBe(true);
-        expect(radioB.checked).toBe(false);
-        
-        radioB.checked = true;
-        radioA.checked = false; // Manually uncheck (DOM doesn't do this automatically in tests)
-        expect(radioA.checked).toBe(false);
-        expect(radioB.checked).toBe(true);
+    test('the value a radio carries is what the group is answered with', () => {
+        answer('image_choice', 'equal');
+        answer('image_confidence', '1');
+        answer('mask_choice', 'equal');
+        answer('mask_confidence', '1');
+        expect(submitBtn().disabled).toBe(false);
+        expect(document.querySelector('input[name="image_choice"]:checked').value).toBe('equal');
     });
 
-    test('confidence values are independent of choice values', () => {
-        document.querySelector('input[name="better_image"][value="A"]').checked = true;
-        document.querySelector('input[name="image_confidence"][value="3"]').checked = true;
-        
-        const choiceA = document.querySelector('input[name="better_image"][value="A"]');
-        const conf3 = document.querySelector('input[name="image_confidence"][value="3"]');
-        
-        expect(choiceA.checked).toBe(true);
-        expect(conf3.checked).toBe(true);
+    test('only the survey form is gated', () => {
+        document.getElementById('demographics-form')
+            .insertAdjacentHTML('beforeend', '<input type="radio" name="demo_choice" value="A">');
+        answerEverything();
+        expect(submitBtn().disabled).toBe(false);
+    });
+
+    test('a form without a submit button is skipped, not fatal', () => {
+        document.getElementById('submit-btn').remove();
+        expect(() => script.setupSubmitValidation()).not.toThrow();
     });
 });
 
-describe('Demographics Form Validation', () => {
-    beforeEach(() => {
-        document.body.innerHTML = `
-            <form id="demographics-form">
-                <input type="email" name="email" id="email" required>
-                <input type="text" name="occupation" id="occupation">
-                <select name="ai_usage" id="ai_usage" required>
-                    <option value="">Select...</option>
-                    <option value="never">Never</option>
-                    <option value="rarely">Rarely</option>
-                    <option value="often">Often</option>
-                </select>
-                <button type="submit" id="submit-demographics">Continue</button>
-            </form>
-        `;
+describe('getCSRFToken', () => {
+    beforeEach(() => { document.head.innerHTML = ''; });
+    afterEach(() => { document.cookie = 'csrf_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'; });
+
+    test('reads the meta tag when the page renders one', () => {
+        document.head.innerHTML = '<meta name="csrf-token" content="meta-token">';
+        expect(script.getCSRFToken()).toBe('meta-token');
     });
 
-    test('email field is required', () => {
-        const emailInput = document.getElementById('email');
-        expect(emailInput.required).toBe(true);
+    test('falls back to the csrf_token cookie and decodes it', () => {
+        document.cookie = 'csrf_token=a%2Bb';
+        expect(script.getCSRFToken()).toBe('a+b');
     });
 
-    test('can enter valid email', () => {
-        const emailInput = document.getElementById('email');
-        emailInput.value = 'test@example.com';
-        expect(emailInput.value).toBe('test@example.com');
-    });
-
-    test('can select dropdown option', () => {
-        const selectElement = document.getElementById('ai_usage');
-        selectElement.value = 'often';
-        expect(selectElement.value).toBe('often');
-    });
-
-    test('form has all expected fields', () => {
-        expect(document.getElementById('email')).toBeTruthy();
-        expect(document.getElementById('occupation')).toBeTruthy();
-        expect(document.getElementById('ai_usage')).toBeTruthy();
+    test('returns an empty string when the page carries no token', () => {
+        expect(script.getCSRFToken()).toBe('');
     });
 });
-
-describe('CONFIG Object', () => {
-    test('CONFIG contains all required constants', () => {
-        expect(CONFIG.TAP_THRESHOLD_PX).toBeDefined();
-        expect(CONFIG.TUTORIAL_LOAD_DELAY_MS).toBeDefined();
-        expect(CONFIG.MIN_IMAGE_DIMENSION_PX).toBeDefined();
-    });
-
-    test('CONFIG values are reasonable', () => {
-        expect(CONFIG.TAP_THRESHOLD_PX).toBeGreaterThan(0);
-        expect(CONFIG.TUTORIAL_LOAD_DELAY_MS).toBeGreaterThan(0);
-        expect(CONFIG.MIN_IMAGE_DIMENSION_PX).toBeGreaterThan(0);
-    });
-});
-
-describe('Identity Colors', () => {
-    test('IDENTITY_COLORS has 10 colors', () => {
-        expect(IDENTITY_COLORS).toHaveLength(10);
-    });
-
-    test('each color is an RGB array with 3 values', () => {
-        IDENTITY_COLORS.forEach(color => {
-            expect(color).toHaveLength(3);
-            color.forEach(value => {
-                expect(value).toBeGreaterThanOrEqual(0);
-                expect(value).toBeLessThanOrEqual(255);
-            });
-        });
-    });
-});
-

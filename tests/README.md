@@ -4,9 +4,13 @@ This directory contains automated tests for the survey application, covering bot
 
 ## Test Summary
 
-**Total: 45 tests passing -**
-- Backend (Python): 11 tests
-- Frontend (JavaScript): 34 tests
+**Total: 180 tests passing -**
+- Backend (Python): 104 tests
+- Frontend (JavaScript): 76 tests
+
+Frontend suites `require()` the real `src/survey/static/script.js` (the file ends
+with a browser-inert `module.exports` guard). Never re-implement app logic inside a
+test: an inline copy passes while the shipped script rots.
 
 ## Setup
 
@@ -107,14 +111,21 @@ npm test -- frontend/validation.test.js
 ```
 tests/
 ├── __init__.py
-├── conftest.py                 # Pytest fixtures and configuration
-├── test_routes.py              # Backend route tests (7 tests)
-├── test_data_logic.py          # Backend data logic tests (4 tests)
+├── conftest.py                     # Pytest fixtures and configuration
+├── test_*.py                       # 104 backend tests, one file per area
 ├── frontend/
-│   ├── setup.js                # Frontend test setup
-│   ├── validation.test.js      # Form validation tests (17 tests)
-│   └── tutorial.test.js        # Tutorial functionality tests (17 tests)
-└── README.md                   # This file
+│   ├── setup.js                    # window flags, IntersectionObserver, console silencing
+│   ├── helpers/survey-env.js       # DOM fixture mirroring index.html + fetch/Image stubs
+│   ├── admin-render.test.js        # 9  – admin table escaping and rendering
+│   ├── gallery.test.js             # 2  – image_gallery comma list vs stacked sheet
+│   ├── hidden-section-validation.test.js  # 4  – hidden optional sections
+│   ├── image-loading.test.js       # 11 – loadImagePair, in-flight lock, failure paths
+│   ├── page-boot.test.js           # 6  – demographics gate, image lightbox
+│   ├── progressive-questions.test.js      # 14 – navigation, completion, auto-advance, scroll
+│   ├── submissions.test.js         # 16 – what the browser posts, retake confirmation
+│   ├── tutorial.test.js            # 4  – tutorial walkthrough and submit gate
+│   └── validation.test.js          # 10 – submit gating, CSRF lookup
+└── README.md                       # This file
 ```
 
 ## What's Tested
@@ -133,24 +144,19 @@ tests/
 - - Multiple participants with same email
 - - Empty result handling
 
-### Frontend Validation (`frontend/validation.test.js`)
-- - Form validation logic
-- - Submit button state management
-- - Radio button interactions
-- - Incomplete form detection
-- - Demographics form validation
-- - Email field validation
-- - Configuration constants
-- - Identity color array validation
+### Frontend (`frontend/*.test.js`)
+Every suite loads the real `script.js` through `helpers/survey-env.js`, which builds
+the page the way `index.html` does and stubs fetch, `Image`, scrolling and
+`IntersectionObserver`.
 
-### Frontend Tutorial (`frontend/tutorial.test.js`)
-- - Tutorial state management
-- - Tutorial banner UI rendering
-- - Step navigation (next/previous)
-- - Step counter functionality
-- - Element highlighting
-- - Tutorial completion flow
-- - Submit button control during tutorial
+- - Which page the participant lands on, and the image lightbox
+- - Pair loading: prompt, images, counters, the lock while images are in flight, every failure path
+- - Question navigation, per-section completion, auto-advance, scroll tracking
+- - Submit gating, including sections hidden by `depends_on`
+- - The payload posted for `ab_preference`, `likert`, `free_text` and `multiple_choice`
+- - The retake warning: the destructive delete only runs after confirmation
+- - Tutorial walkthrough and the submit lock it holds
+- - CSRF token lookup; admin table escaping
 
 ## Key Test Cases
 
@@ -187,11 +193,9 @@ tests/
 Target: **80%+ coverage** for critical paths
 
 Current coverage:
-- - Backend: ~47% (516 statements, 275 missing)
-- - Frontend: Unit tests for validation and tutorial logic
-- - Data retrieval functions
-- - Session management
-- - Route access control
+- - Backend: 78% (860 statements, 192 missed)
+- - Frontend: 70% of statements (`script.js` 69%, `admin.js` 83%); `npm run test:coverage` fails below the thresholds in `jest.config.js`
+- - Not covered in the browser suites: canvas mask-overlay rendering and the dev-mode auto-fill helpers
 
 ## Adding New Tests
 
@@ -219,24 +223,23 @@ def test_my_feature(client, sample_demographics):
 
 ### Frontend Tests (JavaScript)
 
-1. Create new test file: `tests/frontend/yourfeature.test.js`
-2. Import from `@jest/globals`
-3. Set up clean DOM in `beforeEach()`
-4. Follow naming convention: `test('description', () => {...})`
+1. Create a new file: `tests/frontend/yourfeature.test.js`
+2. `require('./helpers/survey-env')` for the page fixture, API mock and answer helpers
+3. Call the real `script.<function>()`; assert on the DOM it left behind
 
 Example:
 ```javascript
-const { describe, test, expect, beforeEach } = require('@jest/globals');
+const { loadSurvey, script, surveyDom } = require('./helpers/survey-env');
 
 describe('My Feature', () => {
-    beforeEach(() => {
-        document.body.innerHTML = `<div id="test">Hello</div>`;
+    beforeEach(async () => {
+        surveyDom();
+        await loadSurvey();
     });
 
-    test('element exists', () => {
-        const el = document.getElementById('test');
-        expect(el).toBeTruthy();
-        expect(el.textContent).toBe('Hello');
+    test('the app does the thing', () => {
+        script.setupSubmitValidation();
+        expect(document.getElementById('submit-btn').disabled).toBe(true);
     });
 });
 ```
@@ -250,7 +253,7 @@ describe('My Feature', () => {
 - Test database: Temporary SQLite
 
 ### Frontend (Jest)
-- Configuration: `package.json` (jest section)
+- Configuration: `jest.config.js`
 - Test environment: `jsdom` (browser simulation)
 - Test discovery: `tests/frontend/**/*.test.js`
 - Coverage target: `src/survey/static/**/*.js`
@@ -300,7 +303,7 @@ open htmlcov/index.html
 ### Frontend Coverage
 ```bash
 npm run test:coverage
-open coverage/lcov-report/index.html
+open coverage-frontend/index.html
 ```
 
 ## Continuous Improvement

@@ -1,9 +1,5 @@
 // Audit #15: image_gallery is documented as "comma-separated URLs or a single stacked image".
-const path = require('path');
-
-const SCRIPT_PATH = path.join(__dirname, '../../src/survey/static/script.js');
-global.window = global;
-const script = require(SCRIPT_PATH);
+const script = require('../../src/survey/static/script.js');
 
 const CONFIG = {
     dev_mode: false,

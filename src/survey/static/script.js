@@ -1756,5 +1756,18 @@ if (window.TUTORIAL_MODE) {
 
 // The browser loads this as a plain script; tests require() it so coverage sees the real code.
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { checkDevMode, updateQuestionVisibility, setupSubmitValidation, isInHiddenSection, displayConditioningInputs };
+    module.exports = {
+        checkDemographicsSubmitted,
+        checkDevMode,
+        collectDeviceInfo,
+        displayConditioningInputs,
+        getCSRFToken,
+        initializeProgressiveQuestions,
+        isQuestionGroupComplete,
+        loadImagePair,
+        navigateQuestion,
+        setupEventListeners,
+        setupSubmitValidation,
+        updateQuestionVisibility,
+    };
 }
