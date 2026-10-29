@@ -1525,3 +1525,14 @@ p {
     color: #c0392b;
     padding: 12px 16px;
 }
+
+/* Overflow alone does not hold: Chrome scrolls an overflow:hidden viewport when the wheel
+   lands on a position:fixed element, i.e. exactly the modal backdrop. Taking the body out of
+   flow removes the scrollable content, and the negative offset keeps the page visually put. */
+html.modal-open body {
+    position: fixed;
+    top: calc(-1 * var(--modal-scroll-y, 0px));
+    left: 0;
+    right: 0;
+    overflow: hidden;
+}

@@ -94,7 +94,7 @@ async function waitForStableLayout(page) {
   }), null, { timeout: 30000 });
 }
 
-async function shot(page, name) {
+async function shot(page, name, opts = {}) {
   await settleForShot(page);
   await page.evaluate(() => {
     window.scrollTo(0, 0);
@@ -106,6 +106,7 @@ async function shot(page, name) {
     path: `docs/screenshots/${name}.png`,
     fullPage: true,
     animations: 'disabled',
+    ...opts,
   });
 }
 

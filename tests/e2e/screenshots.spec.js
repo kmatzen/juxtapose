@@ -34,7 +34,9 @@ test('the committed desktop screenshots come from one deterministic study', asyn
     const pageB = await returning.newPage();
     await submitDemographics(pageB, EMAIL);
     await expect(pageB.locator('#retake-modal')).toBeVisible();
-    await shot(pageB, '04-retake-modal');
+    // Viewport, not fullPage: the backdrop is fixed to the viewport, so a taller capture
+    // would show undimmed page below the fold that a participant never sees.
+    await shot(pageB, '04-retake-modal', { fullPage: false });
     await returning.close();
 
     const admin = await context.newPage();
