@@ -1738,3 +1738,8 @@ if (window.TUTORIAL_MODE) {
         showTutorialStep(0);
     });
 }
+
+// The browser loads this as a plain script; tests require() it so coverage sees the real code.
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { checkDevMode, updateQuestionVisibility, setupSubmitValidation, isInHiddenSection };
+}

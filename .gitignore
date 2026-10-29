@@ -40,3 +40,4 @@ htmlcov
 coverage
 .coverage
 audit.log
+coverage-frontend/
