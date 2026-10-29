@@ -153,7 +153,7 @@ Set `enabled: false` to skip the tutorial.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DEV_MODE` | `false` | Auto-fill forms, fewer trials, bypass referral |
-| `ADMIN_PASSWORD` | `admin123` | Admin dashboard password |
+| `ADMIN_PASSWORD` | `admin123` | Admin dashboard password (**required in production**) |
 | `SECRET_KEY` | dev key | Flask session secret (**required in production**) |
 | `REFERRAL_CODES` | (none) | Comma-separated access codes; empty = no gate |
 | `DATA_DIR` | (none) | Persistent data directory; enables production mode |
@@ -171,7 +171,7 @@ export DATA_DIR="/path/to/persistent/data"
 gunicorn src.survey.app:app --bind 0.0.0.0:8000
 ```
 
-When `DATA_DIR` is set, the app enables production mode: requires `SECRET_KEY`, enforces HTTPS cookies, and stores the database and audit log in that directory.
+When `DATA_DIR` is set, the app enables production mode: requires `SECRET_KEY` and a non-default `ADMIN_PASSWORD`, enforces HTTPS cookies, and stores the database and audit log in that directory.
 
 ## Admin Dashboard
 

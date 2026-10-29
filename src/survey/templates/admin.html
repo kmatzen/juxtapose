@@ -6,6 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Survey Admin</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="{{ url_for('static', filename='admin.js') }}"></script>
 </head>
 <body>
     <div class="admin-container">
@@ -104,7 +105,7 @@
                         const card = document.createElement('div');
                         card.className = 'stat-card';
                         card.style.cssText = 'margin-bottom: 10px;';
-                        card.innerHTML = `<div class="stat-number" style="font-size:14px;line-height:1.4;">${summary}</div><div class="stat-label">Preferences: ${q.section_label || q.name}</div>`;
+                        card.innerHTML = `<div class="stat-number" style="font-size:14px;line-height:1.4;">${esc(summary)}</div><div class="stat-label">Preferences: ${esc(q.section_label || q.name)}</div>`;
                         prefCards.appendChild(card);
                     }
 
@@ -144,15 +145,8 @@
             }
 
             if (currentView === 'demographics') {
-                // Build header from config demographics fields
                 const demoFields = (adminConfig && adminConfig.demographics) || [];
-                let headerHtml = '<tr><th>Email</th><th>Referral</th><th>Browser</th><th>OS</th><th>Screen</th>';
-                for (const f of demoFields) {
-                    if (f.type === 'email') continue;
-                    headerHtml += `<th>${f.label}</th>`;
-                }
-                headerHtml += '<th>Responses</th></tr>';
-                thead.innerHTML = headerHtml;
+                thead.innerHTML = buildDemographicsHeader(demoFields);
 
                 // Group by email
                 const participantMap = {};
@@ -166,53 +160,13 @@
 
                 const pairsPerUser = (adminConfig && adminConfig.survey && adminConfig.survey.pairs_per_user) || 30;
 
-                tbody.innerHTML = Object.values(participantMap).map(p => {
-                    let cells = `<td>${p.email || '-'}</td>`;
-                    cells += `<td>${p.referral_code || '-'}</td>`;
-                    cells += `<td style="font-size:11px;">${p.browser || '-'} ${p.browser_version || ''}</td>`;
-                    cells += `<td>${p.os || '-'}</td>`;
-                    cells += `<td style="font-size:11px;">${p.screen_width || '?'}×${p.screen_height || '?'}</td>`;
-                    for (const f of demoFields) {
-                        if (f.type === 'email') continue;
-                        cells += `<td>${p[f.name] || '-'}</td>`;
-                    }
-                    cells += `<td><strong>${p.responseCount}/${pairsPerUser}</strong></td>`;
-                    return `<tr>${cells}</tr>`;
-                }).join('');
+                tbody.innerHTML = buildDemographicsRows(
+                    Object.values(participantMap), demoFields, pairsPerUser
+                );
             } else {
-                // Responses view - build from config questions
                 const questions = (adminConfig && adminConfig.questions) || [];
-                let headerHtml = '<tr><th>Date</th><th>Email</th><th>Pair#</th><th>Method A</th><th>Method B</th>';
-                for (const q of questions) {
-                    if (q.type === 'ab_preference') {
-                        const label = q.section_label || q.name;
-                        headerHtml += `<th>Choice (${label})</th><th>Preferred (${label})</th>`;
-                        if (q.confidence) headerHtml += `<th>Conf (${label})</th>`;
-                    }
-                }
-                headerHtml += '<th>Time (s)</th></tr>';
-                thead.innerHTML = headerHtml;
-
-                tbody.innerHTML = cachedData.map(row => {
-                    let cells = `<td style="font-size:11px;">${row.response_created ? new Date(row.response_created).toLocaleDateString() : '-'}</td>`;
-                    cells += `<td>${row.email || '-'}</td>`;
-                    cells += `<td>${row.image_pair_id || '-'}</td>`;
-                    cells += `<td style="font-size:11px;">${row.method_a || 'N/A'}</td>`;
-                    cells += `<td style="font-size:11px;">${row.method_b || 'N/A'}</td>`;
-                    for (const q of questions) {
-                        if (q.type === 'ab_preference') {
-                            const choice = row[`${q.name}_choice`] || '-';
-                            const pref = row[`${q.name}_preferred_method`] || '-';
-                            cells += `<td>${choice}</td><td><strong>${pref}</strong></td>`;
-                            if (q.confidence) {
-                                const conf = row[`${q.name}_confidence`];
-                                cells += `<td>${conf != null ? conf : '-'}</td>`;
-                            }
-                        }
-                    }
-                    cells += `<td>${row.time_spent != null ? row.time_spent.toFixed(1) : '-'}</td>`;
-                    return `<tr>${cells}</tr>`;
-                }).join('');
+                thead.innerHTML = buildResponsesHeader(questions);
+                tbody.innerHTML = buildResponsesRows(cachedData, questions);
             }
         }
 

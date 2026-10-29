@@ -65,9 +65,9 @@ if TILE_LAYOUT not in ['AMB', 'MAB']:
     logger.warning("Invalid TILE_LAYOUT '%s'. Using default 'MAB'. Valid options: AMB, MAB", TILE_LAYOUT)
     TILE_LAYOUT = 'MAB'
 
-# Security: Warn if weak admin password in production
+# The dashboard lists every participant email, so the shipped default is an open door.
 if ADMIN_PASSWORD == 'admin123' and IS_PRODUCTION:
-    logger.warning("Using default admin password! Set ADMIN_PASSWORD environment variable!")
+    raise ValueError("ADMIN_PASSWORD environment variable must be set in production!")
 
 # Audit log file
 AUDIT_LOG_FILE = os.path.join(DATA_DIR, 'audit.log') if DATA_DIR else 'audit.log'
@@ -428,6 +428,15 @@ def health():
     }), 200
 
 
+def _valid_email(email):
+    """True if email is a usable address string.
+
+    The stored email is rendered in the admin dashboard and used as the key for
+    data-removal deletes, so it must not be arbitrary text.
+    """
+    return isinstance(email, str) and '@' in email and len(email) <= 255
+
+
 def check_admin_auth():
     """Check if admin is authenticated"""
     return session.get('admin_authenticated', False)
@@ -715,7 +724,12 @@ def submit_demographics():
     try:
         # Extract email using config-defined email field
         email = data.get(EMAIL_FIELD) if EMAIL_FIELD else None
+        if isinstance(email, str):
+            email = email.strip()
         is_retaking = False
+
+        if email and not _valid_email(email):
+            return jsonify({'error': 'Invalid email address'}), 400
 
         if email:
             previous_participant = db.execute('''
@@ -1288,8 +1302,8 @@ def delete_by_email():
         audit_log('DELETE_FAILED', {'reason': 'No email provided'})
         return jsonify({'error': 'Email address is required'}), 400
 
-    if '@' not in email or len(email) > 255:
-        audit_log('DELETE_FAILED', {'reason': 'Invalid email format', 'email': email[:50]})
+    if not _valid_email(email):
+        audit_log('DELETE_FAILED', {'reason': 'Invalid email format', 'email': str(email)[:50]})
         return jsonify({'error': 'Invalid email format'}), 400
 
     db = get_db()

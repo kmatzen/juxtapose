@@ -4,6 +4,7 @@ module.exports = {
   testMatch: ['**/tests/frontend/**/*.test.js'],
   collectCoverageFrom: [
     'src/survey/static/script.js',
+    'src/survey/static/admin.js',
     '!**/node_modules/**',
     '!**/tests/**'
   ],
