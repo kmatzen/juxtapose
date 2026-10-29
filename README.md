@@ -2,7 +2,7 @@
 
 A config-driven web application for running A/B evaluation studies. Define your entire survey -- demographics, stimuli, evaluation questions, and tutorial -- in a single YAML file. No code changes needed.
 
-Built for research teams who need to collect human judgments on generated content (images, video, audio, text) with proper randomization, progress tracking, and data export.
+Built for research teams who need to collect human judgments on generated images with proper randomization, progress tracking, and data export.
 
 ## Features
 
@@ -89,11 +89,10 @@ Shared context shown for each trial. Optional inputs are hidden when their colum
 
 | Type | Description |
 |------|-------------|
-| `text` | Plain text in a prompt box |
-| `image` | Single image (supports lightbox) |
-| `image_gallery` | Row of images from comma-separated URLs or stacked image |
-| `video` | HTML5 video player (supports loop, controls) |
-| `audio` | HTML5 audio player (supports loop) |
+| `image` | Single image, click to enlarge |
+| `image_gallery` | Row of images from comma-separated URLs, or one stacked image sliced into a row |
+
+An input named `prompt` with type `text` is not a widget: it enables the prompt box that shows the trial's `prompt` column. `SHOW_PROMPT=false` overrides it.
 
 ### Outputs
 
@@ -101,10 +100,7 @@ Per-method results shown as an A/B comparison. Position is randomized per trial.
 
 | Type | Description |
 |------|-------------|
-| `image` | Side-by-side images |
-| `video` | Side-by-side video players |
-| `audio` | Side-by-side audio players |
-| `text` | Side-by-side text blocks |
+| `image` | Side-by-side images, click to enlarge |
 
 ### Questions
 
@@ -153,7 +149,7 @@ Set `enabled: false` to skip the tutorial.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DEV_MODE` | `false` | Auto-fill forms, fewer trials, bypass referral |
-| `ADMIN_PASSWORD` | `admin123` | Admin dashboard password |
+| `ADMIN_PASSWORD` | `admin123` | Admin dashboard password (**required in production**) |
 | `SECRET_KEY` | dev key | Flask session secret (**required in production**) |
 | `REFERRAL_CODES` | (none) | Comma-separated access codes; empty = no gate |
 | `DATA_DIR` | (none) | Persistent data directory; enables production mode |
@@ -162,7 +158,16 @@ Set `enabled: false` to skip the tutorial.
 
 ## Deployment
 
-For production, set `DATA_DIR` to a persistent directory and provide a strong `SECRET_KEY`:
+Build the frontend first: Vite emits `src/survey/static_dist/`, which the app serves at
+`/dist/`. The build reads nothing from the environment, and a checkout with no build falls back
+to `src/survey/static/`, so `npm` is only needed to change the frontend.
+
+```bash
+npm ci
+npm run build
+```
+
+Then set `DATA_DIR` to a persistent directory and provide a strong `SECRET_KEY`:
 
 ```bash
 export SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
@@ -171,7 +176,8 @@ export DATA_DIR="/path/to/persistent/data"
 gunicorn src.survey.app:app --bind 0.0.0.0:8000
 ```
 
-When `DATA_DIR` is set, the app enables production mode: requires `SECRET_KEY`, enforces HTTPS cookies, and stores the database and audit log in that directory.
+`static_dist/` is read at boot, so a deploy replaces the code and the build together, then
+restarts. When `DATA_DIR` is set, the app enables production mode: requires `SECRET_KEY` and a non-default `ADMIN_PASSWORD`, enforces HTTPS cookies, and stores the database and audit log in that directory.
 
 ## Admin Dashboard
 
@@ -189,9 +195,16 @@ SQLite with JSON columns for demographics and responses. Migration from older sc
 ## Testing
 
 ```bash
-pip install ".[dev]"
-python -m pytest tests/ -q
+pip install ".[dev]" && npm ci
+python -m pytest tests/ -q     # 113 backend tests
+npm test                       # 71 jsdom tests driving the real script.js
+npm run test:unit              # 32 unit tests on frontend/src modules
+npm run test:e2e               # 19 real-browser tests (builds, boots its own server)
 ```
+
+The survey's rules (question gating, answer assembly, payload shape, progress) live in
+`frontend/src/study-state.ts` with no DOM, so they are unit-tested directly; `script.js` calls
+into it and keeps only DOM work.
 
 ## License
 

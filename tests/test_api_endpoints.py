@@ -75,7 +75,7 @@ def test_complete_tutorial_with_session(client):
 def test_get_image_pair_no_session(client):
     """Test get_image_pair without session"""
     response = client.get('/api/get_image_pair/0')
-    assert response.status_code in [200, 400]
+    assert response.status_code == 200
 
 
 def test_get_image_pair_no_email(client):
@@ -84,7 +84,7 @@ def test_get_image_pair_no_email(client):
         sess['session_id'] = 'test-session-no-email'
 
     response = client.get('/api/get_image_pair/0')
-    assert response.status_code in [200, 400]
+    assert response.status_code == 200
 
 
 def test_get_image_pair_valid(client):
@@ -133,7 +133,7 @@ def test_get_image_pair_out_of_range(client):
         sess['session_id'] = unique_session
 
     response = client.get('/api/get_image_pair/9999')
-    assert response.status_code in [400, 404]
+    assert response.status_code == 404
     data = json.loads(response.data)
     assert 'error' in data
 
@@ -150,16 +150,23 @@ def test_submit_survey_no_session(client):
 
 def test_submit_survey_missing_fields(client):
     """Test submit_survey with missing required fields"""
+    from src.survey.app import get_db
+
+    with client.application.app_context():
+        db = get_db()
+        db.execute("INSERT INTO participants (session_id, browser, os) VALUES (?, 'Chrome', 'macOS')",
+                   ('test-session-submit',))
+        db.commit()
+        db.close()
+
     with client.session_transaction() as sess:
         sess['session_id'] = 'test-session-submit'
 
     response = client.post('/api/submit_survey',
-                          json={'better_image': 'A'},
+                          json={'image_pair_id': 1},
                           content_type='application/json')
-    assert response.status_code in [400, 404]
-    if response.status_code != 404:
-        data = json.loads(response.data)
-        assert 'error' in data
+    assert response.status_code == 400
+    assert 'error' in json.loads(response.data)
 
 
 def test_submit_survey_valid(client):
@@ -180,16 +187,14 @@ def test_submit_survey_valid(client):
     with client.session_transaction() as sess:
         sess['session_id'] = unique_session
 
-    # Submit using flat format (backward compat)
     response = client.post('/api/submit_survey',
                           json={
                               'image_pair_id': 1,
-                              'better_image': 'A',
-                              'image_confidence': 3,
-                              'better_mask_match': 'B',
-                              'mask_confidence': 4,
-                              'better_identity_match': 'Equal',
-                              'identity_confidence': 2,
+                              'responses': {
+                                  'image_quality': {'choice': 'A', 'confidence': 3},
+                                  'mask_adherence': {'choice': 'B', 'confidence': 4},
+                                  'identity_preservation': {'choice': 'equal', 'confidence': 2},
+                              },
                               'time_spent': 45.5
                           },
                           content_type='application/json')
@@ -202,61 +207,32 @@ def test_submit_survey_valid(client):
 def test_referral_get(client):
     """Test referral page GET"""
     response = client.get('/referral')
-    assert response.status_code in [200, 302]
+    assert response.status_code == 302
 
 
-def test_referral_post_invalid_code(client):
-    """Test referral page POST with invalid code"""
-    import os
-    old_codes = os.environ.get('REFERRAL_CODES')
-    os.environ['REFERRAL_CODES'] = 'TESTCODE123'
+def test_referral_post_invalid_code(referral_client):
+    """A wrong referral code is rejected and never validated."""
+    client = referral_client('TESTCODE123')
 
-    import importlib
-    from src.survey import app as app_module
-    importlib.reload(app_module)
-    client.application = app_module.app
+    response = client.post('/referral',
+                           data={'referral_code': 'WRONGCODE'},
+                           follow_redirects=False)
 
-    try:
-        response = client.post('/referral',
-                              data={'referral_code': 'WRONGCODE'},
-                              follow_redirects=False)
-        assert response.status_code in [200, 400]
-        if response.status_code == 200:
-            assert b'Invalid' in response.data or b'error' in response.data.lower()
-    finally:
-        if old_codes:
-            os.environ['REFERRAL_CODES'] = old_codes
-        else:
-            os.environ.pop('REFERRAL_CODES', None)
-        importlib.reload(app_module)
-        client.application = app_module.app
+    assert response.status_code == 200
+    assert 'Invalid referral code' in response.data.decode()
+    with client.session_transaction() as sess:
+        assert not sess.get('referral_validated')
 
 
-def test_referral_post_valid_code(client):
-    """Test referral page POST with valid code"""
-    import os
-    old_codes = os.environ.get('REFERRAL_CODES')
-    os.environ['REFERRAL_CODES'] = 'TESTCODE123'
+def test_referral_post_valid_code(referral_client):
+    """A valid referral code validates the session and lets the participant through."""
+    client = referral_client('TESTCODE123')
 
-    import importlib
-    from src.survey import app as app_module
-    importlib.reload(app_module)
-    client.application = app_module.app
+    response = client.post('/referral',
+                           data={'referral_code': 'TESTCODE123'},
+                           follow_redirects=False)
 
-    try:
-        response = client.post('/referral',
-                              data={'referral_code': 'TESTCODE123'},
-                              follow_redirects=False)
-        assert response.status_code in [302, 400]
-
-        if response.status_code == 302:
-            with client.session_transaction() as sess:
-                assert sess.get('referral_validated') is True
-                assert sess.get('referral_code') == 'TESTCODE123'
-    finally:
-        if old_codes:
-            os.environ['REFERRAL_CODES'] = old_codes
-        else:
-            os.environ.pop('REFERRAL_CODES', None)
-        importlib.reload(app_module)
-        client.application = app_module.app
+    assert response.status_code == 302
+    with client.session_transaction() as sess:
+        assert sess.get('referral_validated') is True
+        assert sess.get('referral_code') == 'TESTCODE123'

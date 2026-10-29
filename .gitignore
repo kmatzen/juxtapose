@@ -40,3 +40,11 @@ htmlcov
 coverage
 .coverage
 audit.log
+coverage-frontend/
+
+test-results/
+playwright-report/
+
+# Vite build output
+src/survey/static_dist/
+frontend/.cjs/

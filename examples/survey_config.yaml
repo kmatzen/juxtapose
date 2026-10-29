@@ -8,7 +8,6 @@
 #   - inputs:  Stimuli shared between methods (prompts, references, masks)
 #   - outputs: Results from each method, shown as A/B and randomized
 #   - questions: What you ask participants about the outputs
-#   - layout: How inputs, outputs, and questions are arranged on screen
 
 survey:
   title: "Welcome to Our GenAI Image Evaluation Study"
@@ -16,11 +15,6 @@ survey:
   contact_email: ""  # shown in footer and contact links; leave empty to hide
   pairs_per_user: 30
   dev_pairs: 3
-  # Text shown in the survey (evaluation) section
-  survey_heading: "Image Comparison"
-  survey_instruction: "Please evaluate the following two images based on the given prompt."
-  next_button_text: "Next Image Pair"
-  submit_button_text: "Submit Survey"
   # Consent / privacy (leave empty to skip consent checkbox)
   privacy_policy_url: ""
   consent_text: "I consent to the collection and use of my responses for research purposes as described above."
@@ -158,19 +152,16 @@ methods:
 # Fields:
 #   name          Unique identifier (referenced by depends_on in questions)
 #   type          Widget type (see below)
-#   label         Heading shown above the widget
+#   label         Caption used for the image alt text and lightbox title
 #   column        Column name from data.columns
-#   description   (optional) Help text shown below the label
 #   optional      (optional, default false) Hide when column value is empty
-#   interactions  (optional) List: lightbox, loop, controls
 #
 # Input types:
-#   text          Plain text displayed in a prompt box
-#   image         Single image (click to enlarge if lightbox enabled)
+#   image         Single image, click to enlarge
 #   image_gallery Comma-separated URLs or a single stacked image, displayed
 #                 as a horizontal row of images
-#   video         HTML5 video player; supports loop and controls interactions
-#   audio         HTML5 audio player; supports loop interaction
+#
+# An input named "prompt" of type "text" is a flag, not a widget: it shows the prompt box (SHOW_PROMPT overrides).
 
 inputs:
   - name: prompt
@@ -184,7 +175,6 @@ inputs:
     description: "The generated images should preserve the identity features from these reference images."
     column: identity_urls
     optional: true
-    interactions: [lightbox]
 
   - name: mask
     type: image
@@ -192,7 +182,6 @@ inputs:
     description: "The generated images should follow the spatial layout indicated by this mask (different colors represent different regions)."
     column: mask_url
     optional: true
-    interactions: [lightbox]
 
 # =============================================================================
 # Outputs (per-method results, A/B randomized)
@@ -203,16 +192,11 @@ inputs:
 # Fields:
 #   name          Unique identifier
 #   type          Widget type (see below)
-#   label         Heading prefix (shown as "Label A" / "Label B")
 #   column_a      Column name for method A's result
 #   column_b      Column name for method B's result
-#   interactions  (optional) List: lightbox, loop, controls
 #
 # Output types:
-#   image         Side-by-side images (click to enlarge if lightbox enabled)
-#   video         Side-by-side video players
-#   audio         Side-by-side audio players
-#   text          Side-by-side text blocks
+#   image         Side-by-side images, click to enlarge
 
 outputs:
   - name: image
@@ -220,7 +204,6 @@ outputs:
     label: "Image"
     column_a: image_a_url
     column_b: image_b_url
-    interactions: [lightbox]
 
 # =============================================================================
 # Questions (evaluation criteria per trial)
@@ -327,26 +310,3 @@ tutorial:
     - title: "Ready to Begin"
       text: "Complete all questions on this page for practice. Once finished, click the arrow button at the bottom to begin the actual survey."
       highlight: "#submit-btn"
-
-# =============================================================================
-# Layout (reserved for future use)
-# =============================================================================
-# Describes the intended widget arrangement. Currently the survey template uses
-# a fixed three-tile grid (controlled by the TILE_LAYOUT env var). This section
-# is passed to the frontend config API but not yet used for rendering.
-
-layout:
-  columns:
-    - width: "55%"
-      sticky: true
-      sections:
-        - widgets: [prompt]
-        - widgets: [identity, mask]
-        - widgets: [outputs]
-          label: "Generated Images"
-    - width: "45%"
-      sections:
-        - widgets: [image_quality]
-        - widgets: [prompt_adherence]
-        - widgets: [mask_adherence]
-        - widgets: [identity_preservation]

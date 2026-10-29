@@ -1,237 +1,108 @@
-/**
- * Tests for tutorial functionality
- */
+// script.js installs tutorial mode at load time when window.TUTORIAL_MODE is set,
+// exactly as the inline script in index.html does — so the flag precedes the require.
+window.TUTORIAL_MODE = true;
 
-const { describe, test, expect, beforeEach, afterEach } = require('@jest/globals');
+const script = require('../../src/survey/static/script.js');
+const {
+    CONFIG,
+    PAIR,
+    answer,
+    apiMock,
+    flush,
+    loadSurvey,
+    stubScrolling,
+    surveyDom,
+} = require('./helpers/survey-env');
 
-// Mock global variables
-global.window = {
-    ...global.window,
-    TUTORIAL_MODE: true,
-    tutorialCompleted: false,
-    triggerFormValidation: jest.fn()
+const banner = () => document.getElementById('tutorial-banner');
+const title = () => document.getElementById('tutorial-title');
+const text = () => document.getElementById('tutorial-text');
+const nextBtn = () => document.querySelector('.btn-tutorial-primary');
+const submitBtn = () => document.getElementById('submit-btn');
+const highlighted = () => Array.from(document.querySelectorAll('.tutorial-highlight'));
+
+// index.html starts the tutorial on the window load event, which jsdom fired long ago.
+const startTutorial = () => window.dispatchEvent(new Event('load'));
+
+// The step counter lives in the script's module scope, so finish by walking to the end.
+const finishTutorial = () => {
+    for (let i = 0; i < 10 && banner().style.display !== 'none'; i += 1) {
+        window.nextTutorialStep();
+    }
 };
 
-describe('Tutorial Mode State Management', () => {
-    beforeEach(() => {
-        window.tutorialCompleted = false;
-        window.TUTORIAL_MODE = true;
-    });
+beforeEach(async () => {
+    surveyDom();
+    stubScrolling();
+    window.tutorialCompleted = false;
+    await loadSurvey();
+});
 
-    test('tutorial mode is initially active', () => {
-        expect(window.TUTORIAL_MODE).toBe(true);
-    });
+describe('tutorial walkthrough', () => {
+    test('walks the configured steps, then closes itself', () => {
+        startTutorial();
 
-    test('tutorial is initially not completed', () => {
-        expect(window.tutorialCompleted).toBe(false);
-    });
+        expect(banner().style.display).toBe('block');
+        expect(title().textContent).toBe('Images');
+        expect(text().textContent).toBe('Compare A and B');
+        expect(highlighted()).toHaveLength(3);
+        expect(document.getElementById('tutorial-progress-circle')
+            .getAttribute('stroke-dasharray')).toBe('33.33333333333333, 100');
+        expect(submitBtn().disabled).toBe(true);
+        expect(submitBtn().title).toBe('Complete the tutorial first');
 
-    test('can mark tutorial as completed', () => {
-        window.tutorialCompleted = true;
+        window.nextTutorialStep();
+        // 'auto_questions' expands to one step per configured question.
+        expect(title().textContent).toBe('Image quality');
+        expect(text().innerHTML).toBe('<strong>Which image is better?</strong>');
+        expect(highlighted()).toHaveLength(1);
+        expect(highlighted()[0]).toBe(document.querySelector('.questions-container'));
+
+        window.nextTutorialStep();
+        expect(title().textContent).toBe('Mask');
+        expect(highlighted()[0]).toBe(document.querySelector('.questions-container'));
+        expect(nextBtn().textContent).toBe('Got it!');
+        expect(document.getElementById('tutorial-checkmark').classList.contains('show')).toBe(true);
+
+        window.nextTutorialStep();
+        window.nextTutorialStep();
+        window.nextTutorialStep();
+        expect(banner().style.display).toBe('none');
+        expect(highlighted()).toHaveLength(0);
         expect(window.tutorialCompleted).toBe(true);
     });
 
-    test('tutorial completion triggers form validation', () => {
-        window.tutorialCompleted = true;
-        if (typeof window.triggerFormValidation === 'function') {
-            window.triggerFormValidation();
-            expect(window.triggerFormValidation).toHaveBeenCalled();
-        }
+    test('submit stays locked until the tutorial ends, then respects the answers', () => {
+        script.setupSubmitValidation();
+        startTutorial();
+
+        answer('image_choice', 'A');
+        answer('image_confidence', '3');
+        answer('mask_choice', 'A');
+        answer('mask_confidence', '3');
+        expect(submitBtn().disabled).toBe(true);
+
+        finishTutorial();
+
+        expect(submitBtn().disabled).toBe(false);
+    });
+
+    test('a study without tutorial steps gets a single placeholder step', async () => {
+        await loadSurvey({ ...CONFIG, tutorial: {} });
+
+        startTutorial();
+
+        expect(title().textContent).toBe('Tutorial');
+        expect(text().textContent).toBe('No tutorial steps configured.');
+        expect(highlighted()).toHaveLength(0);
+    });
+
+    test('the tutorial page loads its first pair like the real survey does', async () => {
+        global.fetch = apiMock({ '/api/get_image_pair': PAIR });
+
+        await script.loadImagePair(0);
+        await flush();
+
+        expect(document.getElementById('image-a').src).toBe('https://img/a.png');
     });
 });
-
-describe('Tutorial Banner UI', () => {
-    beforeEach(() => {
-        document.body.innerHTML = `
-            <div id="tutorial-banner" style="display: block;">
-                <div class="tutorial-content">
-                    <div class="tutorial-step-indicator">
-                        <span id="current-step">1</span> / <span id="total-steps">12</span>
-                    </div>
-                    <h3 id="tutorial-title">Tutorial Title</h3>
-                    <p id="tutorial-text">Tutorial description text.</p>
-                    <div class="tutorial-buttons">
-                        <button id="tutorial-prev" disabled>Previous</button>
-                        <button id="tutorial-next">Next</button>
-                    </div>
-                </div>
-            </div>
-            <div class="container" id="visual-content">
-                <div class="tile-box" id="image-a-box">Image A</div>
-                <div class="tile-box" id="image-b-box">Image B</div>
-            </div>
-            <form id="survey-form">
-                <button type="submit" id="submit-btn" disabled>Submit</button>
-            </form>
-        `;
-    });
-
-    test('tutorial banner is visible in tutorial mode', () => {
-        const banner = document.getElementById('tutorial-banner');
-        expect(banner).toBeTruthy();
-        expect(banner.style.display).not.toBe('none');
-    });
-
-    test('tutorial shows step counter', () => {
-        const currentStep = document.getElementById('current-step');
-        const totalSteps = document.getElementById('total-steps');
-        expect(currentStep).toBeTruthy();
-        expect(totalSteps).toBeTruthy();
-        expect(totalSteps.textContent).toBe('12');
-    });
-
-    test('tutorial has navigation buttons', () => {
-        const prevBtn = document.getElementById('tutorial-prev');
-        const nextBtn = document.getElementById('tutorial-next');
-        expect(prevBtn).toBeTruthy();
-        expect(nextBtn).toBeTruthy();
-    });
-
-    test('previous button is disabled on first step', () => {
-        const prevBtn = document.getElementById('tutorial-prev');
-        expect(prevBtn.disabled).toBe(true);
-    });
-
-    test('next button is enabled initially', () => {
-        const nextBtn = document.getElementById('tutorial-next');
-        expect(nextBtn.disabled).toBe(false);
-    });
-
-    test('tutorial has title and text content', () => {
-        const title = document.getElementById('tutorial-title');
-        const text = document.getElementById('tutorial-text');
-        expect(title).toBeTruthy();
-        expect(text).toBeTruthy();
-        expect(title.textContent).toBeTruthy();
-        expect(text.textContent).toBeTruthy();
-    });
-});
-
-describe('Tutorial Step Navigation', () => {
-    let currentStep = 1;
-    const totalSteps = 12;
-
-    beforeEach(() => {
-        currentStep = 1;
-        document.body.innerHTML = `
-            <div id="tutorial-banner">
-                <span id="current-step">${currentStep}</span>
-                <button id="tutorial-prev" disabled>Previous</button>
-                <button id="tutorial-next">Next</button>
-            </div>
-        `;
-    });
-
-    test('can advance to next step', () => {
-        currentStep++;
-        document.getElementById('current-step').textContent = currentStep;
-        expect(document.getElementById('current-step').textContent).toBe('2');
-    });
-
-    test('previous button enables after first step', () => {
-        currentStep = 2;
-        const prevBtn = document.getElementById('tutorial-prev');
-        prevBtn.disabled = false;
-        expect(prevBtn.disabled).toBe(false);
-    });
-
-    test('can go back to previous step', () => {
-        currentStep = 3;
-        document.getElementById('current-step').textContent = currentStep;
-        currentStep--;
-        document.getElementById('current-step').textContent = currentStep;
-        expect(document.getElementById('current-step').textContent).toBe('2');
-    });
-
-    test('step counter stays within valid range', () => {
-        for (let i = 1; i <= totalSteps; i++) {
-            currentStep = i;
-            expect(currentStep).toBeGreaterThanOrEqual(1);
-            expect(currentStep).toBeLessThanOrEqual(totalSteps);
-        }
-    });
-});
-
-describe('Tutorial Highlighting', () => {
-    beforeEach(() => {
-        document.body.innerHTML = `
-            <div class="tile-box" id="image-a-box">Image A</div>
-            <div class="tile-box" id="image-b-box">Image B</div>
-            <div class="question-navigation">
-                <button id="prev-question-btn">Up</button>
-                <button id="next-question-btn">Down</button>
-            </div>
-            <button id="submit-btn">Submit</button>
-        `;
-    });
-
-    test('can add highlight class to element', () => {
-        const element = document.getElementById('image-a-box');
-        element.classList.add('tutorial-highlight');
-        expect(element.classList.contains('tutorial-highlight')).toBe(true);
-    });
-
-    test('can remove highlight class from element', () => {
-        const element = document.getElementById('image-a-box');
-        element.classList.add('tutorial-highlight');
-        element.classList.remove('tutorial-highlight');
-        expect(element.classList.contains('tutorial-highlight')).toBe(false);
-    });
-
-    test('can highlight multiple elements', () => {
-        const elementA = document.getElementById('image-a-box');
-        const elementB = document.getElementById('image-b-box');
-        elementA.classList.add('tutorial-highlight');
-        elementB.classList.add('tutorial-highlight');
-        expect(elementA.classList.contains('tutorial-highlight')).toBe(true);
-        expect(elementB.classList.contains('tutorial-highlight')).toBe(true);
-    });
-
-    test('can clear all highlights', () => {
-        // Add highlights to multiple elements
-        const elements = document.querySelectorAll('.tile-box');
-        elements.forEach(el => el.classList.add('tutorial-highlight'));
-        
-        // Clear all highlights
-        const highlighted = document.querySelectorAll('.tutorial-highlight');
-        highlighted.forEach(el => el.classList.remove('tutorial-highlight'));
-        
-        // Verify all cleared
-        const remainingHighlights = document.querySelectorAll('.tutorial-highlight');
-        expect(remainingHighlights.length).toBe(0);
-    });
-});
-
-describe('Tutorial Completion', () => {
-    beforeEach(() => {
-        window.tutorialCompleted = false;
-        document.body.innerHTML = `
-            <div id="tutorial-banner">
-                <button id="tutorial-next">Next</button>
-            </div>
-            <form id="survey-form">
-                <button type="submit" id="submit-btn" disabled>Submit</button>
-            </form>
-        `;
-    });
-
-    test('submit button is disabled during tutorial', () => {
-        const submitBtn = document.getElementById('submit-btn');
-        expect(submitBtn.disabled).toBe(true);
-    });
-
-    test('tutorial completion can enable submit button', () => {
-        const submitBtn = document.getElementById('submit-btn');
-        window.tutorialCompleted = true;
-        // Simulate enabling the button after tutorial completion
-        submitBtn.disabled = false;
-        expect(submitBtn.disabled).toBe(false);
-    });
-
-    test('tutorial banner can be hidden after completion', () => {
-        const banner = document.getElementById('tutorial-banner');
-        banner.style.display = 'none';
-        expect(banner.style.display).toBe('none');
-    });
-});
-

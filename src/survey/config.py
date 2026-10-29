@@ -92,11 +92,7 @@ def _apply_defaults(config):
 
     for inp in config.get('inputs', []):
         inp.setdefault('optional', False)
-        inp.setdefault('interactions', [])
         inp.setdefault('description', '')
-
-    for out in config.get('outputs', []):
-        out.setdefault('interactions', [])
 
     for q in config.get('questions', []):
         q.setdefault('required', False)
@@ -105,14 +101,6 @@ def _apply_defaults(config):
         q.setdefault('section_label', q.get('label', ''))
         if q['type'] == 'likert':
             q.setdefault('scale', 5)
-
-    for col in config['layout'].get('columns', []):
-        col.setdefault('sticky', False)
-        col.setdefault('width', 'auto')
-        for section in col.get('sections', []):
-            section.setdefault('direction', 'column')
-            section.setdefault('label', '')
-            section.setdefault('widgets', [])
 
 
 def get_email_field(config):
@@ -123,21 +111,6 @@ def get_email_field(config):
     return None
 
 
-def build_column_map(config):
-    """Build a mapping from column names to their index in data.columns."""
-    return {col: i for i, col in enumerate(config['data']['columns'])}
-
-
 def get_inputs_by_name(config):
     """Return dict of input configs keyed by name."""
     return {inp['name']: inp for inp in config.get('inputs', [])}
-
-
-def get_outputs_by_name(config):
-    """Return dict of output configs keyed by name."""
-    return {out['name']: out for out in config.get('outputs', [])}
-
-
-def get_questions_by_name(config):
-    """Return dict of question configs keyed by name."""
-    return {q['name']: q for q in config.get('questions', [])}

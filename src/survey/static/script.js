@@ -2,19 +2,26 @@
 const CONFIG = {
     // Touch interaction
     TAP_THRESHOLD_PX: 10,          // Max movement distance to count as tap (not scroll)
-    MIN_TOUCH_TARGET_SIZE_PX: 44,  // Minimum touch target size for accessibility
-    
-    // Image display
-    MIN_IMAGE_DIMENSION_PX: 200,    // Minimum size for generated images
-    MIN_IDENTITY_IMAGE_PX: 50,      // Minimum size for identity images
-    
-    // Layout
-    MOBILE_BREAKPOINT_PX: 768,      // Width threshold for mobile layout
-    
+
     // Timing
     AUTO_FILL_DELAY_MS: 500,        // Delay before auto-filling forms in dev mode
     IMAGE_PRELOAD_DELAY_MS: 100     // Delay before auto-filling survey in dev mode
 };
+
+// A module script runs after this classic one parses, so window.JX is read on first use, not here.
+// The jsdom suites have no window.JX and get the CJS build of the same module.
+let coreModule = null;
+function core() {
+    if (!coreModule) {
+        coreModule = (typeof window !== 'undefined' && window.JX)
+            ? window.JX
+            : (typeof require === 'function' ? require('../../../frontend/.cjs/study-state.cjs') : null);
+    }
+    if (!coreModule) {
+        throw new Error('study-state is not loaded: run npm run build');
+    }
+    return coreModule;
+}
 
 // State management
 let surveyConfig = null;   // Full config from /api/config
@@ -23,12 +30,6 @@ let currentImageIndex = 0;
 let currentImageData = null;
 let totalImagePairs = 30;
 
-// Debug logging helper - only logs in dev mode
-const debugLog = (...args) => {
-    if (window.DEV_MODE) {
-        console.log(...args);
-    }
-};
 let deviceInfo = {};
 let devMode = false;
 let pairStartTime = null;  // Track when user starts viewing current pair
@@ -44,7 +45,6 @@ document.addEventListener('DOMContentLoaded', async function() {
 // Recalculate heights only on orientation change or significant resize
 let resizeTimeout;
 let lastWidth = window.innerWidth;
-let lastHeight = window.innerHeight;
 let lastOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
 
 window.addEventListener('resize', () => {
@@ -63,7 +63,6 @@ window.addEventListener('resize', () => {
         
         if (orientationChanged || widthChange > 100) {
             lastWidth = currentWidth;
-            lastHeight = currentHeight;
             lastOrientation = currentOrientation;
             setQuestionsHeight();
         }
@@ -106,10 +105,8 @@ async function checkDemographicsSubmitted() {
                 // Show survey progress bar
                 document.getElementById('survey-progress').style.display = 'block';
                 
-                // Resume from where user left off
-                // completed_pairs tells us how many pairs are done, so load the next one
-                const nextPairIndex = data.completed_pairs || 0;
-                await loadImagePair(nextPairIndex);
+                // The server already left finished trials out of this session's list.
+                await loadImagePair(0);
             }
         }
     } catch (error) {
@@ -118,37 +115,10 @@ async function checkDemographicsSubmitted() {
 }
 
 function collectDeviceInfo() {
-    // Detect browser
     const ua = navigator.userAgent;
-    let browser = 'Unknown';
-    let browserVersion = '';
+    const { browser, browserVersion } = core().detectBrowser(ua);
+    const os = core().detectOs(ua, navigator.maxTouchPoints);
     
-    if (ua.indexOf('Firefox') > -1) {
-        browser = 'Firefox';
-        browserVersion = ua.match(/Firefox\/(\d+\.\d+)/)?.[1] || '';
-    } else if (ua.indexOf('Chrome') > -1) {
-        browser = 'Chrome';
-        browserVersion = ua.match(/Chrome\/(\d+\.\d+)/)?.[1] || '';
-    } else if (ua.indexOf('Safari') > -1) {
-        browser = 'Safari';
-        browserVersion = ua.match(/Version\/(\d+\.\d+)/)?.[1] || '';
-    } else if (ua.indexOf('Edge') > -1 || ua.indexOf('Edg') > -1) {
-        browser = 'Edge';
-        browserVersion = ua.match(/Edg\/(\d+\.\d+)/)?.[1] || '';
-    }
-    
-    // Detect OS (check iOS/iPadOS first, as they often report as Mac)
-    let os = 'Unknown';
-    const isIOS = /iPad|iPhone|iPod/.test(ua) || 
-                  (ua.indexOf('Mac') > -1 && navigator.maxTouchPoints > 1);
-    
-    if (isIOS) os = 'iOS';
-    else if (ua.indexOf('Android') > -1) os = 'Android';
-    else if (ua.indexOf('Win') > -1) os = 'Windows';
-    else if (ua.indexOf('Mac') > -1) os = 'macOS';
-    else if (ua.indexOf('Linux') > -1) os = 'Linux';
-    
-    // Collect device info
     deviceInfo = {
         browser: browser,
         browser_version: browserVersion,
@@ -190,7 +160,6 @@ function setupEventListeners() {
     // Survey form submission
     const surveyForm = document.getElementById('survey-form');
     if (surveyForm) {
-        debugLog('Setting up survey form submit handler');
         surveyForm.addEventListener('submit', handleSurveySubmit);
     } else {
         console.error('Survey form not found during setup');
@@ -273,8 +242,6 @@ function fillDemographicsForm() {
     // Auto-check consent checkbox if present
     const consent = document.querySelector('input[name="consent"]');
     if (consent) consent.checked = true;
-
-    debugLog('Demographics form auto-filled');
 }
 
 function fillSurveyForm() {
@@ -307,8 +274,6 @@ function fillSurveyForm() {
         }
     }
 
-    debugLog('Survey form auto-filled');
-    
     // Trigger form validation to enable submit button
     if (window.triggerFormValidation) {
         window.triggerFormValidation();
@@ -319,67 +284,47 @@ async function handleDemographicsSubmit(event) {
     event.preventDefault();
     
     const formData = new FormData(event.target);
-    demographicsData = {};
-    
-    // Handle regular form fields
-    for (const [key, value] of formData.entries()) {
-        // Handle checkbox arrays
-        if (key.endsWith('[]')) {
-            const cleanKey = key.replace('[]', '');
-            if (!demographicsData[cleanKey]) {
-                demographicsData[cleanKey] = [];
-            }
-            demographicsData[cleanKey].push(value);
-        } else {
-            demographicsData[key] = value;
-        }
-    }
-    
-    // Convert checkbox arrays to comma-separated strings (config-driven)
     const checkboxFields = (surveyConfig ? surveyConfig.demographics : [])
         .filter(f => f.type === 'checkbox')
         .map(f => f.name);
-    for (const fieldName of checkboxFields) {
-        if (Array.isArray(demographicsData[fieldName])) {
-            demographicsData[fieldName] = demographicsData[fieldName].join(', ');
-        } else if (!demographicsData[fieldName]) {
-            demographicsData[fieldName] = 'none';
-        }
-    }
+    demographicsData = core().normalizeDemographics(
+        Array.from(formData.entries()), checkboxFields);
     
     // Add device info to submission
     demographicsData.device_info = deviceInfo;
     
     try {
-        const response = await fetch('/api/submit_demographics', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCSRFToken()
-            },
-            body: JSON.stringify(demographicsData)
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok && result.success) {
+        let { ok, result } = await postDemographics(demographicsData);
+
+        if (ok && result.success) {
             // Warn if retaking the survey
             if (result.is_retaking) {
                 // Show custom modal and wait for user decision
                 const shouldContinue = await showRetakeModal();
-                
+
                 if (!shouldContinue) {
-                    // Reload page to go back
                     window.location.reload();
                     return;
                 }
+
+                // The destructive delete gets its own request, after confirmation.
+                ({ ok, result } = await postDemographics({
+                    ...demographicsData,
+                    confirm_retake: true
+                }));
             }
-            
-            // Redirect to home - server will check if tutorial is needed
-            window.location.href = '/';
+
+            if (ok && result.success) {
+                // Redirect to home - server will check if tutorial is needed
+                window.location.href = '/';
+                return;
+            }
+
+            showError('Failed to submit demographics. Please try again.');
+            console.error('Error:', result && result.error);
         } else {
             showError('Failed to submit demographics. Please try again.');
-            console.error('Error:', result.error);
+            console.error('Error:', result && result.error);
         }
     } catch (error) {
         showError('Network error. Please check your connection and try again.');
@@ -387,16 +332,24 @@ async function handleDemographicsSubmit(event) {
     }
 }
 
+async function postDemographics(payload) {
+    const response = await fetch('/api/submit_demographics', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken()
+        },
+        body: JSON.stringify(payload)
+    });
+    return { ok: response.ok, result: await response.json() };
+}
+
 async function loadImagePair(index) {
     try {
-        debugLog(`Fetching image pair ${index}...`);
         const response = await fetch(`/api/get_image_pair/${index}`);
         const data = await response.json();
-        
-        debugLog('API response:', { ok: response.ok, status: response.status });
-        
+
         if (response.ok) {
-            debugLog('Image pair data received:', { id: data.id, hasImageA: !!data.image_a_url, hasImageB: !!data.image_b_url });
             currentImageData = data;
             currentImageIndex = index;
             
@@ -497,21 +450,16 @@ async function loadImagePair(index) {
                         
                         // Start timing for this pair (when images are ready and form is enabled)
                         pairStartTime = Date.now();
-                        
-                        // Verify images loaded (don't reveal method names to avoid bias)
-                        debugLog(`Loaded comparison ${data.id} of ${data.total_pairs}`);
                     }
                 }
             };
             
             imgALoader.onload = () => {
-                debugLog('Image A loaded successfully');
                 aLoaded = true;
                 checkBothLoaded();
             };
             
             imgBLoader.onload = () => {
-                debugLog('Image B loaded successfully');
                 bLoaded = true;
                 checkBothLoaded();
             };
@@ -529,7 +477,6 @@ async function loadImagePair(index) {
             };
             
             // Start loading
-            debugLog('Starting image load...');
             imgALoader.src = data.image_a_url;
             imgBLoader.src = data.image_b_url;
             
@@ -537,10 +484,10 @@ async function loadImagePair(index) {
             imageA.onclick = () => openLightbox(data.image_a_url, 'Image A');
             imageB.onclick = () => openLightbox(data.image_b_url, 'Image B');
             
-            // Update progress
-            document.getElementById('current-question').textContent = index + 1;
-            document.getElementById('total-questions').textContent = data.total_pairs;
-            totalImagePairs = data.total_pairs;
+            const progress = core().progressFrom(data, index);
+            document.getElementById('current-question').textContent = progress.current;
+            document.getElementById('total-questions').textContent = progress.total;
+            totalImagePairs = progress.total;
             
             // Update instruction text with actual number of pairs (only on first load)
             if (index === 0) {
@@ -549,8 +496,7 @@ async function loadImagePair(index) {
                     `You will see ${data.total_pairs} image ${pairWord} in total.`;
             }
             
-            const progressPercent = ((index) / data.total_pairs) * 100;
-            document.getElementById('progress-bar-fill').style.width = progressPercent + '%';
+            document.getElementById('progress-bar-fill').style.width = progress.percent + '%';
             
             // Reset form
             document.getElementById('survey-form').reset();
@@ -579,6 +525,11 @@ async function loadImagePair(index) {
             }
             
         } else {
+            if (response.status === 404) {
+                // Nothing owed on this session; the index route serves the thank-you screen.
+                window.location.href = '/';
+                return;
+            }
             showError('Failed to load image pair. Please refresh the page.');
             console.error('Error:', data.error);
         }
@@ -589,17 +540,10 @@ async function loadImagePair(index) {
 }
 
 async function handleSurveySubmit(event) {
-    debugLog('handleSurveySubmit called', {
-        tutorialMode: window.TUTORIAL_MODE,
-        currentIndex: currentImageIndex,
-        imageData: currentImageData ? currentImageData.id : 'none'
-    });
     event.preventDefault();
-    
+
     // If in tutorial mode, mark tutorial complete and redirect to real survey
     if (window.TUTORIAL_MODE) {
-        debugLog('Tutorial form submitted - marking complete and redirecting');
-        
         // Mark tutorial as complete in session
         try {
             await fetch('/api/complete_tutorial', {
@@ -610,67 +554,31 @@ async function handleSurveySubmit(event) {
                 }
             });
         } catch (error) {
-            debugLog('Note: Could not mark tutorial complete, but continuing anyway');
+            // Marking the tutorial complete is best-effort; the redirect is the point.
         }
         
         // Redirect to real survey
         window.location.href = '/';
         return;
     }
-    
-    debugLog('Preparing to submit real survey response...');
-    
+
     const formData = new FormData(event.target);
     const surveyResponse = Object.fromEntries(formData.entries());
 
     // Calculate time spent on this pair (in seconds)
     const timeSpent = pairStartTime ? (Date.now() - pairStartTime) / 1000 : null;
 
-    // Build structured responses from config questions
-    const responses = {};
-    if (surveyConfig && surveyConfig.questions) {
-        for (const q of surveyConfig.questions) {
+    // Section visibility is a DOM fact here; the rules that made it so live in the core.
+    const visibleNames = (surveyConfig ? surveyConfig.questions : [])
+        .filter(q => {
             const section = document.getElementById(`${q.name}-evaluation`);
-            if (!section || section.style.display === 'none') continue;
+            return section && section.style.display !== 'none';
+        })
+        .map(q => q.name);
 
-            if (q.type === 'ab_preference') {
-                const choice = surveyResponse[`${q.name}_choice`] || null;
-                const conf = surveyResponse[`${q.name}_confidence`];
-                if (choice) {
-                    responses[q.name] = {
-                        choice: choice,
-                        confidence: conf ? parseInt(conf) : null,
-                    };
-                }
-            } else if (q.type === 'likert') {
-                const val = surveyResponse[`${q.name}_value`];
-                if (val) responses[q.name] = { value: parseInt(val) };
-            } else if (q.type === 'free_text') {
-                const text = surveyResponse[`${q.name}_text`] || '';
-                responses[q.name] = { text: text };
-            } else if (q.type === 'multiple_choice') {
-                const val = surveyResponse[`${q.name}_value`];
-                if (val) responses[q.name] = { value: val };
-            }
-        }
-    }
-
-    const completeResponse = {
-        image_pair_id: currentImageData.id,
-        stimulus_data: {
-            prompt: currentImageData.prompt,
-            method_a: currentImageData.method_a,
-            method_b: currentImageData.method_b,
-            image_a_url: currentImageData.image_a_url,
-            image_b_url: currentImageData.image_b_url,
-            identity_urls: currentImageData.identity_urls || null,
-            mask_url: currentImageData.mask_url || null,
-            methods: currentImageData.methods || {},
-        },
-        responses: responses,
-        was_randomized: currentImageData.was_randomized,
-        time_spent: timeSpent,
-    };
+    const responses = core().buildResponses(
+        surveyConfig ? surveyConfig.questions : [], surveyResponse, visibleNames);
+    const completeResponse = core().buildSubmission(currentImageData, responses, timeSpent);
     
     try {
         const response = await fetch('/api/submit_survey', {
@@ -685,20 +593,12 @@ async function handleSurveySubmit(event) {
         const result = await response.json();
         
         if (response.ok && result.success) {
-            debugLog('Survey response submitted:', {
-                completed: result.completed,
-                currentIndex: currentImageIndex,
-                nextIndex: currentImageIndex + 1
-            });
-            
             if (result.completed) {
                 // All image pairs completed, redirect to thank you page
-                debugLog('All pairs completed! Redirecting to thank you page...');
                 window.location.href = '/';
             } else {
                 // Load next image pair
                 currentImageIndex++;
-                debugLog(`Loading next pair: ${currentImageIndex}`);
                 await loadImagePair(currentImageIndex);
                 window.scrollTo(0, 0);
             }
@@ -755,17 +655,10 @@ function updateQuestionVisibility(data) {
     for (const q of surveyConfig.questions) {
         const el = document.getElementById(`${q.name}-evaluation`);
         if (!el) continue;
-        if (q.depends_on) {
-            // Find the input config for this dependency
-            const inp = (surveyConfig.inputs || []).find(i => i.name === q.depends_on);
-            const colValue = inp ? (data[inp.column] || '') : '';
-            el.style.display = colValue ? 'block' : 'none';
-            // Clear required on hidden inputs
-            if (!colValue) {
-                el.querySelectorAll('input[required]').forEach(i => i.removeAttribute('required'));
-            }
-        } else {
-            el.style.display = 'block';
+        const visible = core().isSectionVisible(q, data, surveyConfig.inputs || []);
+        el.style.display = visible ? 'block' : 'none';
+        if (!visible) {
+            el.querySelectorAll('input[required]').forEach(i => i.removeAttribute('required'));
         }
     }
 }
@@ -778,32 +671,66 @@ function displayConditioningInputs(data) {
     const maskInput = (surveyConfig ? surveyConfig.inputs : []).find(i => i.type === 'image');
     const outputImages = getOutputImageElements();
 
-    // Show identity section if data available
     const identitySection = document.getElementById('identity-section');
-    if (identitySection) identitySection.style.display = 'block';
+    const galleryUrl = galleryInput ? (data[galleryInput.column] || '').trim() : '';
+    const maskUrl = maskInput ? (data[maskInput.column] || '').trim() : '';
+
+    // Tiles persist across trials: a leftover mask paints overlays from pixels this trial lacks.
+    clearConditioningTiles();
+    if (identitySection) {
+        identitySection.style.display = galleryUrl ? 'block' : 'none';
+    }
+    document.querySelectorAll('.mask-tile').forEach(tile => {
+        tile.style.display = maskUrl ? '' : 'none';
+    });
 
     // Display image_gallery input (identity images)
-    if (galleryInput) {
-        const galleryUrl = (data[galleryInput.column] || '').trim();
+    if (galleryInput && galleryUrl) {
         const container = document.getElementById('identity-images');
-        if (container && galleryUrl) {
+        if (container) {
             container.innerHTML = '';
-            loadStackedGallery(container, galleryUrl, galleryInput.label || 'Reference', outputImages);
+            const label = galleryInput.label || 'Reference';
+            // A comma list is N separate images; a lone URL is one stacked sheet to slice.
+            const urls = galleryUrl.split(',').map(u => u.trim()).filter(Boolean);
+            if (urls.length > 1) {
+                urls.forEach((url, i) => {
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.alt = `${label} ${i + 1}`;
+                    img.className = 'identity-image';
+                    img.setAttribute('data-identity-index', i);
+                    img.onclick = () => openLightbox(img.src, `${label} ${i + 1}`);
+                    container.appendChild(img);
+                });
+            } else {
+                loadStackedGallery(container, galleryUrl, label, outputImages);
+            }
         }
     }
 
     // Display mask image and set up overlay processing
-    if (maskInput) {
-        const maskUrl = data[maskInput.column] || '';
-        const maskImg = document.getElementById('mask-image');
-        if (maskImg && maskUrl) {
-            maskImg.crossOrigin = 'anonymous';
-            maskImg.src = maskUrl;
-            maskImg.onclick = () => openLightbox(maskUrl, maskInput.label || 'Mask');
-            maskImg.onload = () => {
-                processMaskForOverlays(maskImg);
-            };
-        }
+    const maskImg = document.getElementById('mask-image');
+    if (maskInput && maskUrl && maskImg) {
+        maskImg.crossOrigin = 'anonymous';
+        maskImg.src = maskUrl;
+        maskImg.onclick = () => openLightbox(maskUrl, maskInput.label || 'Mask');
+        maskImg.onload = () => {
+            processMaskForOverlays(maskImg);
+        };
+    }
+}
+
+function clearConditioningTiles() {
+    const container = document.getElementById('identity-images');
+    if (container) {
+        container.innerHTML = '';
+    }
+    const maskImg = document.getElementById('mask-image');
+    if (maskImg) {
+        // Removing the attribute avoids resolving an empty src against the page URL.
+        maskImg.removeAttribute('src');
+        maskImg.onclick = null;
+        maskImg.onload = null;
     }
 }
 
@@ -1291,7 +1218,6 @@ function setQuestionsHeight() {
     
     // Update cached viewport
     lastWidth = m.vw;
-    lastHeight = m.vh;
     lastOrientation = m.isLandscape ? 'landscape' : 'portrait';
     
     scaleVisualContent(availableVisualHeight, m);
@@ -1395,21 +1321,18 @@ function setupScrollTracking() {
 
 function isQuestionGroupComplete(questionIndex) {
     const section = questionSections[questionIndex];
-    const radioGroups = {};
-    
-    // Find all radio button groups in this section
-    const radios = section.querySelectorAll('input[type="radio"]');
-    radios.forEach(radio => {
-        if (!radioGroups[radio.name]) {
-            radioGroups[radio.name] = false;
-        }
-        if (radio.checked) {
-            radioGroups[radio.name] = true;
-        }
-    });
-    
-    // Check if all groups have a selection
-    return Object.values(radioGroups).every(selected => selected);
+    if (!section) return false;
+    // A text-only section has nothing to answer, so it counts as complete.
+    return core().isFormComplete(
+        Array.from(section.querySelectorAll('input[type="radio"]')).map(radio => ({
+            name: radio.name, checked: radio.checked, hidden: false,
+        })),
+        true);
+}
+
+function isInHiddenSection(el) {
+    const section = el.closest('.evaluation-section');
+    return !!section && section.style.display === 'none';
 }
 
 function setupSubmitValidation() {
@@ -1420,39 +1343,19 @@ function setupSubmitValidation() {
     
     // Function to check if all questions are answered
     function validateForm() {
-        // Get ALL radio inputs and group by name
-        const radioGroups = {};
-        const allRadios = surveyForm.querySelectorAll('input[type="radio"]');
-        
-        allRadios.forEach(radio => {
-            if (!radioGroups[radio.name]) {
-                radioGroups[radio.name] = false;
-            }
-            if (radio.checked) {
-                radioGroups[radio.name] = true;
-            }
-        });
-        
-        // All groups must have a selection
-        const allAnswered = Object.values(radioGroups).length > 0 && 
-                           Object.values(radioGroups).every(answered => answered);
-        
-        debugLog('validateForm called:', {
-            tutorialMode: window.TUTORIAL_MODE,
-            tutorialCompleted: window.tutorialCompleted,
-            totalGroups: Object.keys(radioGroups).length,
-            allAnswered: allAnswered,
-            currentDisabled: submitBtn.disabled
-        });
-        
+        const allAnswered = core().isFormComplete(
+            Array.from(surveyForm.querySelectorAll('input[type="radio"]')).map(radio => ({
+                name: radio.name,
+                checked: radio.checked,
+                hidden: isInHiddenSection(radio),
+            })));
+
         // Enable/disable submit button
         // In tutorial mode, keep disabled until tutorial is complete
         if (window.TUTORIAL_MODE && !window.tutorialCompleted) {
             submitBtn.disabled = true;
-            debugLog('Keeping disabled (tutorial not complete)');
         } else {
             submitBtn.disabled = !allAnswered;
-            debugLog('Setting disabled =', !allAnswered);
         }
         
         return allAnswered;
@@ -1684,12 +1587,10 @@ if (window.TUTORIAL_MODE) {
 
     function completeTutorial() {
         // Just enable the form - tutorial will be marked complete when user submits
-        debugLog('Tutorial walkthrough complete');
         window.tutorialCompleted = true;
         
         // Trigger form validation to enable button if form is filled
         if (window.triggerFormValidation) {
-            debugLog('Triggering form validation');
             window.triggerFormValidation();
         } else {
             console.error('triggerFormValidation not available');
@@ -1708,9 +1609,7 @@ if (window.TUTORIAL_MODE) {
             submitBtn.title = 'Complete the tutorial first';
 
             submitBtn.addEventListener('click', (e) => {
-                debugLog('Submit button clicked');
                 if (submitBtn.disabled) {
-                    debugLog('  Button is disabled, click prevented');
                     e.preventDefault();
                 }
             });
@@ -1719,4 +1618,22 @@ if (window.TUTORIAL_MODE) {
         // Show tutorial immediately
         showTutorialStep(0);
     });
+}
+
+// The browser loads this as a plain script; tests require() it so coverage sees the real code.
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        checkDemographicsSubmitted,
+        checkDevMode,
+        collectDeviceInfo,
+        displayConditioningInputs,
+        getCSRFToken,
+        initializeProgressiveQuestions,
+        isQuestionGroupComplete,
+        loadImagePair,
+        navigateQuestion,
+        setupEventListeners,
+        setupSubmitValidation,
+        updateQuestionVisibility,
+    };
 }
