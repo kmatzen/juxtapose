@@ -6,12 +6,12 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Survey Admin</title>
     <link rel="stylesheet" href="{{ asset('style.css') }}">
-{% set app_bundle = bundle('main') %}
-{% if app_bundle %}    <script type="module" src="{{ app_bundle }}"></script>{% endif %}
-    <script src="{{ asset('admin.js') }}"></script>
+{% set admin_bundle = bundle('admin') %}
+{% if admin_bundle %}    <script type="module" src="{{ admin_bundle }}"></script>{% endif %}
 </head>
 <body>
-    <div class="admin-container">
+    <div class="admin-container" data-admin-app>
+{% if not admin_bundle %}        <p class="assets-missing">Frontend assets are not built: run <code>npm ci &amp;&amp; npm run build</code>.</p>{% endif %}
         <h1>Survey Administration</h1>
 
         <div class="stats-grid" id="stats-grid">
@@ -31,9 +31,9 @@
 
         <div id="method-pref-cards"></div>
 
-        <button class="btn btn-primary export-btn" onclick="exportCSV()">Export to CSV</button>
+        <button class="btn btn-primary export-btn" id="export-csv" type="button">Export to CSV</button>
 
-        <button class="btn btn-primary" onclick="location.href='/admin/logout'" style="margin-bottom: 10px;">Logout</button>
+        <button class="btn btn-primary" id="logout" type="button" style="margin-bottom: 10px;">Logout</button>
 
         <div style="margin-bottom: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px; border: 2px solid #e74c3c;">
             <h3 style="margin-top: 0; color: #e74c3c;">Delete User Data</h3>
@@ -45,196 +45,28 @@
                     placeholder="user@example.com"
                     style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
                 />
-                <button class="btn btn-primary" onclick="deleteByEmail()" style="background: #e74c3c; white-space: nowrap;">Delete Records</button>
+                <button class="btn btn-primary" id="delete-records" type="button" style="background: #e74c3c; white-space: nowrap;">Delete Records</button>
             </div>
             <div id="delete-message" style="margin-top: 10px; display: none;"></div>
         </div>
 
         <div style="margin-bottom: 20px;">
-            <button class="btn btn-primary" onclick="toggleView()">Toggle View</button>
-            <button class="btn btn-primary" id="load-more" onclick="loadMore()" style="display:none; margin-left: 10px;">Load more</button>
+            <button class="btn btn-primary" id="toggle-view" type="button">Toggle View</button>
+            <button class="btn btn-primary" id="load-more" type="button" style="display:none; margin-left: 10px;">Load more</button>
             <span id="row-count" style="margin-left: 10px; color: #ccc;"></span>
             <span id="view-mode" style="margin-left: 10px; font-weight: 600; color: white;">Demographics View</span>
         </div>
 
-        <table id="results-table">
-            <thead id="table-header"></thead>
-            <tbody id="results-body">
-                <tr><td colspan="15">Loading...</td></tr>
-            </tbody>
-        </table>
+        <div class="table-scroll">
+            <table id="results-table">
+                <thead id="table-header"></thead>
+                <tbody id="results-body">
+                    <tr><td>Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 
-    <script>
-        let currentView = 'demographics';
-        let cachedData = [];
-        let adminConfig = null;
-        let stats = null;
-        let totalRows = 0;
-        const PAGE_SIZE = 200;
-
-        async function init() {
-            const cfgRes = await fetch('/api/config');
-            adminConfig = await cfgRes.json();
-            await refresh();
-            setInterval(refresh, 30000);
-        }
-
-        async function refresh() {
-            await Promise.all([loadStats(), loadRows()]);
-        }
-
-        async function loadStats() {
-            try {
-                const response = await fetch('/api/admin/stats');
-                stats = await response.json();
-                renderStats();
-            } catch (error) {
-                console.error('Error loading stats:', error);
-            }
-        }
-
-        async function loadRows(offset) {
-            try {
-                const page = offset || 0;
-                const response = await fetch(`/api/admin/results?limit=${PAGE_SIZE}&offset=${page}`);
-                const data = await response.json();
-                cachedData = page > 0 ? cachedData.concat(data.rows) : data.rows;
-                totalRows = data.total;
-                renderTable();
-            } catch (error) {
-                console.error('Error loading results:', error);
-                document.getElementById('results-body').innerHTML = '<tr><td colspan="15">Error loading results</td></tr>';
-            }
-        }
-
-        async function loadMore() {
-            await loadRows(cachedData.length);
-        }
-
-        function renderStats() {
-            if (!stats) return;
-            document.getElementById('total-responses').textContent = stats.participants;
-            document.getElementById('avg-confidence').textContent = stats.avg_confidence ?? '-';
-            document.getElementById('avg-time').textContent = stats.avg_time ?? '-';
-
-            const prefCards = document.getElementById('method-pref-cards');
-            prefCards.innerHTML = '';
-
-            for (const q of (adminConfig && adminConfig.questions) || []) {
-                if (q.type !== 'ab_preference') continue;
-                const prefs = (stats.preferences && stats.preferences[q.name]) || {};
-                const summary = Object.keys(prefs).map(m => `${m}: ${prefs[m]}`).join(', ') || 'No data';
-                const card = document.createElement('div');
-                card.className = 'stat-card';
-                card.style.cssText = 'margin-bottom: 10px;';
-                card.innerHTML = `<div class="stat-number" style="font-size:14px;line-height:1.4;">${esc(summary)}</div><div class="stat-label">Preferences: ${esc(q.section_label || q.name)}</div>`;
-                prefCards.appendChild(card);
-            }
-        }
-
-        function toggleView() {
-            currentView = currentView === 'demographics' ? 'responses' : 'demographics';
-            document.getElementById('view-mode').textContent = currentView === 'demographics' ? 'Demographics View' : 'Responses View';
-            renderTable();
-        }
-
-        function renderTable() {
-            const thead = document.getElementById('table-header');
-            const tbody = document.getElementById('results-body');
-
-            if (cachedData.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="15">No responses yet</td></tr>';
-                return;
-            }
-
-            if (currentView === 'demographics') {
-                const demoFields = (adminConfig && adminConfig.demographics) || [];
-                thead.innerHTML = buildDemographicsHeader(demoFields);
-
-                // Group by email
-                const participantMap = {};
-                cachedData.forEach(row => {
-                    const key = row.email || row.session_id;
-                    if (!participantMap[key]) {
-                        participantMap[key] = { ...row, responseCount: 0 };
-                    }
-                    participantMap[key].responseCount++;
-                });
-
-                const pairsPerUser = (adminConfig && adminConfig.survey && adminConfig.survey.pairs_per_user) || 30;
-
-                tbody.innerHTML = buildDemographicsRows(
-                    Object.values(participantMap), demoFields, pairsPerUser
-                );
-            } else {
-                const questions = (adminConfig && adminConfig.questions) || [];
-                thead.innerHTML = buildResponsesHeader(questions);
-                tbody.innerHTML = buildResponsesRows(cachedData, questions);
-            }
-
-            document.getElementById('load-more').style.display =
-                cachedData.length < totalRows ? 'inline-block' : 'none';
-            document.getElementById('row-count').textContent =
-                `Showing ${cachedData.length} of ${totalRows} responses`;
-        }
-
-        function exportCSV() {
-            window.location.href = '/api/admin/export';
-        }
-
-        async function deleteByEmail() {
-            const emailInput = document.getElementById('delete-email');
-            const messageDiv = document.getElementById('delete-message');
-            const email = emailInput.value.trim();
-
-            if (!email) {
-                messageDiv.style.display = 'block';
-                messageDiv.style.color = '#e74c3c';
-                messageDiv.textContent = 'Please enter an email address.';
-                return;
-            }
-
-            if (!confirm(`Are you sure you want to permanently delete ALL records associated with "${email}"?\n\nThis will delete:\n- Participant information\n- Demographics data\n- All survey responses\n\nThis action CANNOT be undone!`)) {
-                return;
-            }
-
-            try {
-                messageDiv.style.display = 'block';
-                messageDiv.style.color = '#666';
-                messageDiv.textContent = 'Deleting...';
-
-                const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-
-                const response = await fetch('/api/admin/delete_by_email', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfToken
-                    },
-                    body: JSON.stringify({ email })
-                });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    messageDiv.style.color = '#52c41a';
-                    messageDiv.textContent = `Successfully deleted ${result.participants_deleted} participant(s), ${result.demographics_deleted} demographics record(s), and ${result.responses_deleted} survey response(s) for "${result.email}".`;
-                    emailInput.value = '';
-                    await refresh();
-                } else {
-                    messageDiv.style.color = '#e74c3c';
-                    messageDiv.textContent = `Error: ${result.error}`;
-                }
-            } catch (error) {
-                messageDiv.style.color = '#e74c3c';
-                messageDiv.textContent = `Error: ${error.message}`;
-            }
-        }
-
-        // Initialize
-        init();
-    </script>
 
     <footer class="survey-footer">
         {% if config.survey.contact_email %}

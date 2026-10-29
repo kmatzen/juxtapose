@@ -13,7 +13,8 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:report": "playwright show-report",
     "pretest:e2e": "npm run build",
-    "build:watch": "vite build --config frontend/vite.config.ts --watch"
+    "build:watch": "vite build --config frontend/vite.config.ts --watch",
+    "test:unit": "vitest run --config frontend/vitest.config.ts"
   },
   "devDependencies": {
     "@babel/core": "^7.24.7",
@@ -25,6 +26,7 @@
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "typescript": "^7.0.2",
-    "vite": "^8.3.5"
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
   }
 }

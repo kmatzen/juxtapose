@@ -1,15 +1,8 @@
 const { test, expect } = require('@playwright/test');
 const { startSurvey, uniqueEmail } = require('./helpers/survey');
+const { pageOverflow } = require('./helpers/admin');
 
-const PASSWORD = process.env.ADMIN_PASSWORD || 'e2e-admin-password';
 const PAYLOAD = '<img src=x onerror="window.__xss=1">';
-
-async function loginAdmin(page) {
-  await page.goto('/admin/login');
-  await page.fill('#password', PASSWORD);
-  await page.locator('form').evaluate((f) => f.submit());
-  await expect(page).toHaveURL(/\/admin$/);
-}
 
 test('participant-submitted answers reach the dashboard as text, not markup', async ({ browser }) => {
   const email = uniqueEmail('xss');
@@ -41,7 +34,7 @@ test('participant-submitted answers reach the dashboard as text, not markup', as
   const admin = await browser.newContext();
   const adminPage = await admin.newPage();
   adminPage.on('dialog', async (d) => { dialogs++; await d.dismiss(); });
-  await loginAdmin(adminPage);
+  await adminPage.goto('/admin');
   await adminPage.locator('#results-body tr').first().waitFor();
   await adminPage.locator('button:has-text("Toggle View")').click();
   await expect(adminPage.locator('#view-mode')).toHaveText('Responses View');
@@ -57,7 +50,7 @@ test('participant-submitted answers reach the dashboard as text, not markup', as
 test('stats and paging serve the dashboard without shipping the study', async ({ browser }) => {
   const admin = await browser.newContext();
   const page = await admin.newPage();
-  await loginAdmin(page);
+  await page.goto('/admin');
 
   const stats = await (await admin.request.get('/api/admin/stats')).json();
   expect(stats.responses).toBeGreaterThan(0);
@@ -78,7 +71,7 @@ test('stats and paging serve the dashboard without shipping the study', async ({
 test('csv export carries exactly one column per value', async ({ browser }) => {
   const admin = await browser.newContext();
   const page = await admin.newPage();
-  await loginAdmin(page);
+  await page.goto('/admin');
 
   const csv = await (await admin.request.get('/api/admin/export')).text();
   const header = csv.split('\n')[0].split(',');
@@ -88,4 +81,19 @@ test('csv export carries exactly one column per value', async ({ browser }) => {
   expect(header.filter((h) => h.endsWith('_confidence')).length).toBeGreaterThan(0);
   expect(header.filter((h) => h === 'better_image').length).toBe(0);
   await admin.close();
+});
+
+test('the dashboard runs from the built bundle and keeps its grid inside the page', async ({ page }) => {
+  await page.goto('/admin');
+  await expect(page.locator('script[src*="/dist/assets/admin-"]')).toHaveCount(1);
+  await expect(page.locator('.assets-missing')).toHaveCount(0);
+  await expect(page.locator('#results-table th').first()).toBeVisible();
+
+  expect((await pageOverflow(page)).overflow).toBeLessThanOrEqual(0);
+
+  await page.getByRole('button', { name: 'Toggle View' }).click();
+  await expect(page.locator('#view-mode')).toHaveText('Responses View');
+  const metrics = await pageOverflow(page);
+  expect(metrics.overflow, 'the 30-column grid must not push the page sideways').toBeLessThanOrEqual(0);
+  expect(metrics.gridScrollable, 'the grid must scroll inside its own container').toBe(true);
 });

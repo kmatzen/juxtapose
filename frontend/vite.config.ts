@@ -16,7 +16,10 @@ export default defineConfig({
     minify: false,
     target: 'esnext',
     rollupOptions: {
-      input: { main: fileURLToPath(new URL('./src/main.ts', import.meta.url)) },
+      input: {
+        main: fileURLToPath(new URL('./src/main.ts', import.meta.url)),
+        admin: fileURLToPath(new URL('./src/admin.ts', import.meta.url)),
+      },
     },
   },
 });

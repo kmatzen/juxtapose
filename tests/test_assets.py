@@ -59,3 +59,24 @@ def test_the_dist_route_refuses_to_climb_out_of_the_build_dir(client, app, tmp_p
 
     for probe in ('/dist/style.css/../../app.py', '/dist/%2e%2e/app.py', '/dist/..%2fapp.py'):
         assert client.get(probe).status_code in (400, 404), probe
+
+
+def login_admin(client):
+    response = client.post('/admin/login', data={'password': 'admin123'})
+    assert response.status_code in (200, 302)
+    return client
+
+
+def test_the_admin_page_links_its_bundle_and_warns_when_there_is_none(client, app, tmp_path, monkeypatch):
+    monkeypatch.setattr(app_module, 'STATIC_DIST', str(tmp_path))
+    monkeypatch.setattr(app_module, 'BUILT_ASSETS', set())
+    monkeypatch.setattr(app_module, 'BUNDLE_ENTRIES', {})
+    login_admin(client)
+
+    unbuilt = client.get('/admin').get_data(as_text=True)
+    assert 'assets-missing' in unbuilt, 'an unbuilt dashboard must say so, not render a dead table'
+
+    monkeypatch.setattr(app_module, 'BUNDLE_ENTRIES', {'admin': 'assets/admin-abc123.js'})
+    built = client.get('/admin').get_data(as_text=True)
+    assert '<script type="module" src="/dist/assets/admin-abc123.js"></script>' in built
+    assert 'assets-missing' not in built
