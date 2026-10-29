@@ -45,10 +45,16 @@ app.config['WTF_CSRF_TIME_LIMIT'] = None  # Don't expire CSRF tokens
 csrf = CSRFProtect(app)
 
 # Security: Rate Limiting
+def _participant_key():
+    """Survey limits key on the participant, not the IP: a lab, office or conference NAT puts
+    a whole cohort behind one address, and per-IP caps lock out everyone after the first."""
+    return session.get('session_id') or get_remote_address()
+
+
 limiter = Limiter(
     app=app,
-    key_func=get_remote_address,
-    default_limits=["200 per hour"],
+    key_func=_participant_key,
+    default_limits=["1000 per hour"],
     storage_uri="memory://",
 )
 
@@ -1071,7 +1077,8 @@ def _old_confidence_key(question_name):
 # ---------------------------------------------------------------------------
 
 @app.route('/admin/login', methods=['GET', 'POST'])
-@limiter.limit("10 per hour")
+# Credential guessing has no session to key on, so this one stays on the IP.
+@limiter.limit("10 per hour", key_func=get_remote_address)
 def admin_login():
     """Admin login page"""
     if request.method == 'POST':
@@ -1309,7 +1316,7 @@ def admin_export():
 
 @app.route('/api/admin/delete_by_email', methods=['POST'])
 @require_admin
-@limiter.limit("20 per hour")
+@limiter.limit("20 per hour", key_func=get_remote_address)
 def delete_by_email():
     """Delete all records associated with an email address"""
     email = request.json.get('email') if request.json else None
