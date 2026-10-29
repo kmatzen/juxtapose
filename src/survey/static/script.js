@@ -800,7 +800,22 @@ function displayConditioningInputs(data) {
         const container = document.getElementById('identity-images');
         if (container && galleryUrl) {
             container.innerHTML = '';
-            loadStackedGallery(container, galleryUrl, galleryInput.label || 'Reference', outputImages);
+            const label = galleryInput.label || 'Reference';
+            // A comma list is N separate images; a lone URL is one stacked sheet to slice.
+            const urls = galleryUrl.split(',').map(u => u.trim()).filter(Boolean);
+            if (urls.length > 1) {
+                urls.forEach((url, i) => {
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.alt = `${label} ${i + 1}`;
+                    img.className = 'identity-image';
+                    img.setAttribute('data-identity-index', i);
+                    img.onclick = () => openLightbox(img.src, `${label} ${i + 1}`);
+                    container.appendChild(img);
+                });
+            } else {
+                loadStackedGallery(container, galleryUrl, label, outputImages);
+            }
         }
     }
 
@@ -1741,5 +1756,5 @@ if (window.TUTORIAL_MODE) {
 
 // The browser loads this as a plain script; tests require() it so coverage sees the real code.
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { checkDevMode, updateQuestionVisibility, setupSubmitValidation, isInHiddenSection };
+    module.exports = { checkDevMode, updateQuestionVisibility, setupSubmitValidation, isInHiddenSection, displayConditioningInputs };
 }
