@@ -94,10 +94,6 @@ def test_admin_results_with_data(client):
     assert test_record['image_quality_choice'] == 'A'
     assert test_record['image_quality_confidence'] == 4
     assert test_record['time_spent'] == 45.5
-    # Check backward compat fields
-    assert test_record['better_image'] == 'A'
-    assert test_record['image_confidence'] == 4
-    assert test_record['preferred_method_image'] == 'Method-A'
 
 
 def test_admin_results_multiple_participants(client):

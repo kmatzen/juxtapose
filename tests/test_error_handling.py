@@ -88,15 +88,15 @@ def test_submit_survey_invalid_confidence_values(client):
     response = client.post('/api/submit_survey',
                           json={
                               'image_pair_id': 1,
-                              'better_image': 'A',
-                              'image_confidence': 99,
-                              'better_mask_match': 'B',
-                              'mask_confidence': 4,
-                              'better_identity_match': 'Equal',
-                              'identity_confidence': 2
+                              'responses': {
+                                  'image_quality': {'choice': 'A', 'confidence': 99},
+                                  'mask_adherence': {'choice': 'B', 'confidence': 4},
+                                  'identity_preservation': {'choice': 'equal', 'confidence': 2},
+                              },
                           },
                           content_type='application/json')
-    assert response.status_code in [200, 400]
+    # The server stores the scale value it is given; an out-of-range answer is data, not a server error.
+    assert response.status_code == 200
 
 
 def test_get_image_pair_completed_all_pairs(client):

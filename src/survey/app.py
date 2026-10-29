@@ -984,26 +984,9 @@ def submit_survey():
         for counter_key in ('total_trials', 'total_pairs'):
             stimulus_data.pop(counter_key, None)
 
-        responses = {}
-
-        # Extract responses - try structured format first, fall back to flat
-        if 'responses' in data and isinstance(data['responses'], dict):
-            responses = data['responses']
-        else:
-            # Flat format from current JS: better_image, image_confidence, etc.
-            for q in CONFIG['questions']:
-                q_name = q['name']
-                if q['type'] == 'ab_preference':
-                    # Map old flat field names to structured format
-                    choice_key = _old_choice_key(q_name)
-                    conf_key = _old_confidence_key(q_name)
-                    choice = data.get(choice_key)
-                    conf = data.get(conf_key)
-                    if choice is not None:
-                        responses[q_name] = {
-                            'choice': choice,
-                            'confidence': int(conf) if conf is not None else None,
-                        }
+        responses = data.get('responses')
+        if not isinstance(responses, dict):
+            return jsonify({'error': 'responses must be a structured object'}), 400
 
         stimulus_json = json.dumps(stimulus_data)
         responses_json = json.dumps(responses)
@@ -1058,27 +1041,6 @@ def submit_survey():
     finally:
         db.close()
 
-
-def _old_choice_key(question_name):
-    """Map config question name to old flat field name for backward compat."""
-    mapping = {
-        'image_quality': 'better_image',
-        'prompt_adherence': 'better_prompt_match',
-        'mask_adherence': 'better_mask_match',
-        'identity_preservation': 'better_identity_match',
-    }
-    return mapping.get(question_name, f'{question_name}_choice')
-
-
-def _old_confidence_key(question_name):
-    """Map config question name to old flat confidence field name."""
-    mapping = {
-        'image_quality': 'image_confidence',
-        'prompt_adherence': 'prompt_confidence',
-        'mask_adherence': 'mask_confidence',
-        'identity_preservation': 'identity_confidence',
-    }
-    return mapping.get(question_name, f'{question_name}_confidence')
 
 # ---------------------------------------------------------------------------
 # Admin
@@ -1185,26 +1147,6 @@ def _flatten_result(row):
                 r[f'{q_name}_preferred_method'] = r.get('method_b', '')
             elif choice == 'equal':
                 r[f'{q_name}_preferred_method'] = 'equal'
-
-            old_choice = _old_choice_key(q_name)
-            old_conf = _old_confidence_key(q_name)
-            r[old_choice] = choice
-            r[old_conf] = q_data.get('confidence')
-
-            old_pref_mapping = {
-                'image_quality': 'preferred_method_image',
-                'prompt_adherence': 'preferred_method_prompt',
-                'mask_adherence': 'preferred_method_mask',
-                'identity_preservation': 'preferred_method_identity',
-            }
-            old_pref_key = old_pref_mapping.get(q_name)
-            if old_pref_key:
-                if choice == 'A':
-                    r[old_pref_key] = r.get('method_a', '')
-                elif choice == 'B':
-                    r[old_pref_key] = r.get('method_b', '')
-                elif choice == 'equal':
-                    r[old_pref_key] = 'equal'
         else:
             r[q_name] = q_data
     r.pop('responses', None)

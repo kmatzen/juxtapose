@@ -154,7 +154,7 @@ def test_submit_survey_missing_fields(client):
         sess['session_id'] = 'test-session-submit'
 
     response = client.post('/api/submit_survey',
-                          json={'better_image': 'A'},
+                          json={'image_pair_id': 1},
                           content_type='application/json')
     assert response.status_code in [400, 404]
     if response.status_code != 404:
@@ -180,16 +180,14 @@ def test_submit_survey_valid(client):
     with client.session_transaction() as sess:
         sess['session_id'] = unique_session
 
-    # Submit using flat format (backward compat)
     response = client.post('/api/submit_survey',
                           json={
                               'image_pair_id': 1,
-                              'better_image': 'A',
-                              'image_confidence': 3,
-                              'better_mask_match': 'B',
-                              'mask_confidence': 4,
-                              'better_identity_match': 'Equal',
-                              'identity_confidence': 2,
+                              'responses': {
+                                  'image_quality': {'choice': 'A', 'confidence': 3},
+                                  'mask_adherence': {'choice': 'B', 'confidence': 4},
+                                  'identity_preservation': {'choice': 'equal', 'confidence': 2},
+                              },
                               'time_spent': 45.5
                           },
                           content_type='application/json')
