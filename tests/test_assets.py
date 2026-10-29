@@ -38,10 +38,11 @@ def test_a_build_takes_over_from_the_source_static_files(client, app, tmp_path, 
 def test_the_built_bundle_is_linked_when_the_manifest_has_it(client, app, tmp_path, monkeypatch):
     monkeypatch.setattr(app_module, 'STATIC_DIST', str(tmp_path))
     monkeypatch.setattr(app_module, 'BUILT_ASSETS', set())
-    monkeypatch.setattr(app_module, 'BUNDLE_ENTRIES', {'main': 'assets/main-abc123.js'})
+    monkeypatch.setattr(app_module, 'BUNDLE_ENTRIES', {'survey': 'assets/survey-abc123.js'})
 
     body = client.get('/').get_data(as_text=True)
-    assert '<script type="module" src="/dist/assets/main-abc123.js"></script>' in body
+    assert '<script type="module" src="/dist/assets/survey-abc123.js"></script>' in body
+    assert 'assets-missing' not in body
 
 
 def test_an_unbuilt_checkout_renders_no_bundle_tag(client, app, tmp_path, monkeypatch):
@@ -49,7 +50,9 @@ def test_an_unbuilt_checkout_renders_no_bundle_tag(client, app, tmp_path, monkey
     monkeypatch.setattr(app_module, 'BUILT_ASSETS', set())
     monkeypatch.setattr(app_module, 'BUNDLE_ENTRIES', {})
 
-    assert 'type="module"' not in client.get('/').get_data(as_text=True)
+    body = client.get('/').get_data(as_text=True)
+    assert 'type="module"' not in body
+    assert 'assets-missing' in body, 'a survey page without a build must say so, not die silently'
 
 
 def test_the_dist_route_refuses_to_climb_out_of_the_build_dir(client, app, tmp_path, monkeypatch):

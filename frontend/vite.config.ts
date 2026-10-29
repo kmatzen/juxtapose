@@ -17,7 +17,7 @@ export default defineConfig({
     target: 'esnext',
     rollupOptions: {
       input: {
-        main: fileURLToPath(new URL('./src/main.ts', import.meta.url)),
+        survey: fileURLToPath(new URL('./src/survey.ts', import.meta.url)),
         admin: fileURLToPath(new URL('./src/admin.ts', import.meta.url)),
       },
     },

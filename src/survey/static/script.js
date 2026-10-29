@@ -8,6 +8,21 @@ const CONFIG = {
     IMAGE_PRELOAD_DELAY_MS: 100     // Delay before auto-filling survey in dev mode
 };
 
+// A module script runs after this classic one parses, so window.JX is read on first use, not here.
+// The jsdom suites have no window.JX and get the CJS build of the same module.
+let coreModule = null;
+function core() {
+    if (!coreModule) {
+        coreModule = (typeof window !== 'undefined' && window.JX)
+            ? window.JX
+            : (typeof require === 'function' ? require('../../../frontend/.cjs/study-state.cjs') : null);
+    }
+    if (!coreModule) {
+        throw new Error('study-state is not loaded: run npm run build');
+    }
+    return coreModule;
+}
+
 // State management
 let surveyConfig = null;   // Full config from /api/config
 let demographicsData = null;
@@ -100,37 +115,10 @@ async function checkDemographicsSubmitted() {
 }
 
 function collectDeviceInfo() {
-    // Detect browser
     const ua = navigator.userAgent;
-    let browser = 'Unknown';
-    let browserVersion = '';
+    const { browser, browserVersion } = core().detectBrowser(ua);
+    const os = core().detectOs(ua, navigator.maxTouchPoints);
     
-    if (ua.indexOf('Firefox') > -1) {
-        browser = 'Firefox';
-        browserVersion = ua.match(/Firefox\/(\d+\.\d+)/)?.[1] || '';
-    } else if (ua.indexOf('Chrome') > -1) {
-        browser = 'Chrome';
-        browserVersion = ua.match(/Chrome\/(\d+\.\d+)/)?.[1] || '';
-    } else if (ua.indexOf('Safari') > -1) {
-        browser = 'Safari';
-        browserVersion = ua.match(/Version\/(\d+\.\d+)/)?.[1] || '';
-    } else if (ua.indexOf('Edge') > -1 || ua.indexOf('Edg') > -1) {
-        browser = 'Edge';
-        browserVersion = ua.match(/Edg\/(\d+\.\d+)/)?.[1] || '';
-    }
-    
-    // Detect OS (check iOS/iPadOS first, as they often report as Mac)
-    let os = 'Unknown';
-    const isIOS = /iPad|iPhone|iPod/.test(ua) || 
-                  (ua.indexOf('Mac') > -1 && navigator.maxTouchPoints > 1);
-    
-    if (isIOS) os = 'iOS';
-    else if (ua.indexOf('Android') > -1) os = 'Android';
-    else if (ua.indexOf('Win') > -1) os = 'Windows';
-    else if (ua.indexOf('Mac') > -1) os = 'macOS';
-    else if (ua.indexOf('Linux') > -1) os = 'Linux';
-    
-    // Collect device info
     deviceInfo = {
         browser: browser,
         browser_version: browserVersion,
@@ -296,33 +284,11 @@ async function handleDemographicsSubmit(event) {
     event.preventDefault();
     
     const formData = new FormData(event.target);
-    demographicsData = {};
-    
-    // Handle regular form fields
-    for (const [key, value] of formData.entries()) {
-        // Handle checkbox arrays
-        if (key.endsWith('[]')) {
-            const cleanKey = key.replace('[]', '');
-            if (!demographicsData[cleanKey]) {
-                demographicsData[cleanKey] = [];
-            }
-            demographicsData[cleanKey].push(value);
-        } else {
-            demographicsData[key] = value;
-        }
-    }
-    
-    // Convert checkbox arrays to comma-separated strings (config-driven)
     const checkboxFields = (surveyConfig ? surveyConfig.demographics : [])
         .filter(f => f.type === 'checkbox')
         .map(f => f.name);
-    for (const fieldName of checkboxFields) {
-        if (Array.isArray(demographicsData[fieldName])) {
-            demographicsData[fieldName] = demographicsData[fieldName].join(', ');
-        } else if (!demographicsData[fieldName]) {
-            demographicsData[fieldName] = 'none';
-        }
-    }
+    demographicsData = core().normalizeDemographics(
+        Array.from(formData.entries()), checkboxFields);
     
     // Add device info to submission
     demographicsData.device_info = deviceInfo;
@@ -518,12 +484,10 @@ async function loadImagePair(index) {
             imageA.onclick = () => openLightbox(data.image_a_url, 'Image A');
             imageB.onclick = () => openLightbox(data.image_b_url, 'Image B');
             
-            // Update progress
-            // A resumed session restarts at index 0, so the position comes from the server.
-            const remaining = data.trials_remaining ?? (data.total_pairs - index);
-            document.getElementById('current-question').textContent = data.total_pairs - remaining + 1;
-            document.getElementById('total-questions').textContent = data.total_pairs;
-            totalImagePairs = data.total_pairs;
+            const progress = core().progressFrom(data, index);
+            document.getElementById('current-question').textContent = progress.current;
+            document.getElementById('total-questions').textContent = progress.total;
+            totalImagePairs = progress.total;
             
             // Update instruction text with actual number of pairs (only on first load)
             if (index === 0) {
@@ -532,8 +496,7 @@ async function loadImagePair(index) {
                     `You will see ${data.total_pairs} image ${pairWord} in total.`;
             }
             
-            const progressPercent = ((data.total_pairs - remaining) / data.total_pairs) * 100;
-            document.getElementById('progress-bar-fill').style.width = progressPercent + '%';
+            document.getElementById('progress-bar-fill').style.width = progress.percent + '%';
             
             // Reset form
             document.getElementById('survey-form').reset();
@@ -605,51 +568,17 @@ async function handleSurveySubmit(event) {
     // Calculate time spent on this pair (in seconds)
     const timeSpent = pairStartTime ? (Date.now() - pairStartTime) / 1000 : null;
 
-    // Build structured responses from config questions
-    const responses = {};
-    if (surveyConfig && surveyConfig.questions) {
-        for (const q of surveyConfig.questions) {
+    // Section visibility is a DOM fact here; the rules that made it so live in the core.
+    const visibleNames = (surveyConfig ? surveyConfig.questions : [])
+        .filter(q => {
             const section = document.getElementById(`${q.name}-evaluation`);
-            if (!section || section.style.display === 'none') continue;
+            return section && section.style.display !== 'none';
+        })
+        .map(q => q.name);
 
-            if (q.type === 'ab_preference') {
-                const choice = surveyResponse[`${q.name}_choice`] || null;
-                const conf = surveyResponse[`${q.name}_confidence`];
-                if (choice) {
-                    responses[q.name] = {
-                        choice: choice,
-                        confidence: conf ? parseInt(conf) : null,
-                    };
-                }
-            } else if (q.type === 'likert') {
-                const val = surveyResponse[`${q.name}_value`];
-                if (val) responses[q.name] = { value: parseInt(val) };
-            } else if (q.type === 'free_text') {
-                const text = surveyResponse[`${q.name}_text`] || '';
-                responses[q.name] = { text: text };
-            } else if (q.type === 'multiple_choice') {
-                const val = surveyResponse[`${q.name}_value`];
-                if (val) responses[q.name] = { value: val };
-            }
-        }
-    }
-
-    const completeResponse = {
-        image_pair_id: currentImageData.id,
-        stimulus_data: {
-            prompt: currentImageData.prompt,
-            method_a: currentImageData.method_a,
-            method_b: currentImageData.method_b,
-            image_a_url: currentImageData.image_a_url,
-            image_b_url: currentImageData.image_b_url,
-            identity_urls: currentImageData.identity_urls || null,
-            mask_url: currentImageData.mask_url || null,
-            methods: currentImageData.methods || {},
-        },
-        responses: responses,
-        was_randomized: currentImageData.was_randomized,
-        time_spent: timeSpent,
-    };
+    const responses = core().buildResponses(
+        surveyConfig ? surveyConfig.questions : [], surveyResponse, visibleNames);
+    const completeResponse = core().buildSubmission(currentImageData, responses, timeSpent);
     
     try {
         const response = await fetch('/api/submit_survey', {
@@ -726,17 +655,10 @@ function updateQuestionVisibility(data) {
     for (const q of surveyConfig.questions) {
         const el = document.getElementById(`${q.name}-evaluation`);
         if (!el) continue;
-        if (q.depends_on) {
-            // Find the input config for this dependency
-            const inp = (surveyConfig.inputs || []).find(i => i.name === q.depends_on);
-            const colValue = inp ? (data[inp.column] || '') : '';
-            el.style.display = colValue ? 'block' : 'none';
-            // Clear required on hidden inputs
-            if (!colValue) {
-                el.querySelectorAll('input[required]').forEach(i => i.removeAttribute('required'));
-            }
-        } else {
-            el.style.display = 'block';
+        const visible = core().isSectionVisible(q, data, surveyConfig.inputs || []);
+        el.style.display = visible ? 'block' : 'none';
+        if (!visible) {
+            el.querySelectorAll('input[required]').forEach(i => i.removeAttribute('required'));
         }
     }
 }
@@ -1399,21 +1321,13 @@ function setupScrollTracking() {
 
 function isQuestionGroupComplete(questionIndex) {
     const section = questionSections[questionIndex];
-    const radioGroups = {};
-    
-    // Find all radio button groups in this section
-    const radios = section.querySelectorAll('input[type="radio"]');
-    radios.forEach(radio => {
-        if (!radioGroups[radio.name]) {
-            radioGroups[radio.name] = false;
-        }
-        if (radio.checked) {
-            radioGroups[radio.name] = true;
-        }
-    });
-    
-    // Check if all groups have a selection
-    return Object.values(radioGroups).every(selected => selected);
+    if (!section) return false;
+    // A text-only section has nothing to answer, so it counts as complete.
+    return core().isFormComplete(
+        Array.from(section.querySelectorAll('input[type="radio"]')).map(radio => ({
+            name: radio.name, checked: radio.checked, hidden: false,
+        })),
+        true);
 }
 
 function isInHiddenSection(el) {
@@ -1429,23 +1343,12 @@ function setupSubmitValidation() {
     
     // Function to check if all questions are answered
     function validateForm() {
-        // Get ALL radio inputs and group by name
-        const radioGroups = {};
-        const allRadios = Array.from(surveyForm.querySelectorAll('input[type="radio"]'))
-            .filter(radio => !isInHiddenSection(radio));
-        
-        allRadios.forEach(radio => {
-            if (!radioGroups[radio.name]) {
-                radioGroups[radio.name] = false;
-            }
-            if (radio.checked) {
-                radioGroups[radio.name] = true;
-            }
-        });
-        
-        // All groups must have a selection
-        const allAnswered = Object.values(radioGroups).length > 0 && 
-                           Object.values(radioGroups).every(answered => answered);
+        const allAnswered = core().isFormComplete(
+            Array.from(surveyForm.querySelectorAll('input[type="radio"]')).map(radio => ({
+                name: radio.name,
+                checked: radio.checked,
+                hidden: isInHiddenSection(radio),
+            })));
 
         // Enable/disable submit button
         // In tutorial mode, keep disabled until tutorial is complete

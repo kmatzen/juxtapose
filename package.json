@@ -14,7 +14,9 @@
     "test:e2e:report": "playwright show-report",
     "pretest:e2e": "npm run build",
     "build:watch": "vite build --config frontend/vite.config.ts --watch",
-    "test:unit": "vitest run --config frontend/vitest.config.ts"
+    "test:unit": "vitest run --config frontend/vitest.config.mts",
+    "build:core": "node scripts/build-core.mjs",
+    "pretest": "npm run build:core"
   },
   "devDependencies": {
     "@babel/core": "^7.24.7",

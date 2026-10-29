@@ -27,7 +27,7 @@ test('participant completes the whole study in a real browser', async ({ page })
 test('the page boots the built bundle, not a source file', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('html')).toHaveJSProperty('dataset.build', 'vite');
-  await expect(page.locator('script[src*="/dist/assets/main-"]')).toHaveCount(1);
+  await expect(page.locator('script[src*="/dist/assets/survey-"]')).toHaveCount(1);
 });
 
 test('reloading mid-study resumes on an unserved trial', async ({ page }) => {
