@@ -2,7 +2,7 @@
 
 A config-driven web application for running A/B evaluation studies. Define your entire survey -- demographics, stimuli, evaluation questions, and tutorial -- in a single YAML file. No code changes needed.
 
-Built for research teams who need to collect human judgments on generated content (images, video, audio, text) with proper randomization, progress tracking, and data export.
+Built for research teams who need to collect human judgments on generated images with proper randomization, progress tracking, and data export.
 
 ## Features
 
@@ -89,11 +89,10 @@ Shared context shown for each trial. Optional inputs are hidden when their colum
 
 | Type | Description |
 |------|-------------|
-| `text` | Plain text in a prompt box |
-| `image` | Single image (supports lightbox) |
-| `image_gallery` | Row of images from comma-separated URLs or stacked image |
-| `video` | HTML5 video player (supports loop, controls) |
-| `audio` | HTML5 audio player (supports loop) |
+| `image` | Single image, click to enlarge |
+| `image_gallery` | Row of images from comma-separated URLs, or one stacked image sliced into a row |
+
+An input named `prompt` with type `text` is not a widget: it enables the prompt box that shows the trial's `prompt` column. `SHOW_PROMPT=false` overrides it.
 
 ### Outputs
 
@@ -101,10 +100,7 @@ Per-method results shown as an A/B comparison. Position is randomized per trial.
 
 | Type | Description |
 |------|-------------|
-| `image` | Side-by-side images |
-| `video` | Side-by-side video players |
-| `audio` | Side-by-side audio players |
-| `text` | Side-by-side text blocks |
+| `image` | Side-by-side images, click to enlarge |
 
 ### Questions
 

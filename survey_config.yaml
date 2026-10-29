@@ -158,19 +158,16 @@ methods:
 # Fields:
 #   name          Unique identifier (referenced by depends_on in questions)
 #   type          Widget type (see below)
-#   label         Heading shown above the widget
+#   label         Caption used for the image alt text and lightbox title
 #   column        Column name from data.columns
-#   description   (optional) Help text shown below the label
 #   optional      (optional, default false) Hide when column value is empty
-#   interactions  (optional) List: lightbox, loop, controls
 #
 # Input types:
-#   text          Plain text displayed in a prompt box
-#   image         Single image (click to enlarge if lightbox enabled)
+#   image         Single image, click to enlarge
 #   image_gallery Comma-separated URLs or a single stacked image, displayed
 #                 as a horizontal row of images
-#   video         HTML5 video player; supports loop and controls interactions
-#   audio         HTML5 audio player; supports loop interaction
+#
+# An input named "prompt" of type "text" is a flag, not a widget: it shows the prompt box (SHOW_PROMPT overrides).
 
 inputs:
   - name: prompt
@@ -184,7 +181,6 @@ inputs:
     description: "The generated images should preserve the identity features from these reference images."
     column: identity_urls
     optional: true
-    interactions: [lightbox]
 
   - name: mask
     type: image
@@ -192,7 +188,6 @@ inputs:
     description: "The generated images should follow the spatial layout indicated by this mask (different colors represent different regions)."
     column: mask_url
     optional: true
-    interactions: [lightbox]
 
 # =============================================================================
 # Outputs (per-method results, A/B randomized)
@@ -203,16 +198,11 @@ inputs:
 # Fields:
 #   name          Unique identifier
 #   type          Widget type (see below)
-#   label         Heading prefix (shown as "Label A" / "Label B")
 #   column_a      Column name for method A's result
 #   column_b      Column name for method B's result
-#   interactions  (optional) List: lightbox, loop, controls
 #
 # Output types:
-#   image         Side-by-side images (click to enlarge if lightbox enabled)
-#   video         Side-by-side video players
-#   audio         Side-by-side audio players
-#   text          Side-by-side text blocks
+#   image         Side-by-side images, click to enlarge
 
 outputs:
   - name: image
@@ -220,7 +210,6 @@ outputs:
     label: "Image"
     column_a: image_a_url
     column_b: image_b_url
-    interactions: [lightbox]
 
 # =============================================================================
 # Questions (evaluation criteria per trial)
