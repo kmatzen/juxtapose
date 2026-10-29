@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for, abort
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, abort, send_from_directory
 import sqlite3
 import uuid
 import os
@@ -12,8 +12,7 @@ from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 
 from src.survey.config import (
-    load_config, get_email_field, build_column_map,
-    get_inputs_by_name, get_outputs_by_name, get_questions_by_name,
+    load_config, get_email_field, get_inputs_by_name,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,10 +44,16 @@ app.config['WTF_CSRF_TIME_LIMIT'] = None  # Don't expire CSRF tokens
 csrf = CSRFProtect(app)
 
 # Security: Rate Limiting
+def _participant_key():
+    """Survey limits key on the participant, not the IP: a lab, office or conference NAT puts
+    a whole cohort behind one address, and per-IP caps lock out everyone after the first."""
+    return session.get('session_id') or get_remote_address()
+
+
 limiter = Limiter(
     app=app,
-    key_func=get_remote_address,
-    default_limits=["200 per hour"],
+    key_func=_participant_key,
+    default_limits=["1000 per hour"],
     storage_uri="memory://",
 )
 
@@ -65,9 +70,9 @@ if TILE_LAYOUT not in ['AMB', 'MAB']:
     logger.warning("Invalid TILE_LAYOUT '%s'. Using default 'MAB'. Valid options: AMB, MAB", TILE_LAYOUT)
     TILE_LAYOUT = 'MAB'
 
-# Security: Warn if weak admin password in production
+# The dashboard lists every participant email, so the shipped default is an open door.
 if ADMIN_PASSWORD == 'admin123' and IS_PRODUCTION:
-    logger.warning("Using default admin password! Set ADMIN_PASSWORD environment variable!")
+    raise ValueError("ADMIN_PASSWORD environment variable must be set in production!")
 
 # Audit log file
 AUDIT_LOG_FILE = os.path.join(DATA_DIR, 'audit.log') if DATA_DIR else 'audit.log'
@@ -89,8 +94,6 @@ DATABASE = os.path.join(DATA_DIR, 'survey.db') if DATA_DIR else 'survey.db'
 CONFIG = load_config()
 SURVEY = CONFIG['survey']
 INPUTS_BY_NAME = get_inputs_by_name(CONFIG)
-OUTPUTS_BY_NAME = get_outputs_by_name(CONFIG)
-QUESTIONS_BY_NAME = get_questions_by_name(CONFIG)
 EMAIL_FIELD = get_email_field(CONFIG)
 
 # Derive feature flags from config (env vars override)
@@ -118,7 +121,8 @@ def _load_trials_from_file(file_path_relative, start_id=1):
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             for line_num, line in enumerate(f, 1):
-                line = line.strip()
+                # Stripping whitespace here would delete trailing empty fields, skipping valid rows.
+                line = line.rstrip('\r\n')
                 if not line or line.startswith('#'):
                     continue
 
@@ -149,18 +153,12 @@ def _load_trials_from_file(file_path_relative, start_id=1):
         return trials
 
     except FileNotFoundError:
-        logger.error("%s not found at %s", file_path_relative, file_path)
-        logger.info("Creating sample file with placeholder data")
-
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(f"# Trial data - tab-separated\n")
-            f.write(f"# Columns: {chr(9).join(columns)}\n\n")
-            for i in range(1, 4):
-                vals = [f"sample-{col}-{i}" for col in columns]
-                f.write('\t'.join(vals) + '\n')
-
-        logger.info("Created %s with sample data", file_path)
-        return _load_trials_from_file(file_path_relative, start_id)
+        # Inventing placeholder trials here would collect real responses against fake stimuli.
+        raise FileNotFoundError(
+            f"Trial data file not found: {file_path} "
+            f"(data.file is '{file_path_relative}'; generate one with generate_pairs.py "
+            "or set IMAGE_PAIRS_FILE)"
+        ) from None
 
     except Exception as e:
         logger.error("Error loading %s: %s", file_path_relative, e)
@@ -188,13 +186,6 @@ def load_tutorial_pair():
 # Load image pairs on startup
 IMAGE_PAIRS = load_image_pairs()
 TUTORIAL_PAIR = load_tutorial_pair()
-
-# Run database migrations before initializing
-try:
-    from src.survey.migrate_db import migrate_database
-    migrate_database()
-except Exception as e:
-    logger.warning("Migration failed (might be first run): %s", e)
 
 # Security: Audit logging
 def audit_log(action, details, user_ip=None):
@@ -241,15 +232,73 @@ def set_security_headers(response):
     """Add security headers to all responses"""
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
-    response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     if IS_PRODUCTION:
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     return response
 
 # ---------------------------------------------------------------------------
+# Built frontend assets
+# ---------------------------------------------------------------------------
+STATIC_DIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static_dist')
+
+
+def _built_assets():
+    """Files emitted by `npm run build`; empty means the app is running from source assets."""
+    found = set()
+    for _, _, files in os.walk(STATIC_DIST):
+        found.update(files)
+    return found
+
+
+BUILT_ASSETS = _built_assets()
+
+
+def _manifest_entries():
+    """Vite manifest keyed by entry basename; an asset-only build has no TS entries."""
+    # Vite writes the manifest under .vite/ since v6; the root path is the older layout.
+    for relative in (os.path.join('.vite', 'manifest.json'), 'manifest.json'):
+        try:
+            with open(os.path.join(STATIC_DIST, relative)) as manifest:
+                data = json.load(manifest)
+            break
+        except (OSError, ValueError):
+            continue
+    else:
+        return {}
+    return {os.path.splitext(os.path.basename(key))[0]: value.get('file')
+            for key, value in data.items() if value.get('isEntry')}
+
+
+BUNDLE_ENTRIES = _manifest_entries()
+
+
+@app.route('/dist/<path:filename>')
+def dist_asset(filename):
+    return send_from_directory(STATIC_DIST, filename)
+
+
+@app.template_global()
+def asset(filename):
+    """Prefer the built asset; falling back to static keeps a clone with no npm working."""
+    if filename in BUILT_ASSETS:
+        return f'/dist/{filename}'
+    return url_for('static', filename=filename)
+
+
+@app.template_global()
+def bundle(name):
+    """Hashed entry chunk, e.g. bundle('main'); None keeps an unbuilt checkout rendering."""
+    entry = BUNDLE_ENTRIES.get(name)
+    return f'/dist/{entry}' if entry else None
+
+
+# ---------------------------------------------------------------------------
 # Database
 # ---------------------------------------------------------------------------
+
+_DB_READY = False
+
 
 def get_db():
     """Get database connection"""
@@ -304,11 +353,21 @@ def init_db():
         )
     ''')
 
+    # IF NOT EXISTS, so a study database predating this gets indexed on its next boot.
+    db.execute('CREATE INDEX IF NOT EXISTS idx_demographics_email ON demographics (email)')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_responses_participant ON survey_responses (participant_id)')
+
     db.commit()
     db.close()
 
 
-init_db()
+@app.before_request
+def ensure_db():
+    """Create tables on first use; importing this module must not write files."""
+    global _DB_READY
+    if not _DB_READY:
+        init_db()
+        _DB_READY = True
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -349,6 +408,24 @@ def _build_stimulus_data(trial, randomized):
         data['methods']['a'], data['methods']['b'] = data['methods']['b'], data['methods']['a']
 
     return data
+
+
+def _get_session_email():
+    """Email of the participant this session submitted demographics for, None before that."""
+    if 'session_id' not in session:
+        return None
+    db = get_db()
+    try:
+        row = db.execute('''
+            SELECT d.email
+            FROM demographics d
+            JOIN participants p ON d.participant_id = p.id
+            WHERE p.session_id = ?
+            ORDER BY d.id DESC LIMIT 1
+        ''', (session['session_id'],)).fetchone()
+        return row['email'] if row else None
+    finally:
+        db.close()
 
 
 def _get_completed_trial_ids_for_email(email):
@@ -428,6 +505,15 @@ def health():
     }), 200
 
 
+def _valid_email(email):
+    """True if email is a usable address string.
+
+    The stored email is rendered in the admin dashboard and used as the key for
+    data-removal deletes, so it must not be arbitrary text.
+    """
+    return isinstance(email, str) and '@' in email and len(email) <= 255
+
+
 def check_admin_auth():
     """Check if admin is authenticated"""
     return session.get('admin_authenticated', False)
@@ -484,7 +570,6 @@ def index():
                         logger.debug("Showing survey (force_new)")
                     return render_template('index.html', config=CONFIG,
                                            tile_layout=TILE_LAYOUT,
-                                           enable_prompt_question=ENABLE_PROMPT_QUESTION,
                                            show_prompt=SHOW_PROMPT)
                 if DEV_MODE:
                     logger.debug("Showing thank you page (survey complete)")
@@ -501,7 +586,6 @@ def index():
 
     return render_template('index.html', config=CONFIG,
                            tile_layout=TILE_LAYOUT,
-                           enable_prompt_question=ENABLE_PROMPT_QUESTION,
                            show_prompt=SHOW_PROMPT)
 
 
@@ -630,7 +714,6 @@ def tutorial():
     session['tutorial_mode'] = True
     return render_template('index.html', config=CONFIG,
                            tile_layout=TILE_LAYOUT,
-                           enable_prompt_question=ENABLE_PROMPT_QUESTION,
                            show_prompt=SHOW_PROMPT,
                            tutorial_mode=True)
 
@@ -658,7 +741,6 @@ def get_config():
         'inputs': CONFIG.get('inputs', []),
         'outputs': CONFIG.get('outputs', []),
         'questions': CONFIG.get('questions', []),
-        'layout': CONFIG.get('layout', {}),
         'methods': CONFIG.get('methods', {}),
         'tutorial': CONFIG.get('tutorial', {}),
     })
@@ -715,7 +797,12 @@ def submit_demographics():
     try:
         # Extract email using config-defined email field
         email = data.get(EMAIL_FIELD) if EMAIL_FIELD else None
+        if isinstance(email, str):
+            email = email.strip()
         is_retaking = False
+
+        if email and not _valid_email(email):
+            return jsonify({'error': 'Invalid email address'}), 400
 
         if email:
             previous_participant = db.execute('''
@@ -733,16 +820,24 @@ def submit_demographics():
                 ).fetchone()
                 is_retaking = response_count and response_count['count'] > 0
 
-                if is_retaking:
-                    db.execute('''
+                if is_retaking and data.get('confirm_retake'):
+                    # Irreversible: only the retake modal's Confirm may destroy finished answers.
+                    deleted_responses = db.execute('''
                         DELETE FROM survey_responses
                         WHERE participant_id IN (
                             SELECT p.id FROM participants p
                             JOIN demographics d ON p.id = d.participant_id
                             WHERE d.email = ?
                         )
-                    ''', (email,))
-                    db.execute('DELETE FROM demographics WHERE email = ?', (email,))
+                    ''', (email,)).rowcount
+                    deleted_demographics = db.execute(
+                        'DELETE FROM demographics WHERE email = ?', (email,)
+                    ).rowcount
+                    audit_log('RETAKE_DELETE', {
+                        'email': email,
+                        'responses_deleted': deleted_responses,
+                        'demographics_deleted': deleted_demographics,
+                    })
 
         # Create or get participant
         participant = db.execute(
@@ -820,21 +915,7 @@ def get_image_pair(pair_index):
 
     # Initialize user's pair list
     if 'user_image_pairs' not in session or session.get('session_dev_mode') != DEV_MODE:
-        user_email = None
-        if 'session_id' in session:
-            db = get_db()
-            try:
-                demo = db.execute('''
-                    SELECT d.email
-                    FROM demographics d
-                    JOIN participants p ON d.participant_id = p.id
-                    WHERE p.session_id = ?
-                    ORDER BY d.id DESC LIMIT 1
-                ''', (session['session_id'],)).fetchone()
-                if demo:
-                    user_email = demo['email']
-            finally:
-                db.close()
+        user_email = _get_session_email()
 
         completed_pair_ids = _get_completed_trial_ids_for_email(user_email) if user_email else []
         available_pairs = [p for p in IMAGE_PAIRS if p['id'] not in completed_pair_ids]
@@ -854,18 +935,30 @@ def get_image_pair(pair_index):
 
     user_pair_ids = session.get('user_image_pairs', [])
 
-    if pair_index < 0 or pair_index >= len(user_pair_ids):
+    # The client counts indices against the assignment, so completed trials are skipped in place.
+    completed_ids = set(_get_completed_trial_ids_for_email(_get_session_email()))
+    position = pair_index
+    while position < len(user_pair_ids) and user_pair_ids[position] in completed_ids:
+        position += 1
+
+    if position >= len(user_pair_ids):
         return jsonify({'error': 'Invalid image pair index'}), 404
 
-    pair_id = user_pair_ids[pair_index]
+    pair_id = user_pair_ids[position]
     trial = next((p for p in IMAGE_PAIRS if p['id'] == pair_id), None)
 
     if not trial:
         return jsonify({'error': 'Image pair not found'}), 404
 
     randomized = random.random() < 0.5
+    # Answers are attributed from this record, never from what the browser posts back.
+    pair_randomized = session.get('pair_randomized', {})
+    pair_randomized[str(pair_id)] = randomized
+    session['pair_randomized'] = pair_randomized
+
     stim = _build_stimulus_data(trial, randomized)
     stim['total_trials'] = len(user_pair_ids)
+    stim['trials_remaining'] = len(user_pair_ids) - position
 
     # Add flat fields for backward compatibility with current JS
     _add_flat_fields(stim, trial, randomized)
@@ -931,44 +1024,30 @@ def submit_survey():
             return jsonify({'error': 'Participant not found'}), 404
 
         trial_id = data.get('image_pair_id')
+        trial = next((p for p in IMAGE_PAIRS if p['id'] == trial_id), None)
 
-        # Build stimulus_data and responses JSON from the incoming data
-        stimulus_data = {}
-        responses = {}
+        if trial is None:
+            return jsonify({'error': 'Image pair not found'}), 404
 
-        # Extract stimulus data (all the trial/image info)
-        for key in ('prompt', 'method_a', 'method_b', 'image_a_url', 'image_b_url',
-                     'identity_urls', 'mask_url'):
-            if key in data:
-                stimulus_data[key] = data[key]
+        # The browser reports answers only; the served order is the session's record.
+        randomized = bool(session.get('pair_randomized', {}).get(str(trial_id)))
+        stimulus_data = _build_stimulus_data(trial, randomized)
+        _add_flat_fields(stimulus_data, trial, randomized)
+        for counter_key in ('total_trials', 'total_pairs'):
+            stimulus_data.pop(counter_key, None)
 
-        # Also store any structured stimulus data if provided
-        if 'stimulus_data' in data:
-            stimulus_data.update(data['stimulus_data'])
-
-        # Extract responses - try structured format first, fall back to flat
-        if 'responses' in data and isinstance(data['responses'], dict):
-            responses = data['responses']
-        else:
-            # Flat format from current JS: better_image, image_confidence, etc.
-            for q in CONFIG['questions']:
-                q_name = q['name']
-                if q['type'] == 'ab_preference':
-                    # Map old flat field names to structured format
-                    choice_key = _old_choice_key(q_name)
-                    conf_key = _old_confidence_key(q_name)
-                    choice = data.get(choice_key)
-                    conf = data.get(conf_key)
-                    if choice is not None:
-                        responses[q_name] = {
-                            'choice': choice,
-                            'confidence': int(conf) if conf is not None else None,
-                        }
+        responses = data.get('responses')
+        if not isinstance(responses, dict):
+            return jsonify({'error': 'responses must be a structured object'}), 400
 
         stimulus_json = json.dumps(stimulus_data)
         responses_json = json.dumps(responses)
-        was_randomized = 1 if data.get('was_randomized') else 0
-        time_spent = data.get('time_spent')
+        was_randomized = 1 if randomized else 0
+        # A non-number sits in this REAL column as text, and AVG() counts it as zero seconds.
+        try:
+            time_spent = float(data.get('time_spent'))
+        except (TypeError, ValueError):
+            time_spent = None
 
         existing = db.execute(
             'SELECT id FROM survey_responses WHERE participant_id = ? AND image_pair_id = ?',
@@ -1015,33 +1094,13 @@ def submit_survey():
         db.close()
 
 
-def _old_choice_key(question_name):
-    """Map config question name to old flat field name for backward compat."""
-    mapping = {
-        'image_quality': 'better_image',
-        'prompt_adherence': 'better_prompt_match',
-        'mask_adherence': 'better_mask_match',
-        'identity_preservation': 'better_identity_match',
-    }
-    return mapping.get(question_name, f'{question_name}_choice')
-
-
-def _old_confidence_key(question_name):
-    """Map config question name to old flat confidence field name."""
-    mapping = {
-        'image_quality': 'image_confidence',
-        'prompt_adherence': 'prompt_confidence',
-        'mask_adherence': 'mask_confidence',
-        'identity_preservation': 'identity_confidence',
-    }
-    return mapping.get(question_name, f'{question_name}_confidence')
-
 # ---------------------------------------------------------------------------
 # Admin
 # ---------------------------------------------------------------------------
 
 @app.route('/admin/login', methods=['GET', 'POST'])
-@limiter.limit("10 per hour")
+# Credential guessing has no session to key on, so this one stays on the IP.
+@limiter.limit("10 per hour", key_func=get_remote_address)
 def admin_login():
     """Admin login page"""
     if request.method == 'POST':
@@ -1076,12 +1135,7 @@ def admin():
     return render_template('admin.html', config=CONFIG)
 
 
-@app.route('/api/admin/results')
-@require_admin
-def admin_results():
-    """Get all survey results (flattened from JSON)."""
-    db = get_db()
-    results = db.execute('''
+_ADMIN_RESULTS_SELECT = '''
         SELECT
             p.session_id, p.referral_code, p.created_at as participant_created,
             p.browser, p.browser_version, p.os,
@@ -1093,92 +1147,123 @@ def admin_results():
         LEFT JOIN demographics d ON p.id = d.participant_id
         LEFT JOIN survey_responses s ON p.id = s.participant_id
         WHERE s.id IS NOT NULL
-        ORDER BY s.created_at DESC
-    ''').fetchall()
+'''
+
+ADMIN_PAGE_SIZE = 200
+ADMIN_MAX_PAGE_SIZE = 1000
+
+
+def _flatten_result(row):
+    """Expand one joined row's JSON columns into the flat fields the dashboard and CSV share."""
+    r = dict(row)
+
+    if r.get('demographics_data'):
+        try:
+            r.update(json.loads(r['demographics_data']))
+        except (json.JSONDecodeError, TypeError):
+            pass
+    r.pop('demographics_data', None)
+
+    stim = {}
+    if r.get('stimulus_data'):
+        try:
+            stim = json.loads(r['stimulus_data'])
+        except (json.JSONDecodeError, TypeError):
+            pass
+    methods = stim.get('methods', {})
+    r['method_a'] = methods.get('a', stim.get('method_a', ''))
+    r['method_b'] = methods.get('b', stim.get('method_b', ''))
+
+    for inp_name, inp_val in stim.get('inputs', {}).items():
+        r[f'input_{inp_name}'] = inp_val
+    for key in ('prompt', 'image_a_url', 'image_b_url', 'identity_urls', 'mask_url'):
+        if key in stim:
+            r[key] = stim[key]
+    r.pop('stimulus_data', None)
+
+    resp = {}
+    if r.get('responses'):
+        try:
+            resp = json.loads(r['responses'])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    for q_name, q_data in resp.items():
+        if isinstance(q_data, dict):
+            choice = q_data.get('choice', '')
+            r[f'{q_name}_choice'] = choice
+            r[f'{q_name}_confidence'] = q_data.get('confidence')
+            if choice == 'A':
+                r[f'{q_name}_preferred_method'] = r.get('method_a', '')
+            elif choice == 'B':
+                r[f'{q_name}_preferred_method'] = r.get('method_b', '')
+            elif choice == 'equal':
+                r[f'{q_name}_preferred_method'] = 'equal'
+        else:
+            r[q_name] = q_data
+    r.pop('responses', None)
+    return r
+
+
+@app.route('/api/admin/results')
+@require_admin
+def admin_results():
+    """One page of results; the dashboard polls this every 30s, so it must not ship the study."""
+    limit = request.args.get('limit', ADMIN_PAGE_SIZE, type=int) or ADMIN_PAGE_SIZE
+    limit = max(1, min(limit, ADMIN_MAX_PAGE_SIZE))
+    offset = max(request.args.get('offset', 0, type=int) or 0, 0)
+
+    db = get_db()
+    rows = db.execute(
+        _ADMIN_RESULTS_SELECT + ' ORDER BY s.created_at DESC LIMIT ? OFFSET ?',
+        (limit, offset)
+    ).fetchall()
+    total = db.execute('SELECT COUNT(*) AS n FROM survey_responses').fetchone()['n']
     db.close()
 
-    flat = []
-    for row in results:
-        r = dict(row)
+    return jsonify({
+        'rows': [_flatten_result(r) for r in rows],
+        'total': total,
+        'limit': limit,
+        'offset': offset,
+    })
 
-        # Unpack demographics JSON
-        if r.get('demographics_data'):
-            try:
-                r.update(json.loads(r['demographics_data']))
-            except (json.JSONDecodeError, TypeError):
-                pass
-        r.pop('demographics_data', None)
 
-        # Unpack stimulus data
-        stim = {}
-        if r.get('stimulus_data'):
-            try:
-                stim = json.loads(r['stimulus_data'])
-            except (json.JSONDecodeError, TypeError):
-                pass
-        methods = stim.get('methods', {})
-        r['method_a'] = methods.get('a', stim.get('method_a', ''))
-        r['method_b'] = methods.get('b', stim.get('method_b', ''))
+@app.route('/api/admin/stats')
+@require_admin
+def admin_stats():
+    """Aggregate dashboard numbers: the counts the poll needs, not the rows behind them."""
+    db = get_db()
+    totals = db.execute('''
+        SELECT COUNT(*) AS responses,
+               COUNT(DISTINCT COALESCE(NULLIF(d.email, ''), p.session_id)) AS participants,
+               AVG(s.time_spent) AS avg_time
+        FROM participants p
+        LEFT JOIN demographics d ON p.id = d.participant_id
+        JOIN survey_responses s ON s.participant_id = p.id
+    ''').fetchone()
+    raw = db.execute('SELECT stimulus_data, responses FROM survey_responses').fetchall()
+    db.close()
 
-        # Flatten inputs
-        for inp_name, inp_val in stim.get('inputs', {}).items():
-            r[f'input_{inp_name}'] = inp_val
-        # Also keep flat stimulus keys
-        for key in ('prompt', 'image_a_url', 'image_b_url', 'identity_urls', 'mask_url'):
-            if key in stim:
-                r[key] = stim[key]
+    preferences = {}
+    confidences = []
+    for row in raw:
+        flat = _flatten_result(row)
+        for key, value in flat.items():
+            if key.endswith('_preferred_method'):
+                if value:
+                    prefs = preferences.setdefault(key[:-len('_preferred_method')], {})
+                    prefs[value] = prefs.get(value, 0) + 1
+            elif key.endswith('_confidence') and value is not None:
+                confidences.append(value)
 
-        r.pop('stimulus_data', None)
-
-        # Unpack responses and compute preferred methods
-        resp = {}
-        if r.get('responses'):
-            try:
-                resp = json.loads(r['responses'])
-            except (json.JSONDecodeError, TypeError):
-                pass
-
-        for q_name, q_data in resp.items():
-            if isinstance(q_data, dict):
-                choice = q_data.get('choice', '')
-                r[f'{q_name}_choice'] = choice
-                r[f'{q_name}_confidence'] = q_data.get('confidence')
-                # Compute preferred method
-                if choice == 'A':
-                    r[f'{q_name}_preferred_method'] = r.get('method_a', '')
-                elif choice == 'B':
-                    r[f'{q_name}_preferred_method'] = r.get('method_b', '')
-                elif choice == 'equal':
-                    r[f'{q_name}_preferred_method'] = 'equal'
-
-                # Also produce old-style flat field names for backward compat
-                old_choice = _old_choice_key(q_name)
-                old_conf = _old_confidence_key(q_name)
-                r[old_choice] = choice
-                r[old_conf] = q_data.get('confidence')
-
-                # Old-style preferred_method fields
-                old_pref_mapping = {
-                    'image_quality': 'preferred_method_image',
-                    'prompt_adherence': 'preferred_method_prompt',
-                    'mask_adherence': 'preferred_method_mask',
-                    'identity_preservation': 'preferred_method_identity',
-                }
-                old_pref_key = old_pref_mapping.get(q_name)
-                if old_pref_key:
-                    if choice == 'A':
-                        r[old_pref_key] = r.get('method_a', '')
-                    elif choice == 'B':
-                        r[old_pref_key] = r.get('method_b', '')
-                    elif choice == 'equal':
-                        r[old_pref_key] = 'equal'
-            else:
-                r[q_name] = q_data
-
-        r.pop('responses', None)
-        flat.append(r)
-
-    return jsonify(flat)
+    return jsonify({
+        'responses': totals['responses'],
+        'participants': totals['participants'],
+        'avg_time': round(totals['avg_time'], 1) if totals['avg_time'] is not None else None,
+        'avg_confidence': round(sum(confidences) / len(confidences), 1) if confidences else None,
+        'preferences': preferences,
+    })
 
 
 @app.route('/api/admin/export')
@@ -1208,56 +1293,7 @@ def admin_export():
     flat = []
     all_keys = set()
     for row in results:
-        r = dict(row)
-        if r.get('demographics_data'):
-            try:
-                r.update(json.loads(r['demographics_data']))
-            except (json.JSONDecodeError, TypeError):
-                pass
-        r.pop('demographics_data', None)
-
-        stim = {}
-        if r.get('stimulus_data'):
-            try:
-                stim = json.loads(r['stimulus_data'])
-            except (json.JSONDecodeError, TypeError):
-                pass
-        methods = stim.get('methods', {})
-        r['method_a'] = methods.get('a', stim.get('method_a', ''))
-        r['method_b'] = methods.get('b', stim.get('method_b', ''))
-        for inp_name, inp_val in stim.get('inputs', {}).items():
-            r[f'input_{inp_name}'] = inp_val
-        for key in ('prompt', 'image_a_url', 'image_b_url', 'identity_urls', 'mask_url'):
-            if key in stim:
-                r[key] = stim[key]
-        r.pop('stimulus_data', None)
-
-        resp = {}
-        if r.get('responses'):
-            try:
-                resp = json.loads(r['responses'])
-            except (json.JSONDecodeError, TypeError):
-                pass
-        for q_name, q_data in resp.items():
-            if isinstance(q_data, dict):
-                choice = q_data.get('choice', '')
-                r[f'{q_name}_choice'] = choice
-                r[f'{q_name}_confidence'] = q_data.get('confidence')
-                if choice == 'A':
-                    r[f'{q_name}_preferred_method'] = r.get('method_a', '')
-                elif choice == 'B':
-                    r[f'{q_name}_preferred_method'] = r.get('method_b', '')
-                elif choice == 'equal':
-                    r[f'{q_name}_preferred_method'] = 'equal'
-                # Old-style flat fields
-                old_choice = _old_choice_key(q_name)
-                old_conf = _old_confidence_key(q_name)
-                r[old_choice] = choice
-                r[old_conf] = q_data.get('confidence')
-            else:
-                r[q_name] = q_data
-        r.pop('responses', None)
-
+        r = _flatten_result(row)
         all_keys.update(r.keys())
         flat.append(r)
 
@@ -1279,7 +1315,7 @@ def admin_export():
 
 @app.route('/api/admin/delete_by_email', methods=['POST'])
 @require_admin
-@limiter.limit("20 per hour")
+@limiter.limit("20 per hour", key_func=get_remote_address)
 def delete_by_email():
     """Delete all records associated with an email address"""
     email = request.json.get('email') if request.json else None
@@ -1288,8 +1324,8 @@ def delete_by_email():
         audit_log('DELETE_FAILED', {'reason': 'No email provided'})
         return jsonify({'error': 'Email address is required'}), 400
 
-    if '@' not in email or len(email) > 255:
-        audit_log('DELETE_FAILED', {'reason': 'Invalid email format', 'email': email[:50]})
+    if not _valid_email(email):
+        audit_log('DELETE_FAILED', {'reason': 'Invalid email format', 'email': str(email)[:50]})
         return jsonify({'error': 'Invalid email format'}), 400
 
     db = get_db()

@@ -36,7 +36,7 @@ def generate_image_url(method_base_url, prompt_index):
 def main():
     print("# Image Pairs Configuration")
     print("# Generated with all pairwise method combinations")
-    print("# Format: prompt <TAB> method_a <TAB> method_b <TAB> image_a_url <TAB> image_b_url")
+    print("# Format: prompt <TAB> method_a <TAB> method_b <TAB> image_a_url <TAB> image_b_url <TAB> mask_url <TAB> identity_urls")
     print()
     
     # Generate all pairwise combinations
@@ -59,9 +59,10 @@ def main():
             # Generate image URLs
             image_a_url = generate_image_url(METHODS[method_a], prompt_idx)
             image_b_url = generate_image_url(METHODS[method_b], prompt_idx)
-            
-            # Output tab-separated line
-            print(f"{prompt}\t{method_a}\t{method_b}\t{image_a_url}\t{image_b_url}")
+
+            # Rows must carry exactly data.columns fields; an empty optional input renders hidden.
+            fields = [prompt, method_a, method_b, image_a_url, image_b_url, "", ""]
+            print("\t".join(fields))
 
 if __name__ == "__main__":
     main()

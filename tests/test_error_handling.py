@@ -1,10 +1,8 @@
 """
 Tests for error handling and edge cases
 """
-import pytest
 import json
 import os
-import tempfile
 from tests.conftest import insert_demographics, insert_response
 
 
@@ -16,12 +14,6 @@ STANDARD_RESPONSES = {
 }
 
 
-@pytest.mark.skip(reason="Disabled: This test modifies production image_pairs.txt file. Unsafe for real data.")
-def test_image_pairs_file_not_found(client):
-    """Test handling of missing image_pairs.txt file"""
-    pass
-
-
 def test_submit_demographics_invalid_json(client):
     """Test demographics submission with invalid JSON"""
     with client.session_transaction() as sess:
@@ -31,7 +23,7 @@ def test_submit_demographics_invalid_json(client):
     response = client.post('/api/submit_demographics',
                           data='not valid json',
                           content_type='application/json')
-    assert response.status_code in [400, 500]
+    assert response.status_code == 400
 
 
 def test_submit_demographics_missing_email(client):
@@ -49,7 +41,7 @@ def test_submit_demographics_missing_email(client):
                               }
                           },
                           content_type='application/json')
-    assert response.status_code in [200, 400]
+    assert response.status_code == 200
 
 
 def test_submit_demographics_missing_device_info(client):
@@ -64,7 +56,7 @@ def test_submit_demographics_missing_device_info(client):
                               'occupation': 'Engineer'
                           },
                           content_type='application/json')
-    assert response.status_code in [200, 400]
+    assert response.status_code == 200
 
 
 def test_submit_survey_invalid_confidence_values(client):
@@ -88,15 +80,15 @@ def test_submit_survey_invalid_confidence_values(client):
     response = client.post('/api/submit_survey',
                           json={
                               'image_pair_id': 1,
-                              'better_image': 'A',
-                              'image_confidence': 99,
-                              'better_mask_match': 'B',
-                              'mask_confidence': 4,
-                              'better_identity_match': 'Equal',
-                              'identity_confidence': 2
+                              'responses': {
+                                  'image_quality': {'choice': 'A', 'confidence': 99},
+                                  'mask_adherence': {'choice': 'B', 'confidence': 4},
+                                  'identity_preservation': {'choice': 'equal', 'confidence': 2},
+                              },
                           },
                           content_type='application/json')
-    assert response.status_code in [200, 400]
+    # The server stores the scale value it is given; an out-of-range answer is data, not a server error.
+    assert response.status_code == 200
 
 
 def test_get_image_pair_completed_all_pairs(client):
@@ -122,7 +114,7 @@ def test_get_image_pair_completed_all_pairs(client):
         sess['session_id'] = unique_session
 
     response = client.get('/api/get_image_pair/99')
-    assert response.status_code in [400, 404]
+    assert response.status_code == 404
     data = json.loads(response.data)
     assert 'error' in data
 
@@ -213,45 +205,26 @@ def test_database_connection_cleanup(client):
         assert response.status_code == 200
 
 
-def test_empty_referral_code(client):
-    """Test submitting empty referral code"""
-    import os
-    os.environ['REFERRAL_CODES'] = 'TESTCODE'
+def test_empty_referral_code(referral_client):
+    """An empty referral code is rejected, not passed through."""
+    client = referral_client('TESTCODE')
 
-    import importlib
-    from src.survey import app as app_module
-    importlib.reload(app_module)
-    client.application = app_module.app
+    response = client.post('/referral',
+                          data={'referral_code': ''},
+                          follow_redirects=False)
 
-    try:
-        response = client.post('/referral',
-                              data={'referral_code': ''},
-                              follow_redirects=False)
-        assert response.status_code in [200, 400]
-        if response.status_code == 200:
-            assert b'Invalid' in response.data or b'error' in response.data.lower()
-    finally:
-        os.environ.pop('REFERRAL_CODES', None)
-        importlib.reload(app_module)
-        client.application = app_module.app
+    assert response.status_code == 200
+    assert 'Invalid referral code' in response.data.decode()
+    with client.session_transaction() as sess:
+        assert not sess.get('referral_validated')
 
 
-def test_case_insensitive_referral_code(client):
-    """Test referral code is case-insensitive"""
-    import os
-    os.environ['REFERRAL_CODES'] = 'TESTCODE123'
+def test_case_insensitive_referral_code(referral_client):
+    """The route upper-cases the input, so a lowercase code matches."""
+    client = referral_client('TESTCODE123')
 
-    import importlib
-    from src.survey import app as app_module
-    importlib.reload(app_module)
-    client.application = app_module.app
+    response = client.post('/referral',
+                          data={'referral_code': 'testcode123'},
+                          follow_redirects=False)
 
-    try:
-        response = client.post('/referral',
-                              data={'referral_code': 'testcode123'},
-                              follow_redirects=False)
-        assert response.status_code in [302, 400]
-    finally:
-        os.environ.pop('REFERRAL_CODES', None)
-        importlib.reload(app_module)
-        client.application = app_module.app
+    assert response.status_code == 302
