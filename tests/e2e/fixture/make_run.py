@@ -91,7 +91,7 @@ def main():
     for i in range(rows):
         # The last two rows leave mask/identity empty: the app samples trials per session, so
         # one optional-free row could be sampled out and the case would silently stop being covered.
-        empty_optional = (i >= rows - 2)
+        empty_optional = rows > 2 and i >= rows - 2
         base, other = palette[i % len(palette)], palette[(i + 1) % len(palette)]
         values = {
             'prompt': f'Trial {i + 1}: a red cube on a wooden table under soft light',

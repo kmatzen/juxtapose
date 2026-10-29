@@ -45,7 +45,6 @@ test('hovering an identity image paints a mask overlay over both outputs', async
   expect(painted.total).toBe(200 * 150);
   expect(painted.opaque, 'the identity region is 60x60 of the mask').toBeGreaterThan(3000);
   expect(painted.opaque, 'overlay must stay local to the identity region').toBeLessThan(painted.total / 2);
-  await page.screenshot({ path: 'docs/screenshots/03-mask-overlay-hover.png', fullPage: true });
 });
 
 test('a single stacked gallery image slices into one square per panel', async ({ page }) => {

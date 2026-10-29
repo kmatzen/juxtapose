@@ -14,7 +14,6 @@ test('survey is usable at phone width', async ({ page }) => {
   expect(b.x + b.width).toBeLessThanOrEqual(412 + 1);
   expect(b.y, 'tiles stack vertically on a phone').toBeGreaterThan(a.y);
 
-  await page.screenshot({ path: 'docs/screenshots/06-mobile-survey.png', fullPage: true });
 
   await answerTrial(page);
   await expect(page.locator('#survey-section')).toBeVisible();
@@ -26,5 +25,4 @@ test('demographics form is reachable and fills at phone width', async ({ page })
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth
     - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
-  await page.screenshot({ path: 'docs/screenshots/07-mobile-demographics.png', fullPage: true });
 });
