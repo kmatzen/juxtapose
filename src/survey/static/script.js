@@ -351,40 +351,54 @@ async function handleDemographicsSubmit(event) {
     demographicsData.device_info = deviceInfo;
     
     try {
-        const response = await fetch('/api/submit_demographics', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCSRFToken()
-            },
-            body: JSON.stringify(demographicsData)
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok && result.success) {
+        let { ok, result } = await postDemographics(demographicsData);
+
+        if (ok && result.success) {
             // Warn if retaking the survey
             if (result.is_retaking) {
                 // Show custom modal and wait for user decision
                 const shouldContinue = await showRetakeModal();
-                
+
                 if (!shouldContinue) {
-                    // Reload page to go back
                     window.location.reload();
                     return;
                 }
+
+                // The destructive delete gets its own request, after confirmation.
+                ({ ok, result } = await postDemographics({
+                    ...demographicsData,
+                    confirm_retake: true
+                }));
             }
-            
-            // Redirect to home - server will check if tutorial is needed
-            window.location.href = '/';
+
+            if (ok && result.success) {
+                // Redirect to home - server will check if tutorial is needed
+                window.location.href = '/';
+                return;
+            }
+
+            showError('Failed to submit demographics. Please try again.');
+            console.error('Error:', result && result.error);
         } else {
             showError('Failed to submit demographics. Please try again.');
-            console.error('Error:', result.error);
+            console.error('Error:', result && result.error);
         }
     } catch (error) {
         showError('Network error. Please check your connection and try again.');
         console.error('Error:', error);
     }
+}
+
+async function postDemographics(payload) {
+    const response = await fetch('/api/submit_demographics', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken()
+        },
+        body: JSON.stringify(payload)
+    });
+    return { ok: response.ok, result: await response.json() };
 }
 
 async function loadImagePair(index) {

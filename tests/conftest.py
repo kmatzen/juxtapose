@@ -9,8 +9,8 @@ from src.survey import app as app_module
 
 
 @pytest.fixture
-def app():
-    """Create application for testing"""
+def app(tmp_path, monkeypatch):
+    """Create application for testing, with a database per test."""
     os.environ['DEV_MODE'] = 'false'
     os.environ['REFERRAL_CODES'] = ''
 
@@ -18,11 +18,12 @@ def app():
     importlib.reload(app_module)
     flask_app = app_module.app
 
-    db_fd, db_path = tempfile.mkstemp()
+    # get_db()/audit_log() read module globals, so app.config alone does not isolate.
+    monkeypatch.setattr(app_module, 'DATABASE', str(tmp_path / 'survey.db'))
+    monkeypatch.setattr(app_module, 'AUDIT_LOG_FILE', str(tmp_path / 'audit.log'))
 
     flask_app.config.update({
         'TESTING': True,
-        'DATABASE': db_path,
         'SECRET_KEY': 'test_secret_key',
         'WTF_CSRF_ENABLED': False,
     })
@@ -31,9 +32,6 @@ def app():
         app_module.init_db()
 
     yield flask_app
-
-    os.close(db_fd)
-    os.unlink(db_path)
 
 
 @pytest.fixture

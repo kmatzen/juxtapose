@@ -251,6 +251,9 @@ def set_security_headers(response):
 # Database
 # ---------------------------------------------------------------------------
 
+_DB_READY = False
+
+
 def get_db():
     """Get database connection"""
     db = sqlite3.connect(DATABASE)
@@ -308,7 +311,13 @@ def init_db():
     db.close()
 
 
-init_db()
+@app.before_request
+def ensure_db():
+    """Create tables on first use; importing this module must not write files."""
+    global _DB_READY
+    if not _DB_READY:
+        init_db()
+        _DB_READY = True
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -747,16 +756,24 @@ def submit_demographics():
                 ).fetchone()
                 is_retaking = response_count and response_count['count'] > 0
 
-                if is_retaking:
-                    db.execute('''
+                if is_retaking and data.get('confirm_retake'):
+                    # Irreversible: only the retake modal's Confirm may destroy finished answers.
+                    deleted_responses = db.execute('''
                         DELETE FROM survey_responses
                         WHERE participant_id IN (
                             SELECT p.id FROM participants p
                             JOIN demographics d ON p.id = d.participant_id
                             WHERE d.email = ?
                         )
-                    ''', (email,))
-                    db.execute('DELETE FROM demographics WHERE email = ?', (email,))
+                    ''', (email,)).rowcount
+                    deleted_demographics = db.execute(
+                        'DELETE FROM demographics WHERE email = ?', (email,)
+                    ).rowcount
+                    audit_log('RETAKE_DELETE', {
+                        'email': email,
+                        'responses_deleted': deleted_responses,
+                        'demographics_deleted': deleted_demographics,
+                    })
 
         # Create or get participant
         participant = db.execute(
