@@ -44,3 +44,6 @@ coverage-frontend/
 
 test-results/
 playwright-report/
+
+# Vite build output
+src/survey/static_dist/

@@ -1,0 +1,61 @@
+"""The asset pipeline: a page must never reference an asset the app cannot serve."""
+import re
+
+from src.survey import app as app_module
+
+ASSET_RE = re.compile(r'(?:src|href)="(/[^"]+)"')
+
+
+def make_build(tmp_path, files=('style.css',), manifest_entry=None):
+    app_module.STATIC_DIST = str(tmp_path)
+    app_module.BUILT_ASSETS = set(files)
+    app_module.BUNDLE_ENTRIES = manifest_entry or {}
+
+
+def asset_urls(html):
+    return [url for url in ASSET_RE.findall(html) if not url.startswith('data:')]
+
+
+def test_every_page_serves_the_assets_it_references(client):
+    for path in ('/', '/admin/login'):
+        page = client.get(path)
+        assert page.status_code == 200, (path, page.status_code, page.get_data(as_text=True)[:200])
+        for url in asset_urls(page.get_data(as_text=True)):
+            served = client.get(url)
+            assert served.status_code == 200, f'{path} references a dead asset {url}'
+
+
+def test_a_build_takes_over_from_the_source_static_files(client, app, tmp_path, monkeypatch):
+    (tmp_path / 'style.css').write_text('body{color:red}')
+    monkeypatch.setattr(app_module, 'STATIC_DIST', str(tmp_path))
+    monkeypatch.setattr(app_module, 'BUILT_ASSETS', {'style.css'})
+
+    body = client.get('/admin/login').get_data(as_text=True)
+    assert 'href="/dist/style.css"' in body
+    assert client.get('/dist/style.css').get_data(as_text=True) == 'body{color:red}'
+
+
+def test_the_built_bundle_is_linked_when_the_manifest_has_it(client, app, tmp_path, monkeypatch):
+    monkeypatch.setattr(app_module, 'STATIC_DIST', str(tmp_path))
+    monkeypatch.setattr(app_module, 'BUILT_ASSETS', set())
+    monkeypatch.setattr(app_module, 'BUNDLE_ENTRIES', {'main': 'assets/main-abc123.js'})
+
+    body = client.get('/').get_data(as_text=True)
+    assert '<script type="module" src="/dist/assets/main-abc123.js"></script>' in body
+
+
+def test_an_unbuilt_checkout_renders_no_bundle_tag(client, app, tmp_path, monkeypatch):
+    monkeypatch.setattr(app_module, 'STATIC_DIST', str(tmp_path))
+    monkeypatch.setattr(app_module, 'BUILT_ASSETS', set())
+    monkeypatch.setattr(app_module, 'BUNDLE_ENTRIES', {})
+
+    assert 'type="module"' not in client.get('/').get_data(as_text=True)
+
+
+def test_the_dist_route_refuses_to_climb_out_of_the_build_dir(client, app, tmp_path, monkeypatch):
+    (tmp_path / 'style.css').write_text('x')
+    make_build(tmp_path, files=('style.css',))
+    monkeypatch.setattr(app_module, 'STATIC_DIST', str(tmp_path))
+
+    for probe in ('/dist/style.css/../../app.py', '/dist/%2e%2e/app.py', '/dist/..%2fapp.py'):
+        assert client.get(probe).status_code in (400, 404), probe

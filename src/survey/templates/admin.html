@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Survey Admin</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script src="{{ url_for('static', filename='admin.js') }}"></script>
+    <link rel="stylesheet" href="{{ asset('style.css') }}">
+{% set app_bundle = bundle('main') %}
+{% if app_bundle %}    <script type="module" src="{{ app_bundle }}"></script>{% endif %}
+    <script src="{{ asset('admin.js') }}"></script>
 </head>
 <body>
     <div class="admin-container">
