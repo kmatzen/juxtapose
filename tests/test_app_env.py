@@ -12,7 +12,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 # The gates read the environment as a whole, so the child starts from a clean room.
-STRIPPED = ('APP_ENV', 'SECRET_KEY', 'ADMIN_PASSWORD', 'DATA_DIR', 'RATELIMIT_STORAGE_URI')
+STRIPPED = ('APP_ENV', 'SECRET_KEY', 'ADMIN_PASSWORD', 'DATA_DIR', 'RATELIMIT_STORAGE_URI',
+            'SURVEY_DISABLE_SESSION_GATE')
 
 
 def boot(**env):

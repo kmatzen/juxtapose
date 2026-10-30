@@ -7,6 +7,10 @@ import os
 import json
 os.environ.setdefault('APP_ENV', 'dev')
 
+# Sessions in tests are hand-built and carry no version stamp, so the suite runs with the
+# stale-session gate opted out by name. The gate itself is tested in test_security.py.
+os.environ.setdefault('SURVEY_DISABLE_SESSION_GATE', 'true')
+
 # Production boots in subprocess tests must name a shared rate-limit store to get past the app.py
 # gate. The in-process suite stays on memory://: flask-limiter dials a redis URL on the first
 # limited request, not at import, so pointing the suite at a host that does not exist fails 120 tests.

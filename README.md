@@ -156,6 +156,7 @@ Set `enabled: false` to skip the tutorial.
 | `DEV_MODE` | `false` | Nothing in production: `APP_ENV=production` + `DEV_MODE=true` refuses to boot (it auto-fills forms, shortens the study and bypasses referral codes) |
 | `DATA_DIR` | (none) | Where the database and `audit.log` live. It no longer decides the mode - `APP_ENV` does |
 | `REFERRAL_CODES` | (none) | Comma-separated access codes; empty = no gate |
+| `SURVEY_DISABLE_SESSION_GATE` | `false` | Turns off the stale-session check. For the test suite only (hand-built sessions carry no version stamp); **`APP_ENV=production` refuses to boot with it set** |
 | `RATELIMIT_STORAGE_URI` | `memory://` | Rate-limit counters. **Must be a `redis://` URL when `APP_ENV=production`**: with the in-process store every gunicorn worker counts its own traffic, so the limits in the code are a multiple of reality |
 | `TILE_LAYOUT` | `MAB` | Tile order: `MAB` (Mask, A, B) or `AMB` |
 | `PORT` | `5000` | Server port |
