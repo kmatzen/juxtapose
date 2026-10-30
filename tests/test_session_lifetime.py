@@ -22,11 +22,18 @@ def test_visiting_the_study_mints_a_session_that_survives_a_browser_restart(clie
 
 
 def test_the_lifetime_the_app_configures_is_the_lifetime_the_cookie_carries(client, app):
+    """Flask writes `Expires`, not `Max-Age`: the configured lifetime reaches the cookie as a date."""
+    from datetime import datetime, timezone
+    from email.utils import parsedate_to_datetime
+
     lifetime = app.config['PERMANENT_SESSION_LIFETIME']
     assert isinstance(lifetime, timedelta), 'the app configures no session lifetime to honour'
 
     cookie = _session_cookie(client.get('/'))
-    max_age = [part.split('=', 1)[1] for part in cookie.split(';') if part.strip().startswith('Max-Age')]
+    expires = [part.split('=', 1)[1].strip() for part in cookie.split(';') if part.strip().startswith('Expires')]
 
-    assert max_age and int(max_age[0]) == int(lifetime.total_seconds()), (
-        f'the cookie says {max_age}, the config says {lifetime}')
+    assert expires, f'the cookie carries no expiry, so the configured {lifetime} is inert: {cookie!r}'
+    seconds = (parsedate_to_datetime(expires[0]).astimezone(timezone.utc)
+               - datetime.now(timezone.utc)).total_seconds()
+    assert abs(seconds - lifetime.total_seconds()) < 60, (
+        f'the cookie expires in {seconds:.0f}s, the config says {lifetime.total_seconds():.0f}s')

@@ -763,6 +763,8 @@ def index():
     if 'session_id' not in session:
         session['session_id'] = str(uuid.uuid4())
         session['version'] = SESSION_VERSION
+        # Without this the cookie dies with the browser, and PERMANENT_SESSION_LIFETIME configures nothing.
+        session.permanent = True
 
     if REQUIRE_REFERRAL and not session.get('referral_validated'):
         return redirect(url_for('referral'))
@@ -918,6 +920,8 @@ def tutorial():
     if 'session_id' not in session:
         session['session_id'] = str(uuid.uuid4())
         session['version'] = SESSION_VERSION
+        # Without this the cookie dies with the browser, and PERMANENT_SESSION_LIFETIME configures nothing.
+        session.permanent = True
 
     if not session.get('referral_validated', False):
         return redirect(url_for('referral'))
