@@ -8,6 +8,7 @@ import json
 import random
 import hmac
 import hashlib
+import tempfile
 from collections import OrderedDict
 from functools import wraps
 from flask_limiter import Limiter
@@ -100,7 +101,7 @@ REFERRAL_CODES = set(code.strip() for code in REFERRAL_CODES_ENV.split(',') if c
 REQUIRE_REFERRAL = bool(REFERRAL_CODES) and not DEV_MODE
 
 # Database location: DATA_DIR for production, local for development
-DATABASE = os.path.join(DATA_DIR, 'survey.db') if DATA_DIR else 'survey.db'
+DATABASE = os.path.join(DATA_DIR, 'survey.db') if DATA_DIR else os.path.join(tempfile.gettempdir(), 'juxtapose-dev', 'survey.db')
 
 # ---------------------------------------------------------------------------
 # Load survey configuration
