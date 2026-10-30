@@ -183,6 +183,10 @@ gunicorn src.survey.app:app --bind 0.0.0.0:8000
 `static_dist/` is read at boot, so a deploy replaces the code and the build together, then
 restarts. When `DATA_DIR` is set, the app enables production mode: requires `SECRET_KEY` and a non-default `ADMIN_PASSWORD`, enforces HTTPS cookies, and stores the database and audit log in that directory.
 
+`audit.log` entries are stamped in **UTC** from 2026-11-05, so an entry lines up with the database row
+it explains (`CURRENT_TIMESTAMP` is UTC). Entries written before that date carry server-local time:
+subtract the server's UTC offset when correlating an old deletion with a row.
+
 ## Admin Dashboard
 
 Visit `/admin/login`. The dashboard provides:
