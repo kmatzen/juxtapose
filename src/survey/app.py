@@ -1421,19 +1421,6 @@ def admin():
     return render_template('admin.html', config=CONFIG)
 
 
-_ADMIN_RESULTS_SELECT = '''
-        SELECT
-            p.session_id, p.referral_code, p.created_at as participant_created,
-            p.browser, p.browser_version, p.os,
-            p.screen_width, p.screen_height, p.pixel_ratio, p.color_depth,
-            d.email, d.data as demographics_data,
-            s.image_pair_id, s.stimulus_data, s.responses,
-            s.was_randomized, s.time_spent, s.timing_flag, s.created_at as response_created
-        FROM participants p
-        LEFT JOIN demographics d ON p.id = d.participant_id
-        JOIN survey_responses s ON p.id = s.participant_id
-'''
-
 ADMIN_PAGE_SIZE = 200
 ADMIN_MAX_PAGE_SIZE = 1000
 
@@ -1710,6 +1697,9 @@ _EXPORT_FROM = '''
         LEFT JOIN demographics d ON p.id = d.participant_id
         JOIN survey_responses s ON p.id = s.participant_id
         '''
+
+# The dashboard page reads the same row the export streams: one SELECT list, one join, no second copy to drift.
+_ADMIN_RESULTS_SELECT = 'SELECT' + _EXPORT_SELECT + _EXPORT_FROM
 
 
 def _export_fieldnames():
