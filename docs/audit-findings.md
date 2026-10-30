@@ -69,7 +69,7 @@ size. Recorded so they are not rediscovered as surprises:
 
 The third full-repo pass (senior-engineer review: correctness, security, scale, tests, speed, lean),
 run against the state the first two audits left. It found 19 defects; all 19 are fixed in one PR,
-[PR_NUM](https://github.com/kmatzen/juxtapose/pull/PR_NUM), each by a test that fails without the fix
+[#78](https://github.com/kmatzen/juxtapose/pull/78), each by a test that fails without the fix
 (or, for a deletion, a grep showing no reference left), and every repro case was re-measured on the
 final SHA. The theme: what the app *stores* was audited against what it *shows* - the export, the
 dashboard and the retake warning each read a narrower slice than the one they describe.
