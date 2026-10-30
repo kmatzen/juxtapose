@@ -1200,7 +1200,8 @@ def _add_flat_fields(stim, trial, randomized):
 # ---------------------------------------------------------------------------
 
 @app.route('/api/submit_survey', methods=['POST'])
-@limiter.limit("60 per hour")
+# The study length plus headroom for a re-answered trial; a cap under the study 429s the trial that ends it.
+@limiter.limit(lambda: f"{_trial_count() + 20} per hour")
 def submit_survey():
     """Submit survey response for a single trial."""
     if 'session_id' not in session:

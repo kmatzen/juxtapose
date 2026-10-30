@@ -187,7 +187,9 @@ restarts. When `DATA_DIR` is set, the app enables production mode: requires `SEC
 
 Rate limits are enforced per participant session, and the numbers are only real caps when the
 counters are shared: point `RATELIMIT_STORAGE_URI` at redis so all workers count against one tally
-and a restart does not reset it. The production boot refuses to start otherwise.
+and a restart does not reset it. The production boot refuses to start otherwise. The submit cap
+follows the study (`pairs_per_user` + 20 per hour), so a participant can always finish the study
+they started; login and delete-by-email stay fixed caps per address.
 
 `audit.log` entries are stamped in **UTC** from 2026-11-05, so an entry lines up with the database row
 it explains (`CURRENT_TIMESTAMP` is UTC). Entries written before that date carry server-local time:
