@@ -152,6 +152,10 @@ export function mountQuestionFlow(host: HTMLElement, props: QuestionFlowProps): 
     previous?.addEventListener('click', navPrevious);
     next?.addEventListener('click', navNext);
 
+    // The layout is measured from the viewport and from rendered question heights, both of which move on resize.
+    const onResize = () => layout();
+    window.addEventListener('resize', onResize);
+
     const observer = props.observeSections?.(sections, (index) => {
         current = index;
         updateButtons();
@@ -172,6 +176,7 @@ export function mountQuestionFlow(host: HTMLElement, props: QuestionFlowProps): 
         dispose() {
             for (const timer of timers.splice(0)) clearTimeout(timer);
             props.form.removeEventListener('change', change);
+            window.removeEventListener('resize', onResize);
             previous?.removeEventListener('click', navPrevious);
             next?.removeEventListener('click', navNext);
             document.removeEventListener('jx:tutorial-complete', tutorialDone);
