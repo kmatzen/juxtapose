@@ -88,8 +88,8 @@ def test_submit_survey_invalid_confidence_values(client):
                               },
                           },
                           content_type='application/json')
-    # The server stores the scale value it is given; an out-of-range answer is data, not a server error.
-    assert response.status_code == 200
+    # F7 (sixth audit): an off-scale answer is not data the analyst can average - the page cannot post it.
+    assert response.status_code == 400, response.get_json()
 
 
 def test_get_image_pair_completed_all_pairs(client):

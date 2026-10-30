@@ -1238,6 +1238,50 @@ def _add_flat_fields(stim, trial, randomized):
 # API - submit response
 # ---------------------------------------------------------------------------
 
+_AB_CHOICES = ('A', 'B', 'equal')
+
+
+def _off_scale(name, value, scale, label):
+    """Describe a rating outside 1..scale, or None. A missing rating is an unanswered question, not a bad one."""
+    if value is None:
+        return None
+    if (isinstance(value, bool) or not isinstance(value, (int, float))
+            or not float(value).is_integer() or not 1 <= value <= scale):
+        return f"{name} {label} must be a whole number from 1 to {scale}"
+    return None
+
+
+def _invalid_answer(question, answer):
+    """Describe an answer this study's page could not have produced, or None.
+
+    The dashboard averages what is stored, so a posted number off the scale becomes the study's
+    reported result - the form's own range is the only rule that keeps it out.
+    """
+    if not isinstance(answer, dict):
+        return f"{question['name']} is not an answer"
+
+    kind = question['type']
+    if kind == 'ab_preference':
+        choice = answer.get('choice')
+        if choice is not None and choice not in _AB_CHOICES:
+            return f"{question['name']} choice must be one of {'/'.join(_AB_CHOICES)}"
+        confidence = answer.get('confidence')
+        if not question.get('confidence'):
+            return None if confidence is None else f"{question['name']} records no confidence"
+        return _off_scale(question['name'], confidence, 5, 'confidence')
+
+    if kind == 'likert':
+        return _off_scale(question['name'], answer.get('value'), question.get('scale', 5), 'value')
+
+    if kind == 'multiple_choice':
+        value = answer.get('value')
+        options = {option['value'] for option in question.get('options', [])}
+        if value is not None and value not in options:
+            return f"{question['name']} value must be one of {', '.join(sorted(options))}"
+
+    return None
+
+
 @app.route('/api/submit_survey', methods=['POST'])
 # The study length plus headroom for a re-answered trial; a cap under the study 429s the trial that ends it.
 @limiter.limit(lambda: f"{_trial_count() + 20} per hour")
@@ -1281,6 +1325,14 @@ def submit_survey():
         unknown = sorted(set(responses) - {q['name'] for q in CONFIG['questions']})
         if unknown:
             return jsonify({'error': f"responses has questions this study does not ask: {', '.join(unknown)}"}), 400
+
+        for question in CONFIG['questions']:
+            answer = responses.get(question['name'])
+            if answer is None:
+                continue
+            problem = _invalid_answer(question, answer)
+            if problem:
+                return jsonify({'error': problem}), 400
 
         stimulus_json = json.dumps(stimulus_data)
         responses_json = json.dumps(responses)
