@@ -147,15 +147,19 @@ returning participant was served a study that the app's own completion rule kept
   more than one hop is how a client gets to choose the address the login cap and the audit log see.
 - `byId` in `lib/dom.ts` is now exported for its own test only - finding 13's pattern, in a new place. It
   is not in the 16, so it stays for the next pass.
-- `docs/screenshots/06-mobile-survey.png` is NOT part of this commit, and it should not be. Running the
-  browser tier rewrites it, and it lands on one of two states on this SHA (measured: three isolated runs
-  gave one md5, two full-suite runs gave each of the two), where the pre-fix SHA gave the other state on
-  three isolated runs. The pixels that move are the two identity-thumbnail tiles, dealt from the client's
-  pinned `Math.random` stream - the same fragility the specs themselves warn about ("a shifted draw count
-  moves them"), amplified because the behavioural suite is unseeded on purpose. Deleting code from
-  `frontend/src` changes how many draws page boot consumes, so this shot is expected to move, and it is
-  not evidence of a layout change. Pinning the gallery order for shot runs would fix the artifact; that is
-  not one of the 16, so the committed screenshot is left exactly as it was.
+- The browser tier's screenshots were not reproducible, on any SHA: the mobile survey shot landed on one
+  of two images, and the committed `06-mobile-survey.png` was one of the two by luck (measured on the
+  parent SHA as well as this one, before and after). The cause is not the study and not the app's data.
+  A `fullPage` screenshot is stitched from viewport strips by scrolling the page, and the app's
+  scroll-driven progressive question flow *reacts to that scrolling*: the ↑/↓ nav arrows are painted in
+  their enabled/disabled state, so one page state produced two artifacts. `shot()` in
+  `tests/e2e/helpers/screens.js` now parks the pointer outside the viewport (`.radio-label:hover` was
+  painting on whatever scrolled beneath it) and pins what the shot depicts: a shot of the study must show
+  its first question. Measured after the fix: seven committed screenshots, five consecutive full runs of
+  both shot specs, one byte-identical output per file, and `01` and `03` stay distinct, so the
+  overlay-hover shot still shows the hover. `05-admin-dashboard.png` is the one image that changed: the
+  parked pointer no longer hovers a results-table row. `keepHover` exists because the park would
+  otherwise erase the hover that shot `03` is there to document.
 - `tests/README.md`'s *Test Structure* tree is still a map of a suite that no longer exists: it lists a
   `tests/frontend/` directory of `.test.js` files (the frontend tests are `frontend/test/*.ts`) and 5 of
   the 12 Playwright specs. Finding 15 corrected the counts and the one documented command that named a test
