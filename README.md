@@ -96,6 +96,8 @@ Shared context shown for each trial. Optional inputs are hidden when their colum
 
 An input named `prompt` with type `text` is not a widget: it enables the prompt box that shows the trial's `prompt` column. The config is the only switch for it.
 
+Every input names the `data.columns` entry it reads with `column`. An input with no `column`, or one naming a column the data file does not carry, is refused at boot: the widget would have nothing to show, and a study that collects nothing is not worth running.
+
 ### Outputs
 
 Per-method results shown as an A/B comparison. Position is randomized per trial.
@@ -103,6 +105,8 @@ Per-method results shown as an A/B comparison. Position is randomized per trial.
 | Type | Description |
 |------|-------------|
 | `image` | Side-by-side images, click to enlarge |
+
+Every output names both of its columns, `column_a` and `column_b`, and each must be in `data.columns`. An output with only one of them is refused at boot.
 
 ### Questions
 
@@ -114,6 +118,8 @@ Evaluation criteria per trial. Rendered in order with progressive scroll navigat
 | `likert` | Numeric scale (configurable range) | `{name}_value` |
 | `free_text` | Open text response | `{name}_text` |
 | `multiple_choice` | Single selection from options list | `{name}_value` |
+
+Every question needs a `type` from the table above; a question without one is refused at boot.
 
 ```yaml
 questions:
@@ -212,7 +218,7 @@ SQLite with JSON columns for demographics and responses. Migration from older sc
 
 ```bash
 pip install ".[dev]" && npm ci
-python -m pytest tests/ -q     # 113 backend tests
+python -m pytest tests/ -q     # 223 backend tests
 npm run test:unit              # 192 component and model tests (vitest + jsdom)
 npm run test:e2e               # 24 real-browser tests (builds, boots its own server)
 ```
