@@ -76,6 +76,7 @@ def test_submit_survey_invalid_confidence_values(client):
 
     with client.session_transaction() as sess:
         sess['session_id'] = unique_session
+        sess['user_image_pairs'] = [1]
 
     response = client.post('/api/submit_survey',
                           json={
@@ -274,6 +275,7 @@ def test_submit_survey_reports_500_and_rolls_back_when_the_write_fails(client, m
 
     with client.session_transaction() as sess:
         sess['session_id'] = unique_session
+        sess['user_image_pairs'] = [1]
 
     real_get_db = app_module.get_db
     wrappers = []

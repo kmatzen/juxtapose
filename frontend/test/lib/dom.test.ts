@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { byId, compose, el, need, on, qa, q, setVisible, toggleClass } from '../../src/lib/dom';
+import { byId, el, need, on, qa, toggleClass } from '../../src/lib/dom';
 
 describe('el', () => {
     it('omits absent attributes so they do not render as the string undefined', () => {
@@ -29,9 +29,8 @@ describe('queries', () => {
 
     it('scopes to the given root', () => {
         const root = document.getElementById('a') as HTMLElement;
-        expect(q(root, '.x')?.textContent).toBe('1');
-        expect(q(document.body, '#a .x')?.textContent).toBe('1');
         expect(qa(root, '.x')).toHaveLength(1);
+        expect(qa(document.body, '#a .x')).toHaveLength(1);
         expect(byId(document.body, 'a')?.id).toBe('a');
     });
 
@@ -52,29 +51,11 @@ describe('on', () => {
 });
 
 describe('visibility', () => {
-    it('sets inline display, the axis the template hides on', () => {
-        const node = el('div');
-        setVisible(node, true);
-        expect(node.style.display).toBe('block');
-        setVisible(node, true, 'flex');
-        expect(node.style.display).toBe('flex');
-        setVisible(node, false);
-        expect(node.style.display).toBe('none');
-    });
-
     it('toggles a class both ways', () => {
         const node = el('div');
         toggleClass(node, 'show', true);
         expect(node.classList.contains('show')).toBe(true);
         toggleClass(node, 'show', false);
         expect(node.classList.contains('show')).toBe(false);
-    });
-});
-
-describe('compose', () => {
-    it('disposes every part in order', () => {
-        const order: string[] = [];
-        compose([{ dispose: () => order.push('a') }, { dispose: () => order.push('b') }]).dispose();
-        expect(order).toEqual(['a', 'b']);
     });
 });

@@ -186,6 +186,7 @@ def test_submit_survey_valid(client):
 
     with client.session_transaction() as sess:
         sess['session_id'] = unique_session
+        sess['user_image_pairs'] = [1]
 
     response = client.post('/api/submit_survey',
                           json={

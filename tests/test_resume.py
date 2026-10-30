@@ -62,3 +62,31 @@ def test_a_fresh_session_is_not_shifted_by_the_resume_filter(client):
     served = [serve(client, i)['id'] for i in range(serve(client)['total_trials'])]
 
     assert len(served) == len(set(served)), 'a fresh session must be served distinct trials'
+
+
+def test_one_pair_request_reads_the_answered_set_once(client, monkeypatch):
+    """Audit #14: the first pair request of a session asked for the answered set twice, and every read took its own connection."""
+    from src.survey import app as app_module
+
+    counts = {'set': 0, 'conn': 0}
+    real_set, real_db = app_module._get_completed_trial_ids_for_email, app_module.get_db
+
+    def count_set(email, *args):
+        counts['set'] += 1
+        return real_set(email, *args)
+
+    def count_db():
+        counts['conn'] += 1
+        return real_db()
+
+    monkeypatch.setattr(app_module, '_get_completed_trial_ids_for_email', count_set)
+    monkeypatch.setattr(app_module, 'get_db', count_db)
+
+    make_participant(client)
+    serve(client, 0)
+    assert counts['set'] == 1, 'the first pair request computed the answered set more than once'
+
+    counts.update(set=0, conn=0)
+    serve(client, 1)
+    assert counts['set'] == 1
+    assert counts['conn'] == 1, 'a steady pair request opened more than one connection'

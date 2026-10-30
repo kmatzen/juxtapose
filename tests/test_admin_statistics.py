@@ -434,3 +434,29 @@ def test_a_poll_with_no_new_answer_does_not_re_parse_every_answer(client, monkey
     assert calls['n'] == 2, 'a new answer must force a recompute'
     assert third['avg_confidence'] == 3.0
     assert third['responses'] == 2
+
+
+def test_an_updated_answer_changes_the_statistics(client):
+    """The cache version was (answer count, newest timestamp). A participant re-answering a trial
+    changes neither within the same second, so the dashboard kept showing the choice they replaced
+    for as long as the tab stayed open."""
+    from src.survey.app import get_db
+
+    _seed_response(confidence=4)
+    pinned = "UPDATE survey_responses SET created_at = '2026-01-01 00:00:00'"
+    with get_db() as db:
+        db.execute(pinned)
+        db.commit()
+
+    with client.session_transaction() as sess:
+        sess['admin_authenticated'] = True
+    assert client.get('/api/admin/stats').get_json()['preferences']['image_quality'] == {'M-A': 1}
+
+    with get_db() as db:
+        db.execute("UPDATE survey_responses SET responses = ?, created_at = '2026-01-01 00:00:00'",
+                   (json.dumps({'image_quality': {'choice': 'B', 'confidence': 4}}),))
+        db.commit()
+
+    stats = client.get('/api/admin/stats').get_json()
+    assert stats['responses'] == 1, 'the update is the same single answer, not a new one'
+    assert stats['preferences']['image_quality'] == {'M-B': 1}, 'the replaced choice is still reported'

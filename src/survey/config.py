@@ -57,15 +57,23 @@ def _validate(config):
         raise ValueError("data.columns must list at least one column")
 
     for inp in config.get('inputs', []):
-        col = inp.get('column')
-        if col and col not in columns:
-            raise ValueError(f"Input '{inp['name']}' references unknown column '{col}'")
+        # A name with no column is a silent empty tile: the loader's `if col` guard used to wave it through.
+        if not inp.get('column'):
+            raise ValueError(f"Input '{inp.get('name')}' is missing 'column'")
+        if inp['column'] not in columns:
+            raise ValueError(f"Input '{inp['name']}' references unknown column '{inp['column']}'")
 
     for out in config.get('outputs', []):
         for key in ('column_a', 'column_b'):
-            col = out.get(key)
-            if col and col not in columns:
-                raise ValueError(f"Output '{out['name']}' references unknown column '{col}'")
+            if not out.get(key):
+                raise ValueError(f"Output '{out['name']}' is missing '{key}'")
+            if out[key] not in columns:
+                raise ValueError(f"Output '{out['name']}' references unknown column '{out[key]}'")
+
+    for question in config.get('questions', []):
+        # _apply_defaults reads q['type'], so a question without one stops here rather than as a KeyError.
+        if not question.get('type'):
+            raise ValueError(f"Question '{question.get('name')}' is missing 'type'")
 
     method_cols = [config['methods'].get('a'), config['methods'].get('b')]
     for col in method_cols:

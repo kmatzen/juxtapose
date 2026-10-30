@@ -30,7 +30,7 @@ def stored_row(session):
     db = get_db()
     try:
         row = db.execute('''
-            SELECT s.stimulus_data, s.was_randomized FROM survey_responses s
+            SELECT s.stimulus_data, s.was_randomized, s.time_spent FROM survey_responses s
             JOIN participants p ON p.id = s.participant_id
             WHERE p.session_id = ?
         ''', (session,)).fetchone()
@@ -106,6 +106,32 @@ def test_stored_stimulus_carries_the_trial_content(client, app):
     assert stim['inputs']['prompt'] == trial['prompt']
     assert stim['prompt'] == trial['prompt']
     assert stim['trial_id'] == trial['id']
+
+
+def test_the_ignored_payload_keys_change_nothing(client, app):
+    """Audit #18: the frontend stopped sending stimulus_data and was_randomized, and the stored row is identical with and without them."""
+    from src.survey import app as app_module
+
+    session = make_participant(client)
+    pair = served_pair(client)
+    answers = {'image_quality': {'choice': 'A', 'confidence': 4}}
+
+    def post(extra):
+        body = {'image_pair_id': pair['id'], 'responses': answers, 'time_spent': 9.5}
+        body.update(extra)
+        response = client.post('/api/submit_survey', json=body, content_type='application/json')
+        assert response.status_code == 200
+        row = stored_row(session)
+        return json.loads(row['stimulus_data']), row['was_randomized'], row['time_spent']
+
+    thin = post({})
+    fat = post({
+        'stimulus_data': {'prompt': 'invented', 'method_a': 'x', 'method_b': 'y', 'identity_urls': []},
+        'was_randomized': not pair['was_randomized'],
+    })
+
+    assert thin == fat
+    assert thin[0]['prompt'] == app_module.IMAGE_PAIRS.get(pair['id'])['prompt']
 
 
 def test_submit_for_unknown_trial_is_rejected(client):

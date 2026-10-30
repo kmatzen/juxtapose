@@ -21,7 +21,6 @@ export type StimulusViewProps = {
 export type StimulusView = Disposable & {
     /** Preload both tiles, then commit or report. Never rejects. */
     show(trial: Trial): Promise<void>;
-    isBlocked(): boolean;
 };
 
 /** The A/B tiles: the stimulus the participant is judging, and the only thing that may block input. */
@@ -31,12 +30,10 @@ export function mountStimulusView(root: HTMLElement, props: StimulusViewProps): 
     const prompt = document.getElementById('prompt-text');
     const preload = props.preload ?? preloadImage;
 
-    let blocked = false;
     let generation = 0;
 
-    function setBlocking(next: boolean): void {
-        blocked = next;
-        props.onBlockingChange(next);
+    function setBlocking(blocked: boolean): void {
+        props.onBlockingChange(blocked);
     }
 
     function clearIndicators(): void {
@@ -102,7 +99,6 @@ export function mountStimulusView(root: HTMLElement, props: StimulusViewProps): 
 
     return {
         show,
-        isBlocked: () => blocked,
         dispose() {
             generation += 1;
             imageA.onclick = null;

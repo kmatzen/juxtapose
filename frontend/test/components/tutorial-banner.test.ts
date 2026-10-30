@@ -165,6 +165,22 @@ describe('TutorialBanner', () => {
         expect(done).toHaveBeenCalledTimes(1);
     });
 
+    test('step text is text: markup in a config string builds no node', () => {
+        document.body.innerHTML = simpleBanner();
+        const payload = 'Compare <img src=x onerror=alert(1)> <b>these</b>';
+        const component = createTutorialBanner(document.getElementById('tutorial-banner')!, {
+            steps: () => [{ title: 'X', text: payload }],
+            onComplete: vi.fn(),
+        });
+        component.start();
+
+        expect(document.getElementById('tutorial-text')!.innerHTML).toBe(
+            'Compare &lt;img src=x onerror=alert(1)&gt; &lt;b&gt;these&lt;/b&gt;',
+        );
+        expect(document.querySelector('#tutorial-text img')).toBeNull();
+        component.dispose();
+    });
+
     test('dispose stops the button and leaves no highlights behind', () => {
         const h = bannerOnPage();
         h.component.start();

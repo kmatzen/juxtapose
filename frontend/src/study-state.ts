@@ -168,30 +168,6 @@ export function buildResponses(
     return responses;
 }
 
-export function buildSubmission(
-    trial: Trial,
-    responses: Responses,
-    timeSpent: number | null,
-): Record<string, unknown> {
-    // The server stores this blob as the record of what was shown; a dropped key is silent.
-    return {
-        image_pair_id: trial.id,
-        stimulus_data: {
-            prompt: trial.prompt,
-            method_a: trial.method_a,
-            method_b: trial.method_b,
-            image_a_url: trial.image_a_url,
-            image_b_url: trial.image_b_url,
-            identity_urls: trial.identity_urls || null,
-            mask_url: trial.mask_url || null,
-            methods: trial.methods || {},
-        },
-        responses,
-        was_randomized: trial.was_randomized,
-        time_spent: timeSpent,
-    };
-}
-
 export function progressFrom(
     trial: Pick<Trial, 'total_pairs' | 'trials_remaining'>,
     index: number,

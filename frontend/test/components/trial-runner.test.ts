@@ -36,7 +36,7 @@ function harness(over: { routes?: Routes } & Partial<TrialRunnerProps> = {}): Ha
     const surveyApi = createSurveyApi(spy.fetch, () => 'tok');
 
     const banner = { show: vi.fn(), hide: vi.fn(), dispose: vi.fn() };
-    const stimulus = { show: vi.fn(async () => {}), isBlocked: () => false, dispose: vi.fn() };
+    const stimulus = { show: vi.fn(async () => {}), dispose: vi.fn() };
     const conditioning = { show: vi.fn(), clear: vi.fn(), dispose: vi.fn() };
     const questions = {
         showTrial: vi.fn(),
@@ -191,21 +191,10 @@ describe('TrialRunner', () => {
 
         expect(posted(h.calls, '/api/submit_survey')).toEqual({
             image_pair_id: 7,
-            stimulus_data: {
-                prompt: 'a red cube',
-                method_a: 'MethodA',
-                method_b: 'MethodB',
-                image_a_url: 'https://img/a.png',
-                image_b_url: 'https://img/b.png',
-                identity_urls: 'https://img/id1.png,https://img/id2.png',
-                mask_url: 'https://img/mask.png',
-                methods: {},
-            },
             responses: {
                 image: { choice: 'B', confidence: 4 },
                 mask: { choice: 'A', confidence: 2 },
             },
-            was_randomized: true,
             time_spent: null,
         });
         expect(h.calls.find((c) => c.url === '/api/submit_survey')?.options?.headers)

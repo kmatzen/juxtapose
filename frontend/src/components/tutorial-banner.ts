@@ -39,8 +39,10 @@ export function createTutorialBanner(banner: HTMLElement, props: TutorialBannerP
         const step = steps[index];
         if (!step) return;
         title.textContent = step.title;
-        // Config steps carry study-authored HTML; generated steps carry plain text, escaped here.
-        text.innerHTML = step.emphasis ? `<strong>${escapeHtml(step.emphasis)}</strong>` : step.text;
+        // Both fields are study-config data, so the only markup in this line is the <strong> we write.
+        text.innerHTML = step.emphasis
+            ? `<strong>${escapeHtml(step.emphasis)}</strong>`
+            : escapeHtml(step.text);
         circle.setAttribute('stroke-dasharray', `${((index + 1) / steps.length) * 100}, 100`);
 
         clearHighlights();

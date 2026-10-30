@@ -7,14 +7,29 @@ the code had no way to reach one row.
 from src.survey import app as app_module
 
 
-def test_a_served_row_is_the_row_the_eager_loader_would_have_built():
-    """Byte-identical behaviour, checked against the loader that still parses the whole file."""
+def test_a_served_row_is_the_row_the_file_at_that_position_contains():
+    """A byte range has to yield the row it points at, so a served row is checked against its own TSV line."""
     store = app_module.IMAGE_PAIRS
-    eager = app_module._load_trials_from_file(store.relative_path, start_id=1)
-    sample = [store.ids[0], store.ids[len(store.ids) // 2], store.ids[-1]]
-    for trial_id in sample:
-        assert store.get(trial_id) == eager[trial_id - 1]
-    assert [row['id'] for row in eager] == store.ids
+    lines = [line for line in open(store.path, encoding='utf-8').read().splitlines()
+             if line and not line.startswith('#')]
+    checked = 0
+    for trial_id in (store.ids[0], store.ids[len(store.ids) // 2], store.ids[-1]):
+        parts = lines[trial_id - store.ids[0]].split('\t')
+        row = store.get(trial_id)
+        for index, column in enumerate(store.columns):
+            if parts[index].strip():
+                assert row[column] == parts[index], f'{column} at trial {trial_id}'
+                checked += 1
+    assert checked >= 3
+
+
+def test_the_tutorial_pair_is_one_row_read_through_the_store():
+    """Audit #11: the tutorial is a one-row study, so it must cost what one study row costs, not a parsed file per worker."""
+    store = app_module.TrialStore(app_module.TUTORIAL_PAIRS_FILE, start_id=0)
+
+    assert app_module.TUTORIAL_PAIR == store.first()
+    assert app_module.TUTORIAL_PAIR['id'] == 0
+    assert not hasattr(app_module, '_load_trials_from_file')
 
 
 def test_boot_indexes_ids_without_materialising_rows():

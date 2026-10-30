@@ -162,11 +162,4 @@ describe('StimulusView', () => {
         h.a.click();
         expect(h.opened).toEqual([]);
     });
-
-    test('isBlocked reports the load, not the paint', async () => {
-        const pending = h.view.show(TRIAL);
-        expect(h.view.isBlocked()).toBe(true);
-        await pending;
-        expect(h.view.isBlocked()).toBe(false);
-    });
 });

@@ -10,9 +10,3 @@ export function preloadImage(url: string): Promise<LoadedImage> {
         image.src = url;
     });
 }
-
-export type ImagePreloader = (urls: string[]) => Promise<LoadedImage[]>;
-
-export function preloadAll(urls: string[]): Promise<LoadedImage[]> {
-    return Promise.all(urls.map(preloadImage));
-}

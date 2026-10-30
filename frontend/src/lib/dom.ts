@@ -18,10 +18,6 @@ export function el<K extends keyof HTMLElementTagNameMap>(
     return node;
 }
 
-export function q<T extends Element>(root: ParentNode, selector: string): T | null {
-    return root.querySelector<T>(selector);
-}
-
 export function qa<T extends Element>(root: ParentNode, selector: string): T[] {
     return Array.from(root.querySelectorAll<T>(selector));
 }
@@ -58,19 +54,8 @@ export function toggleClass(node: Element, name: string, on: boolean): void {
     node.classList.toggle(name, on);
 }
 
-// The template hides with inline display, so visibility has to change on that axis, not via a class.
-export function setVisible(node: HTMLElement, visible: boolean, shown: string = 'block'): void {
-    node.style.display = visible ? shown : 'none';
-}
-
 export function empty(node: Element): void {
     node.replaceChildren();
-}
-
-export function compose(disposables: Disposable[]): Disposable {
-    return {
-        dispose: () => disposables.forEach((d) => d.dispose()),
-    };
 }
 
 /** Escape text destined for an innerHTML assignment. */
