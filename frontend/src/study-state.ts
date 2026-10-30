@@ -269,10 +269,11 @@ export function normalizeDemographics(
 }
 
 /** Region colours the spatial mask encodes identity membership with, in identity order. */
-export const IDENTITY_COLORS: readonly (readonly number[])[] = [
-    [255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0], [255, 0, 255],
-    [0, 255, 255], [255, 128, 0], [128, 0, 255], [0, 128, 255], [128, 128, 128],
-];
+// The palette lives in JSON because the e2e fixture paints mask regions with these bytes and the
+// overlay spec asserts them back; three copies of a table that must match exactly is a drift bug.
+import identityColorsJson from './identity-colors.json';
+
+export const IDENTITY_COLORS: readonly (readonly number[])[] = identityColorsJson;
 
 export type BinaryMask = { data: Uint8Array; width: number; height: number; matchCount: number };
 export type MaskSet = Record<number, BinaryMask>;
