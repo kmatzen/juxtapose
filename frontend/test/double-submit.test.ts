@@ -1,46 +1,45 @@
 // @vitest-environment jsdom
-import { afterAll, describe, expect, test, vi } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 
 import { mountTrialRunner } from '../src/components/trial-runner';
 import { createSurveyApi } from '../src/lib/session-api';
 import { CONFIG } from './helpers/api';
-import { surveyFixture, answer } from './helpers/dom';
+import { surveyFixture, answer, stubScrolling } from './helpers/dom';
 import type { SurveyConfig } from '../src/lib/session-api';
 
-type Pending = { resolve: (v: unknown) => void };
-
-function delayedApi(delayed: string[], pending: Pending[]) {
+/** submit_survey resolves only when the test releases it: an instant fake can never leave two submits open at once. */
+function delayedApi(release: { current: () => void }) {
     const calls: string[] = [];
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input);
         calls.push(url);
         const body: Record<string, unknown> = url.startsWith('/api/get_image_pair')
-            ? { id: Number(url.split('/').pop()), prompt: 'p', method_a: 'A', method_b: 'B',
-                image_a_url: 'a.png', image_b_url: 'b.png', total_pairs: 3, trials_remaining: 3 }
+            ? {
+                id: Number(url.split('/').pop()), prompt: 'p', method_a: 'A', method_b: 'B',
+                image_a_url: 'a.png', image_b_url: 'b.png', total_pairs: 3, trials_remaining: 3,
+            }
             : url === '/api/check_demographics'
                 ? { submitted: true }
                 : { success: true, completed: false };
-        if (delayed.some((d) => url.startsWith(d))) {
-            await new Promise<unknown>((resolve) => { pending.push({ resolve }); });
+        if (url === '/api/submit_survey') {
+            await new Promise<unknown>((resolve) => { release.current = () => resolve({ success: true, completed: false }); });
         }
         return { ok: true, status: 200, json: async () => body } as Response;
     });
     return { api: createSurveyApi(fetchImpl as unknown as typeof fetch, () => 'tok'), calls };
 }
 
-const report: string[] = [];
-afterAll(() => console.log(report.join('\n')));
-
-describe('double click on Submit', () => {
-    test('one trial is answered once and the next trial is the next one', async () => {
+describe('two submits on one trial', () => {
+    test('the second one is ignored: one answer stored, no trial skipped', async () => {
         surveyFixture();
-        const pending: Pending[] = [];
-        const { api, calls } = delayedApi(['/api/submit_survey'], pending);
+        stubScrolling();
+        const release: { current: () => void } = { current: () => {} };
+        const { api, calls } = delayedApi(release);
         const runner = mountTrialRunner(document.body, {
             api,
             config: () => CONFIG as SurveyConfig,
             banner: { show: vi.fn(), hide: vi.fn(), dispose: vi.fn() },
-            stimulus: { show: vi.fn(async () => {}), isBlocked: () => false, dispose: vi.fn() },
+            stimulus: { show: vi.fn(async () => {}), dispose: vi.fn() },
             conditioning: { show: vi.fn(), clear: vi.fn(), dispose: vi.fn() },
             questions: {
                 showTrial: vi.fn(), validate: vi.fn(), layout: vi.fn(), navigate: vi.fn(),
@@ -58,14 +57,15 @@ describe('double click on Submit', () => {
 
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        release.current();
+        // The submit's continuation chains into loadPair, which awaits the pair fetch and the tiles.
+        for (let i = 0; i < 8; i += 1) await new Promise((resolve) => { setTimeout(resolve, 0); });
 
-        expect(pending.length, 'clicks that open submits').toBe(pending.length);
-        for (const p of pending.splice(0)) p.resolve({ success: true, completed: false });
-        await new Promise((r) => setTimeout(r, 0));
-        await new Promise((r) => setTimeout(r, 0));
-
-        const submits = calls.filter((c) => c === '/api/submit_survey').length;
-        const pairs = calls.filter((c) => c.startsWith('/api/get_image_pair'));
-        expect({ submits, pairs }, 'observed').toEqual('SHOW ME');
+        expect(calls.filter((url) => url === '/api/submit_survey')).toHaveLength(1);
+        // One advance, to the next pair: a second submit would post twice and jump past pair 1.
+        expect(calls.filter((url) => url.startsWith('/api/get_image_pair'))).toEqual([
+            '/api/get_image_pair/0', '/api/get_image_pair/1',
+        ]);
+        expect(runner.index()).toBe(1);
     });
 });

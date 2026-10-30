@@ -34,13 +34,26 @@ function mountSurveyPage(): void {
         else waiting.push(onReady);
     };
 
-    void api.config().then(({ ok, body }) => {
-        // A config that will not load leaves the walkthrough unstarted: an empty one gates Submit forever.
-        if (!ok) return;
-        config = body;
-        studyConfig = body;
-        for (const ready of waiting.splice(0)) ready(body);
-    });
+    // A config that never loads leaves the walkthrough unstarted and the questions unbuilt: say so, and take one more shot.
+    const readConfig = async (retries: number): Promise<void> => {
+        let loaded = null;
+        try {
+            const { ok, body } = await api.config();
+            if (ok) loaded = body;
+        } catch {
+            // A read that never lands is the same outage to the participant as a 500.
+        }
+        if (loaded) {
+            banner.hide();
+            config = loaded;
+            studyConfig = loaded;
+            for (const ready of waiting.splice(0)) ready(loaded);
+            return;
+        }
+        banner.show(CONFIG_FAILURE);
+        if (retries > 0) setTimeout(() => { void readConfig(retries - 1); }, CONFIG_RETRY_MS);
+    };
+    void readConfig(1);
 
     const form = document.getElementById('demographics-form');
     if (form) {
@@ -114,6 +127,8 @@ function mountSurveyPage(): void {
 
 
 const TAP_THRESHOLD_PX = 10;
+const CONFIG_FAILURE = 'Failed to load the study setup. Please refresh the page.';
+const CONFIG_RETRY_MS = 2000;
 let studyConfig: SurveyConfig | null = null;
 
 function inputOfType(type: string) {
