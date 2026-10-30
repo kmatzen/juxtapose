@@ -379,6 +379,17 @@ def _trial_count():
     return min(len(IMAGE_PAIRS), max_pairs)
 
 
+def _randomize_pair(key):
+    """Which image of a pair the participant sees as A. Under E2E_RANDOM_SEED the flip comes from the
+    seed and the pair, not from a stream draw (a draw's value moves when a busy runner makes the
+    client ask for a pair twice) and not from the session id (a fresh uuid4 every run). Production is
+    unseeded and unchanged, so counterbalancing keeps its per-session randomness."""
+    seed = os.environ.get('E2E_RANDOM_SEED')
+    if seed:
+        return random.Random(f'{seed}:{key}').random() < 0.5
+    return random.random() < 0.5
+
+
 def _build_stimulus_data(trial, randomized):
     """Build the JSON-serializable stimulus dict stored per response."""
     methods_cfg = CONFIG['methods']
@@ -899,14 +910,14 @@ def get_image_pair(pair_index):
     # Tutorial mode
     if session.get('tutorial_mode', False) and pair_index == 0:
         if TUTORIAL_PAIR:
-            randomized = random.random() < 0.5
+            randomized = _randomize_pair('tutorial')
             stim = _build_stimulus_data(TUTORIAL_PAIR, randomized)
             stim['total_trials'] = 1
             # Also include flat fields for backward compat with current JS
             _add_flat_fields(stim, TUTORIAL_PAIR, randomized)
             return jsonify(stim)
         if IMAGE_PAIRS:
-            randomized = random.random() < 0.5
+            randomized = _randomize_pair(IMAGE_PAIRS[0]['id'])
             stim = _build_stimulus_data(IMAGE_PAIRS[0], randomized)
             stim['total_trials'] = 1
             _add_flat_fields(stim, IMAGE_PAIRS[0], randomized)
@@ -950,7 +961,7 @@ def get_image_pair(pair_index):
     if not trial:
         return jsonify({'error': 'Image pair not found'}), 404
 
-    randomized = random.random() < 0.5
+    randomized = _randomize_pair(pair_id)
     # Answers are attributed from this record, never from what the browser posts back.
     pair_randomized = session.get('pair_randomized', {})
     pair_randomized[str(pair_id)] = randomized

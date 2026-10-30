@@ -21,6 +21,8 @@ test('the committed phone screenshots come from the same deterministic study', a
     await page.locator('#demographics-form button[type="submit"]').click();
     await expect(page.locator('#survey-section')).toBeVisible();
     await expect(page.locator('#image-a')).toHaveJSProperty('naturalWidth', 200);
+    // The A/B flip is a draw from the server's seeded stream, so a shifted request count can move it.
+    await expect(page.locator('img.identity-image').first()).toHaveAttribute('src', /trial0_id0\.png$/);
     await shot(page, '06-mobile-survey');
   } finally {
     await context.close();

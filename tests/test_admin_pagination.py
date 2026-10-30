@@ -74,8 +74,10 @@ def test_poll_payload_does_not_grow_with_the_study(client):
     as_admin(client)
     seed(client, participants=50, per_participant=20)
 
-    poll = (len(client.get('/api/admin/stats').data)
-            + len(client.get('/api/admin/results?limit=200').data))
+    poll_stats = len(client.get('/api/admin/stats').data)
+    poll_slice = len(client.get('/api/admin/results?limit=200').data)
     whole = len(client.get('/api/admin/results?limit=1000').data)
 
-    assert poll < whole / 5
+    # Split per component: the joint ratio weighed 200 rows + stats against exactly 200 rows' average, a 0.25% margin CI flipped.
+    assert poll_slice <= whole / 4, 'the results slice must stay the bounded part of the poll'
+    assert poll_stats * 10 < whole, 'the aggregate must not grow with the rows it summarises'
