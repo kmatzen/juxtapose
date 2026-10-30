@@ -34,7 +34,6 @@ function page(preload: (url: string) => Promise<LoadedImage>) {
         banner: { show: vi.fn(), hide: vi.fn(), dispose: vi.fn() },
         onBlockingChange: () => {},
         onSettled: () => {},
-        onTrial: () => {},
         preload,
     });
     const submit = document.getElementById('submit-btn') as HTMLButtonElement;

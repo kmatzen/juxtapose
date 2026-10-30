@@ -84,7 +84,6 @@ function mountSurveyPage(): void {
         banner,
         onBlockingChange: blockForm,
         onSettled: (ok) => runner?.tilesSettled(ok),
-        onTrial: () => {},
     });
 
     // Pages that carry no question block (thank you, admin) mount no flow.

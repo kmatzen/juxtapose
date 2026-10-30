@@ -14,7 +14,7 @@ import tempfile
 from functools import lru_cache, wraps
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_wtf.csrf import CSRFProtect, generate_csrf
+from flask_wtf.csrf import CSRFProtect
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from src.survey.config import load_config, get_email_field

@@ -25,7 +25,6 @@ export type Harness = {
     blocked: boolean[];
     settled: boolean[];
     opened: string[];
-    trials: Trial[];
     shown: string[];
     view: ReturnType<typeof mountStimulusView>;
     a: HTMLImageElement;
@@ -40,14 +39,12 @@ function harness(
     const blocked: boolean[] = [];
     const settled: boolean[] = [];
     const opened: string[] = [];
-    const trials: Trial[] = [];
     const shown: string[] = [];
     const props: StimulusViewProps = {
         lightbox: { open: (src) => opened.push(src), close: vi.fn(), dispose: vi.fn() },
         banner: { show: (message) => shown.push(message), hide: vi.fn(), dispose: vi.fn() },
         onBlockingChange: (value) => blocked.push(value),
         onSettled: (value) => settled.push(value),
-        onTrial: (trial) => trials.push(trial),
         preload,
         ...over,
     };
@@ -57,7 +54,6 @@ function harness(
         blocked,
         settled,
         opened,
-        trials,
         shown,
         view,
         a: document.getElementById('image-a') as HTMLImageElement,
@@ -105,11 +101,6 @@ describe('StimulusView', () => {
     test('the prompt belongs to the pair, not to the study', async () => {
         await h.view.show(TRIAL);
         expect(document.getElementById('prompt-text')!.textContent).toBe('Which is the better cat?');
-    });
-
-    test('the trial is handed to the conditioning components', async () => {
-        await h.view.show(TRIAL);
-        expect(h.trials).toEqual([TRIAL]);
     });
 
     test('a tile that fails to load names itself and unblocks the form', async () => {

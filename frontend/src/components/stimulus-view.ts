@@ -17,7 +17,6 @@ export type StimulusViewProps = {
     onBlockingChange: (blocked: boolean) => void;
     /** Fires once per load on both paths, so the form never stays blocked after a failure. */
     onSettled: (ok: boolean) => void;
-    onTrial: (trial: Trial) => void;
     /** Injectable for tests; the browser preloads through a detached <img>. */
     preload?: (url: string) => Promise<LoadedImage>;
     /** A stalled request fires neither load nor error, so without a deadline the form stays blocked on a spinner. */
@@ -84,7 +83,6 @@ export function mountStimulusView(root: HTMLElement, props: StimulusViewProps): 
     async function show(trial: Trial): Promise<void> {
         const mine = ++generation;
         failedLoad = false;
-        props.onTrial(trial);
         if (prompt) prompt.textContent = trial.prompt;
 
         clearIndicators();
