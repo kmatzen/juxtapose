@@ -52,7 +52,7 @@ def _row(session_id):
 
 
 def test_a_sub_floor_time_is_flagged_and_the_raw_value_survives(app, client):
-    pair_id = app_module.IMAGE_PAIRS[0]['id']
+    pair_id = app_module.IMAGE_PAIRS.ids[0]
     _participant('fast-002', pair_id, 0.02, client)
     row = _row('fast-002')
     assert row['time_spent'] == 0.02, 'the reported value must stay as reported'
@@ -60,7 +60,7 @@ def test_a_sub_floor_time_is_flagged_and_the_raw_value_survives(app, client):
 
 
 def test_a_normal_time_is_untouched_and_unflagged(app, client):
-    pair_id = app_module.IMAGE_PAIRS[0]['id']
+    pair_id = app_module.IMAGE_PAIRS.ids[0]
     _participant('normal-42', pair_id, 4.2, client)
     row = _row('normal-42')
     assert row['time_spent'] == 4.2
@@ -68,7 +68,7 @@ def test_a_normal_time_is_untouched_and_unflagged(app, client):
 
 
 def test_a_missing_time_is_not_flagged_as_fast(app, client):
-    pair_id = app_module.IMAGE_PAIRS[0]['id']
+    pair_id = app_module.IMAGE_PAIRS.ids[0]
     _participant('no-time', pair_id, None, client)
     row = _row('no-time')
     assert row['time_spent'] is None
@@ -76,7 +76,7 @@ def test_a_missing_time_is_not_flagged_as_fast(app, client):
 
 
 def test_the_export_carries_the_flag(app, client):
-    pair_id = app_module.IMAGE_PAIRS[0]['id']
+    pair_id = app_module.IMAGE_PAIRS.ids[0]
     _participant('export-fast', pair_id, 0.3, client)
     with client.session_transaction() as sess:
         sess['admin_authenticated'] = True

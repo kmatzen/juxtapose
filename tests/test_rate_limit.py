@@ -2,15 +2,34 @@
 import pytest
 
 
+class StubStore:
+    """The TrialStore surface the routes use, over rows already in memory."""
+
+    def __init__(self, rows):
+        self.rows = rows
+        self.ids = [row['id'] for row in rows]
+
+    @property
+    def count(self):
+        return len(self.rows)
+
+    def get(self, trial_id):
+        return next((row for row in self.rows if row['id'] == trial_id), None)
+
+    def first(self):
+        return self.rows[0] if self.rows else None
+
+
 def seed_participants(app_module, count):
     app_module.init_db()
-    app_module.IMAGE_PAIRS = [
+    rows = [
         {'id': i, 'prompt': f'p{i}', 'method_a': 'Method-A', 'method_b': 'Method-B',
          'image_a_url': f'a{i}.jpg', 'image_b_url': f'b{i}.jpg',
          'mask_url': '', 'identity_urls': ''}
         for i in range(1, 31)
     ]
-    app_module.TUTORIAL_PAIR = app_module.IMAGE_PAIRS[0]
+    app_module.IMAGE_PAIRS = StubStore(rows)
+    app_module.TUTORIAL_PAIR = rows[0]
     db = app_module.get_db()
     try:
         for n in range(count):

@@ -61,7 +61,7 @@ def test_client_supplied_methods_are_ignored(client, app):
 
     row = stored_row(session)
     stim = json.loads(row['stimulus_data'])
-    trial = next(t for t in app_module.IMAGE_PAIRS if t['id'] == pair['id'])
+    trial = app_module.IMAGE_PAIRS.get(pair['id'])
     a, b = (trial['method_a'], trial['method_b'])
 
     expected = {'a': b, 'b': a} if server_said_randomized else {'a': a, 'b': b}
@@ -102,7 +102,7 @@ def test_stored_stimulus_carries_the_trial_content(client, app):
     }, content_type='application/json')
 
     stim = json.loads(stored_row(session)['stimulus_data'])
-    trial = next(t for t in app_module.IMAGE_PAIRS if t['id'] == pair['id'])
+    trial = app_module.IMAGE_PAIRS.get(pair['id'])
     assert stim['inputs']['prompt'] == trial['prompt']
     assert stim['prompt'] == trial['prompt']
     assert stim['trial_id'] == trial['id']
