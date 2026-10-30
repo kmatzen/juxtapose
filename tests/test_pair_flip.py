@@ -1,4 +1,5 @@
 """Seeded randomness: a seeded run must reproduce it, production must keep randomising it."""
+import json
 import random
 import uuid
 
@@ -36,6 +37,59 @@ def test_an_unseeded_flip_consumes_the_stream(monkeypatch):
 
 
 PAIR_IDS = list(range(10))
+
+
+def _served(client, index=0):
+    response = client.get(f'/api/get_image_pair/{index}')
+    assert response.status_code == 200, response.get_data(as_text=True)[:200]
+    return response.get_json()
+
+
+def _joined_client(app, email):
+    client = app.test_client()
+    session_id = f'flip-{uuid.uuid4()}'
+    with client.session_transaction() as sess:
+        sess['session_id'] = session_id
+    response = client.post('/api/submit_demographics',
+                           json={'email': email, 'occupation': 'engineer'},
+                           content_type='application/json')
+    assert response.status_code == 200, response.get_data(as_text=True)[:200]
+    return client, session_id
+
+
+def test_a_repeat_request_for_a_trial_keeps_the_position_it_was_served_in(client):
+    """F8 (fifth audit): every pair request drew a fresh coin, so a mid-trial refresh - what the
+    app's own banner tells the participant to do - swapped the tiles, 19 times in 40 sessions.
+    """
+    changed = 0
+    for _ in range(20):
+        with client.session_transaction() as sess:
+            sess['session_id'] = f'flip-{uuid.uuid4()}'
+        first = _served(client)['was_randomized']
+        changed += sum(1 for _ in range(5) if _served(client)['was_randomized'] != first)
+    assert changed == 0, (
+        f'the same trial changed A/B position on {changed} of 100 repeat requests for 20 sessions')
+
+
+def test_the_stored_row_keeps_the_order_the_participant_was_first_served(client):
+    client, session_id = _joined_client(client.application, 'first-draw@example.com')
+    first = _served(client)
+    client.post('/api/submit_survey',
+                json={'image_pair_id': first['id'],
+                      'responses': {q['name']: {'choice': 'A', 'confidence': 4}
+                                    for q in app_module.CONFIG['questions']
+                                    if (q.get('required') or q['type'] == 'ab_preference')
+                                    and not q.get('depends_on')}},
+                content_type='application/json')
+    with client.application.app_context():
+        row = app_module.get_db().execute(
+            'SELECT s.was_randomized, s.stimulus_data FROM survey_responses s '
+            'JOIN participants p ON p.id = s.participant_id WHERE p.session_id = ?',
+            (session_id,)).fetchone()
+    stored = json.loads(row['stimulus_data'])
+    assert (row['was_randomized'], stored['methods']) == (int(first['was_randomized']),
+                                                          first['methods']), (
+        'the stored order is not the order this session was served')
 
 
 def _assign(session_id, seed='20260301'):

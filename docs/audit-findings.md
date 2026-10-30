@@ -165,6 +165,93 @@ returning participant was served a study that the app's own completion rule kept
   the 12 Playwright specs. Finding 15 corrected the counts and the one documented command that named a test
   which does not exist; the tree itself is the same rot and was left for the next pass on the docs.
 
+## Fifth audit, 2026-10-30
+
+The fifth full-repo pass, run against the state the fourth left on the unmerged `wt/ponytail-audit-4`.
+It found 19 defects (6 must fix, 6 should fix, 7 nice to have). Fourteen were already fixed by the
+fourth audit and were re-measured here rather than trusted: every repro script was re-run against
+that tree and 12 of the 13 breakages it claims are gone. Four were still live and are fixed in
+`6a2fb11` on `wt/ponytail-audit-5-close`, each by a test that fails without it (finding 15 excepted: it
+is a stated-equivalent rewrite, so its test pins results and export agreeing and cannot be red by
+design); one was fixed
+half-way by the fourth audit and finished here; two are recorded as known limits. The theme: the
+fourth audit fixed what each route computes and left what a *returning session* is told against
+what it is served, and what a *refresh* does to a trial already on screen.
+
+| # | Finding | Disposition |
+|---|---|---|
+| 1 | `submit_survey` accepted a non-numeric `confidence` (`{"choice":"A","confidence":"very"}`), and `admin_stats` summed it: the dashboard poll returned 500 on every call from then on, permanently, for that study | Fixed by the fourth audit, re-measured here - two stats polls return 200 with that row stored. `tests/test_stats_answer_shape.py` |
+| 2 | `reset_session_confirm.html` posted a form with no CSRF token, so "Start Over" answered 400 in every deployment that is not dev mode - the suite could not see it because it ran with CSRF off | Fixed by the fourth audit (the template renders the token, `conftest` runs CSRF on). Covered in the browser tier by `tests/e2e/session-lifecycle.spec.js`, which is red on `main` (the page never leaves `/reset_session_confirm`) and green here |
+| 3 | No `ProxyFix`: behind the TLS proxy every participant was `127.0.0.1`, so the admin login cap of 10/hour was one global budget and the audit log recorded proxy addresses | Fixed by the fourth audit - werkzeug `ProxyFix(x_for=1)`. Measured: 25 distinct `X-Forwarded-For` clients get 25 buckets and a 26th fresh client can log in. `tests/test_proxy_ip.py` |
+| 4 | A returning participant was promised the study size and served less: the completion gate counted the email's answers from every session against the new session's assignment, so the client left the study early | Half fixed by the fourth audit (the assignment is now reduced - a returner is told 2, not 4); the gate at `submit_survey` counted the email-wide total, measured `completed: true` after 10 of the 20 trials it was promised. Fixed here - the gate intersects with `session['user_image_pairs']`. `test_the_completion_gate_counts_this_session_not_the_email`, and `tests/e2e/session-lifecycle.spec.js` (promises 4 on `main`, 2 here) |
+| 5 | A study of free-text questions only could never be submitted: `isFormComplete` over zero radios is false, and the submit handler was wired to radio change | Fixed by the fourth audit. `frontend/test/components/no-radio-trial.test.ts` |
+| 6 | A required `free_text` question submitted blank: `{"comments": {"text": ""}}` was stored and the server reported the trial complete | Fixed by the fourth audit - the textarea is `required` and the server refuses the blank. Measured: `completed: false`, `completed_pairs: 0` |
+| 7 | `tests/conftest.py` set `WTF_CSRF_ENABLED: False` for the whole backend suite, so no test could see a missing token (finding 2 shipped green for this reason) | Fixed by the fourth audit - CSRF is parameterised and on by default |
+| 8 | `get_image_pair` drew the A/B position afresh on every request and overwrote the session record, so a mid-trial refresh - what the app's own banner tells a participant to do - swapped the tiles under them, and the answer's attribution followed the newest cookie write | Fixed here - one draw per (session, trial), attributed from that record. Measured 52 of 100 repeat requests changed position over 20 sessions before, 0 after. `tests/test_pair_flip.py` |
+| 9 | The CSV export wrote no audit line, so the download of every answer in a study was unlogged | Fixed by the fourth audit - `EXPORT_CSV` on the streaming export. `tests/test_export_stream.py` |
+| 10 | The dashboard's 30-second poll reloaded from offset 0 and replaced the row list, so rows the operator added with "Load more" disappeared on the next tick | Fixed by the fourth audit. `frontend/test/admin.test.ts` |
+| 11 | A quoted likert `scale: "5"` booted and then 500s every page (`range(1, "5" + 1)` in `index.html`) | Fixed by the fourth audit - the scale is validated at boot and refused by name. `tests/test_scale_gate.py` |
+| 12 | `delete_by_email` read `request.json.get('email')`, so a JSON body that is not an object raised `AttributeError` and answered 500 where every other bad input gets a clean 400 | Fixed here - `get_json(silent=True)` plus a dict check. Measured: `[]`, `"delete me"`, `{"email": 5}` and `7` each answer 400 with exactly one `DELETE_FAILED` audit line (a form-encoded body now answers 400 there too, where Flask answered 415). `tests/test_audit_five_cleanups.py` |
+| 13 | Dead code: `lib/dom.ts:empty`, `lib/device-info.ts` (`fmt`, `renderDeviceInfo`) duplicating `device-panel.ts`, `study-state.ts:visibleQuestionNames`, `app.py:_ROW_PARSES` | Deleted by the fourth audit (grep shows 0 references for each). `INPUTS_BY_NAME` and `config.get_inputs_by_name` joined them here, when finding 14 made the lookup unused |
+| 14 | `_parse_trial_line` resolved a data column through the input **name** first, so an input named after another input's column answered for it and applied the wrong `optional` flag: a blank `mask_url` was stored as `''` instead of `None` | Fixed here - the column-keyed lookup only. Proven red by booting a study whose input names collide with another input's column (`tests/test_trial_input_lookup.py`): the lookup lived in a module-import constant, so a monkeypatched `CONFIG` cannot reach it and the test has to boot. |
+| 15 | The admin results and export queries wrote `LEFT JOIN survey_responses … WHERE s.id IS NOT NULL`, which is an inner join stated twice, and `_STATS_CACHE` keyed on the module constant `DATABASE` | Fixed here - `JOIN survey_responses`, `cache_key = version`. The demographics join stays `LEFT`, see the notes. `test_results_and_export_agree_on_who_answered` |
+| 16 | `tests/README.md` counted 113 backend tests; the suite had 223 | Updated by the fourth audit and refreshed here to what the gates print on this branch: 263 backend, 195 frontend (20 files), 26 Chromium participant specs |
+| 17 | The export built the whole study in memory twice (a list of rows, then the CSV string) | Streaming on the fourth audit. `tests/test_export_stream.py`, `tests/fixtures/export_snapshot.csv` |
+| 18 | The session cookie grows with the assignment and the per-trial flip record: measured 374 B at 30 pairs, 803 B at 200, 2,004 B at 300 | Known limit, recorded below. Not code at this study's size |
+| 19 | `src/survey/app.py` is 1,610 lines and holds six jobs | Unchanged deferral, as in audits 1-4 (first audit, finding 9). This pass added 12 net lines to it, so the trigger is unchanged |
+
+### Deferred from the fifth audit
+
+| Item | Disposition |
+|---|---|
+| Finding 18, the session cookie | Recorded, not built. The ~4 KB cookie cap is crossed near 1,000 trials per participant, far above the shipped study's 30, and every measured study config so far is under 100. The fix at that point is a table keyed by session id holding the assignment and the flip record, with only the key in the cookie - not a bigger cookie. Trigger: a study whose `pairs_per_user` passes ~500, or a proxy with a smaller header cap. |
+| Finding 19, the size of `app.py` | Out of scope by decision, as in audits 1-4. Trigger: the next feature that needs its own blueprint, which is the split that pays for itself. |
+
+### Notes from the fifth audit
+
+- Finding 14's red is reproducible on a tree that predates the fix, which a monkeypatch-based test
+  could not be. From the branch tip: `git worktree add --detach /tmp/jx-red 21df595`, copy
+  `tests/test_trial_input_lookup.py` into it, run
+  `APP_ENV=dev python -m pytest tests/test_trial_input_lookup.py -q --no-cov` there —
+  `1 failed: the blank mask_url cell parsed to ''`. The same file on `3ccad70` passes.
+- The phone screenshot spec was timing out, on this machine, on about one full-tier run in three, and
+  the fourth audit had measured it green five times on its own SHA. Measured on `62b7d50`: run on
+  their own the shot specs pass 9/9; run in the tier, `mobile-screenshots.spec.js` failed **3 of 3**
+  full passes and `screenshots.spec.js` once, every time at `shot()`'s 20 s "shots depict the first
+  question" predicate, with a fully rendered page in the failure artifact.
+  The cause is the predicate's own mechanism: `shot()` scrolls the page to the top, and the app's
+  scroll-driven progressive flow, having already advanced on a short viewport, does not walk back —
+  the first question is a state the shot waits for and, once advanced, can never get. `shot()` now
+  **drives** it: `goToFirstQuestion` presses `#prev-question-btn` until it is disabled (bounded at 8,
+  a hard failure past that) before the layout and first-question waits. Measured after: three full
+  tier passes with `CI=1 npx playwright test --repeat-each=2` are green (52 passed + 1 skipped, 53,
+  52 + 1 skipped, no failures and no flakes; the skip is the auth setup when a storage state is
+  already cached), the phone shot spec takes 1.9-2.2 s, and one clean pass on the landed SHA reports
+  27 passed in 2.1 m. The same specs previously sat the full 20 s and failed. `settleForShot` also now reports which of its three conditions a timeout was waiting
+  on, because the page looks rendered when it fails and the message is the only evidence. The shot
+  specs are not reordered: running them first was tried and changed nothing, since the flow advances
+  inside the spec itself.
+- `E2E_PORT` must not be `5071`. `tests/e2e/screenshots.spec.js` starts its own fixture server on
+  5071 with `stdio: 'ignore'`, so if the suite's webServer already holds that port the shot server
+  fails to bind silently and the spec drives the shared fixture server, which serves a random trial;
+  the identity tiles of that trial are empty, so the determinism assertion reports
+  `locator('img.identity-image').first() - element(s) not found`. Measured: the spec is green on
+  `main` and on this branch at the default port (5055) and red only under that collision. It cost
+  this audit one false finding against the fourth.
+- Making the demographics join inner (finding 15) is **not** equivalent: it drops answers whose
+  participant has no demographics row, and `tests/test_admin_pagination.py` and
+  `tests/test_timing_flag.py` failed on it. Only the `survey_responses` join was the same query
+  stated twice.
+- The fourth audit's own suite hid the second half of finding 4: `answer()` in
+  `tests/test_resume_budget.py` asserted the POST succeeded and ignored the `completed` flag the
+  client navigates on, so the test was green while the participant was cut off. The new test asserts
+  the flag, and the browser spec asserts the promise the participant reads.
+- A browser spec that asserts a returning-session budget needs a fixture whose rows outnumber the
+  per-user cap: with `E2E_ROWS == pairs_per_user` the `min()` in the assignment hides the budget, and
+  the spec is green before the fix. `session-lifecycle.spec.js` starts its own server (6 rows, cap 4)
+  for that reason, the same trap `tests/test_resume_budget.py` documents at the backend tier.
+- `byId` in `lib/dom.ts` is still exported for its own test only - unchanged from the fourth audit.
+
 ## Known limit: the audit log is appended to inside the request
 
 Second audit, finding 10 (2026-11-05). Every audited action opens `AUDIT_LOG_FILE`, appends one JSON

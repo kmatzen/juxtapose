@@ -17,9 +17,7 @@ from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from src.survey.config import (
-    load_config, get_email_field, get_inputs_by_name,
-)
+from src.survey.config import load_config, get_email_field
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +127,6 @@ DATABASE = os.path.join(DATA_DIR, 'survey.db') if DATA_DIR else os.path.join(tem
 # ---------------------------------------------------------------------------
 CONFIG = load_config()
 SURVEY = CONFIG['survey']
-INPUTS_BY_NAME = get_inputs_by_name(CONFIG)
 EMAIL_FIELD = get_email_field(CONFIG)
 
 # Derive feature flags from config (env vars override)
@@ -158,9 +155,7 @@ def _parse_trial_line(parts, columns, trial_id):
     for i, col in enumerate(columns):
         val = parts[i].strip()
         # Treat empty strings as None for optional inputs
-        inp = INPUTS_BY_NAME.get(col) or next(
-            (inp for inp in CONFIG['inputs'] if inp.get('column') == col), None
-        )
+        inp = next((inp for inp in CONFIG['inputs'] if inp.get('column') == col), None)
         if inp and inp.get('optional') and not val:
             val = None
         row[col] = val
@@ -1147,11 +1142,12 @@ def get_image_pair(pair_index):
     if not trial:
         return jsonify({'error': 'Image pair not found'}), 404
 
-    randomized = _randomize_pair(pair_id)
-    # Answers are attributed from this record, never from what the browser posts back.
     pair_randomized = session.get('pair_randomized', {})
-    pair_randomized[str(pair_id)] = randomized
-    session['pair_randomized'] = pair_randomized
+    # One draw per (session, trial), and the answer is attributed from this record, never from what the browser posts back.
+    if str(pair_id) not in pair_randomized:
+        pair_randomized[str(pair_id)] = _randomize_pair(pair_id)
+        session['pair_randomized'] = pair_randomized
+    randomized = pair_randomized[str(pair_id)]
 
     stim = _build_stimulus_data(trial, randomized)
     stim['total_trials'] = len(user_pair_ids)
@@ -1280,9 +1276,12 @@ def submit_survey():
 
         if demo and demo['email']:
             completed_pair_ids = _get_completed_trial_ids_for_email(demo['email'])
-            completed = len(completed_pair_ids) >= user_pairs_count
+            # Count this session's own assignment: the email's earlier answers are not its progress, and counting them sent a returner to the thank-you page at 11 of the 20 pairs they were told.
+            served = set(session.get('user_image_pairs', []))
+            session_pairs_done = len(served.intersection(completed_pair_ids))
+            completed = session_pairs_done >= user_pairs_count
             if DEV_MODE:
-                logger.debug("Submit check: email=%s, completed_pairs=%d, user_pairs_count=%d, completed=%s", demo["email"], len(completed_pair_ids), user_pairs_count, completed)
+                logger.debug("Submit check: email=%s, session_pairs_done=%d of %d, user_pairs_count=%d, completed=%s", demo["email"], session_pairs_done, len(served), user_pairs_count, completed)
         else:
             completed = False
 
@@ -1346,8 +1345,7 @@ _ADMIN_RESULTS_SELECT = '''
             s.was_randomized, s.time_spent, s.timing_flag, s.created_at as response_created
         FROM participants p
         LEFT JOIN demographics d ON p.id = d.participant_id
-        LEFT JOIN survey_responses s ON p.id = s.participant_id
-        WHERE s.id IS NOT NULL
+        JOIN survey_responses s ON p.id = s.participant_id
 '''
 
 ADMIN_PAGE_SIZE = 200
@@ -1466,7 +1464,7 @@ def admin_stats():
     ''').fetchone()
     # The dashboard polls this on a timer and the aggregate parses every answer row, so the cached study is versioned by that counter.
     version = db.execute('SELECT n FROM stats_version WHERE id = 1').fetchone()['n']
-    cache_key = (DATABASE, version)
+    cache_key = version
     cached = _STATS_CACHE.get(cache_key)
     if cached is None:
         preferences = {}
@@ -1538,8 +1536,7 @@ _EXPORT_SELECT = '''
 _EXPORT_FROM = '''
         FROM participants p
         LEFT JOIN demographics d ON p.id = d.participant_id
-        LEFT JOIN survey_responses s ON p.id = s.participant_id
-        WHERE s.id IS NOT NULL
+        JOIN survey_responses s ON p.id = s.participant_id
         '''
 
 
@@ -1584,7 +1581,8 @@ def _stream_csv(fieldnames):
 @limiter.limit("20 per hour", key_func=get_remote_address)
 def delete_by_email():
     """Delete all records associated with an email address"""
-    email = request.json.get('email') if request.json else None
+    body = request.get_json(silent=True)  # A JSON body that is not an object carries no email.
+    email = body.get('email') if isinstance(body, dict) else None
 
     if not email:
         audit_log('DELETE_FAILED', {'reason': 'No email provided'})

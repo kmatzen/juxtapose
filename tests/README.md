@@ -5,9 +5,9 @@ This directory contains automated tests for the survey application, covering bot
 ## Test Summary
 
 **Total: 474 tests passing -**
-- Backend (Python): 254 tests
+- Backend (Python): 263 tests
 - Frontend (Vitest, jsdom): 195 tests
-- Browser (Playwright/Chromium): 25 tests
+- Browser (Playwright/Chromium): 27 tests
 
 Frontend suites import the shipped `frontend/src` modules directly — the component under test is
 the component the page runs. Never re-implement app logic inside a test: an inline copy passes
@@ -120,7 +120,7 @@ in the Playwright tier, not a jsdom mock of it.
 tests/
 ├── __init__.py
 ├── conftest.py                     # Pytest fixtures and configuration
-├── test_*.py                       # 254 backend tests, one file per area
+├── test_*.py                       # 263 backend tests, one file per area
 ├── frontend/
 │   ├── setup.js                    # window flags, IntersectionObserver, console silencing
 │   ├── helpers/survey-env.js       # DOM fixture mirroring index.html + fetch/Image stubs
@@ -139,6 +139,7 @@ tests/
 │   ├── survey-flow.spec.js         # 2  – whole study, resume after a reload
 │   ├── canvas-overlay.spec.js      # 5  – mask decoding, hover overlay, slicing, optional columns
 │   ├── retake-admin.spec.js        # 3  – gallery, retake cancel/confirm
+│   ├── session-lifecycle.spec.js    # 2  – Start Over with CSRF on, the trials a returner is owed
 │   ├── admin-dashboard.spec.js     # 3  – escaping, stats/paging, CSV shape
 │   └── mobile-survey.spec.js       # 2  – phone-width layout
 └── README.md                       # This file

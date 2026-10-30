@@ -123,8 +123,3 @@ def get_email_field(config):
         if field.get('type') == 'email':
             return field['name']
     return None
-
-
-def get_inputs_by_name(config):
-    """Return dict of input configs keyed by name."""
-    return {inp['name']: inp for inp in config.get('inputs', [])}
