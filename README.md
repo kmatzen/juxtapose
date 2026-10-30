@@ -20,10 +20,12 @@ Built for research teams who need to collect human judgments on generated images
 
 ```bash
 pip install .
-DEV_MODE=true python -m src.survey.app
+APP_ENV=dev DEV_MODE=true python -m src.survey.app
 ```
 
 Open http://localhost:5000. Dev mode auto-fills forms, limits to 3 trials, and bypasses referral codes.
+`APP_ENV` has no default: the app refuses to start without it, because it decides which security
+gates are on. The dev database is written to `$TMPDIR/juxtapose-dev/survey.db`, not the checkout.
 
 Example survey data is in the [`examples/`](examples/) directory.
 
@@ -146,13 +148,14 @@ Set `enabled: false` to skip the tutorial.
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DEV_MODE` | `false` | Auto-fill forms, fewer trials, bypass referral |
-| `ADMIN_PASSWORD` | `admin123` | Admin dashboard password (**required in production**) |
-| `SECRET_KEY` | dev key | Flask session secret (**required in production**) |
+| Variable | Default | Failure mode it prevents |
+|----------|---------|--------------------------|
+| `APP_ENV` | **none - required** | Booting with the security mode guessed. `production` or `dev`; anything else, including unset, refuses to start |
+| `SECRET_KEY` | dev key (dev only) | Guessable session cookies. **Required when `APP_ENV=production`** |
+| `ADMIN_PASSWORD` | `admin123` (dev only) | An open admin dashboard, which lists every participant email. **Required, non-default, when `APP_ENV=production`** |
+| `DEV_MODE` | `false` | Nothing in production: `APP_ENV=production` + `DEV_MODE=true` refuses to boot (it auto-fills forms, shortens the study and bypasses referral codes) |
+| `DATA_DIR` | (none) | Where the database and `audit.log` live. It no longer decides the mode - `APP_ENV` does |
 | `REFERRAL_CODES` | (none) | Comma-separated access codes; empty = no gate |
-| `DATA_DIR` | (none) | Persistent data directory; enables production mode |
 | `TILE_LAYOUT` | `MAB` | Tile order: `MAB` (Mask, A, B) or `AMB` |
 | `PORT` | `5000` | Server port |
 
@@ -170,6 +173,7 @@ npm run build
 Then set `DATA_DIR` to a persistent directory and provide a strong `SECRET_KEY`:
 
 ```bash
+export APP_ENV=production
 export SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
 export ADMIN_PASSWORD="your-secure-password"
 export DATA_DIR="/path/to/persistent/data"
