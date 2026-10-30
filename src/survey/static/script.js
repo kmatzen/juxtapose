@@ -29,7 +29,6 @@ let currentImageIndex = 0;
 let currentImageData = null;
 let totalImagePairs = 30;
 
-let deviceInfo = {};
 let devMode = false;
 let pairStartTime = null;  // Track when user starts viewing current pair
 
@@ -118,7 +117,7 @@ function collectDeviceInfo() {
     const { browser, browserVersion } = core().detectBrowser(ua);
     const os = core().detectOs(ua, navigator.maxTouchPoints);
     
-    deviceInfo = {
+    const info = {
         browser: browser,
         browser_version: browserVersion,
         os: os,
@@ -130,7 +129,8 @@ function collectDeviceInfo() {
         viewport_height: window.innerHeight
     };
     
-    // Display info to user (only if elements exist - they're only on demographics page)
+    // Display info to user (only if elements exist - they're only on demographics page).
+    // What gets POSTed is collected by frontend/src/lib/device-info.ts at boot.
     const browserElement = document.getElementById('user-browser');
     const osElement = document.getElementById('user-os');
     const screenElement = document.getElementById('user-screen');
@@ -145,17 +145,12 @@ function collectDeviceInfo() {
 }
 
 function setupEventListeners() {
-    // Demographics form submission
+    // The intake form is wired by the component tree; dev auto-fill rides on the same element.
     const demographicsForm = document.getElementById('demographics-form');
-    if (demographicsForm) {
-        demographicsForm.addEventListener('submit', handleDemographicsSubmit);
-        
-        // Auto-fill in dev mode
-        if (devMode) {
-            setTimeout(() => fillDemographicsForm(), CONFIG.AUTO_FILL_DELAY_MS);
-        }
+    if (demographicsForm && devMode) {
+        setTimeout(() => fillDemographicsForm(), CONFIG.AUTO_FILL_DELAY_MS);
     }
-    
+
     // Survey form submission
     const surveyForm = document.getElementById('survey-form');
     if (surveyForm) {
@@ -239,70 +234,6 @@ function fillSurveyForm() {
     if (window.triggerFormValidation) {
         window.triggerFormValidation();
     }
-}
-
-async function handleDemographicsSubmit(event) {
-    event.preventDefault();
-    
-    const formData = new FormData(event.target);
-    const checkboxFields = (surveyConfig ? surveyConfig.demographics : [])
-        .filter(f => f.type === 'checkbox')
-        .map(f => f.name);
-    demographicsData = core().normalizeDemographics(
-        Array.from(formData.entries()), checkboxFields);
-    
-    // Add device info to submission
-    demographicsData.device_info = deviceInfo;
-    
-    try {
-        let { ok, result } = await postDemographics(demographicsData);
-
-        if (ok && result.success) {
-            // Warn if retaking the survey
-            if (result.is_retaking) {
-                // Show custom modal and wait for user decision
-                const shouldContinue = await showRetakeModal();
-
-                if (!shouldContinue) {
-                    window.location.reload();
-                    return;
-                }
-
-                // The destructive delete gets its own request, after confirmation.
-                ({ ok, result } = await postDemographics({
-                    ...demographicsData,
-                    confirm_retake: true
-                }));
-            }
-
-            if (ok && result.success) {
-                // Redirect to home - server will check if tutorial is needed
-                window.location.href = '/';
-                return;
-            }
-
-            showError('Failed to submit demographics. Please try again.');
-            console.error('Error:', result && result.error);
-        } else {
-            showError('Failed to submit demographics. Please try again.');
-            console.error('Error:', result && result.error);
-        }
-    } catch (error) {
-        showError('Network error. Please check your connection and try again.');
-        console.error('Error:', error);
-    }
-}
-
-async function postDemographics(payload) {
-    const response = await fetch('/api/submit_demographics', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCSRFToken()
-        },
-        body: JSON.stringify(payload)
-    });
-    return { ok: response.ok, result: await response.json() };
 }
 
 async function loadImagePair(index) {
