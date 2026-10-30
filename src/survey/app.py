@@ -479,7 +479,8 @@ def init_db():
             email TEXT,
             data TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (participant_id) REFERENCES participants (id)
+            FOREIGN KEY (participant_id) REFERENCES participants (id),
+            UNIQUE (participant_id)
         )
     ''')
 
@@ -505,6 +506,14 @@ def init_db():
     columns = {row['name'] for row in db.execute('PRAGMA table_info(survey_responses)')}
     if 'timing_flag' not in columns:
         db.execute('ALTER TABLE survey_responses ADD COLUMN timing_flag INTEGER DEFAULT 0')
+
+    # Two demographics rows for one participant make the admin join report each of their answers twice.
+    db.execute('''
+        DELETE FROM demographics
+        WHERE id NOT IN (SELECT MAX(id) FROM demographics GROUP BY participant_id)
+    ''')
+    db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_demographics_participant '
+               'ON demographics (participant_id)')
 
     db.commit()
     db.close()
@@ -1048,6 +1057,7 @@ def submit_demographics():
 
         # Store demographics as JSON (email in dedicated column for indexing)
         demo_data = {k: v for k, v in data.items() if k != 'device_info'}
+        db.execute('DELETE FROM demographics WHERE participant_id = ?', (participant_id,))
         db.execute('''
             INSERT INTO demographics (participant_id, email, data)
             VALUES (?, ?, ?)
