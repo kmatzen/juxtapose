@@ -54,7 +54,7 @@ def _refuse_to_wait(monkeypatch):
 def test_parallel_submits_all_land(app, monkeypatch):
     from src.survey import app as app_module
 
-    pair_ids = [pair['id'] for pair in app_module.IMAGE_PAIRS][:TRIALS_EACH]
+    pair_ids = app_module.IMAGE_PAIRS.ids[:TRIALS_EACH]
     assert len(pair_ids) == TRIALS_EACH, 'the study fixture is too small to exercise concurrency'
     sessions = [sid for sid, _ in _seed_participants(app_module, PARTICIPANTS)]
     _refuse_to_wait(monkeypatch)
