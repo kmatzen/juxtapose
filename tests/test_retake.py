@@ -1,4 +1,5 @@
 """Audit #2: a retake must not destroy finished work before it is confirmed."""
+import hashlib
 import json
 import uuid
 
@@ -109,7 +110,9 @@ def test_confirmed_retake_is_audit_logged(client, app, tmp_path, monkeypatch):
     entries = _log_entries(log_file)
     retake = [e for e in entries if e['action'] == 'RETAKE_DELETE']
     assert len(retake) == 1
-    assert retake[0]['details']['email'] == EMAIL
+    # Audit F11: the log carries a stable hash, not the address, so it stays joinable and PII-free.
+    assert retake[0]['details']['email'] == hashlib.sha256(EMAIL.encode()).hexdigest()[:16]
+    assert EMAIL not in log_file.read_text()
     assert retake[0]['details']['responses_deleted'] == 2
 
 
