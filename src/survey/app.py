@@ -312,6 +312,9 @@ def get_db():
     """Get database connection"""
     db = sqlite3.connect(DATABASE)
     db.row_factory = sqlite3.Row
+    # Without busy_timeout a contended volume 500s a paying participant's submit; WAL keeps readers off the writer's queue.
+    db.execute('PRAGMA journal_mode=WAL')
+    db.execute('PRAGMA busy_timeout=5000')
     return db
 
 
