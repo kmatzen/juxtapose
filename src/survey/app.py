@@ -594,8 +594,8 @@ def _build_stimulus_data(trial, randomized):
 def _get_session_email(db=None):
     """Email of the participant this session submitted demographics for, None before that.
 
-    Passes through a caller's open connection: the pair route wants this email and what it has
-    answered, which is one round trip, not two.
+    For the two questions about a person rather than a session: retake detection, and the
+    pairs_per_user cap. Takes a connection from a caller that has one.
     """
     if 'session_id' not in session:
         return None
@@ -616,74 +616,88 @@ def _get_session_email(db=None):
             db.close()
 
 
-def _get_completed_trial_ids_for_email(email, db=None):
-    """Get list of trial IDs fully completed by this email address.
+def _get_session_participant_id(db=None):
+    """Row id of the participant this session owns, None before its intake is stored.
 
-    Takes a connection from a caller that has one, so reading the answered set alongside the
-    email that owns it costs one round trip.
+    Every progress question the app answers is about one session's own rows, and the participant
+    row is what a session owns; the email is a claim in a form, and a study may collect none.
     """
-    if not email:
+    if 'session_id' not in session:
+        return None
+    own_connection = db is None
+    if own_connection:
+        db = get_db()
+    try:
+        row = db.execute('SELECT id FROM participants WHERE session_id = ?',
+                         (session['session_id'],)).fetchone()
+        return row['id'] if row else None
+    finally:
+        if own_connection:
+            db.close()
+
+
+def _completed_trial_ids(rows):
+    """The trials in `rows` - (image_pair_id, responses) pairs - whose answers are all in."""
+    completed = []
+    required_questions = [q for q in CONFIG['questions'] if q.get('required') or q['type'] == 'ab_preference']
+
+    for row in rows:
+        try:
+            resp = json.loads(row['responses'])
+        except (json.JSONDecodeError, TypeError):
+            continue
+
+        all_answered = True
+        for q in required_questions:
+            q_resp = resp.get(q['name'])
+            if not q_resp:
+                # If question depends on an optional input, it might not be required
+                if q.get('depends_on'):
+                    continue
+                all_answered = False
+                break
+            if q['type'] == 'ab_preference':
+                if not q_resp.get('choice'):
+                    all_answered = False
+                    break
+                if q.get('confidence') and q_resp.get('confidence') is None:
+                    all_answered = False
+                    break
+            if q['type'] == 'free_text' and not str(q_resp.get('text') or '').strip():
+                # The page posts {text: ''} for an empty box, and a dict holding '' is truthy.
+                all_answered = False
+                break
+
+        if all_answered:
+            completed.append(row['image_pair_id'])
+
+    return completed
+
+
+def _get_completed_trial_ids(participant_id, email=None, db=None):
+    """Trials answered: this participant's own rows, plus the address's other rows when told.
+
+    Two keys for two promises. Progress is a session's own work - keyed on the email alone, a
+    study that collects none had nothing to count and its participants never finished. The
+    pairs_per_user cap is a person's, so `email` adds an address's earlier rows and a returner in
+    a new browser is not handed the whole set again.
+    """
+    if not participant_id and not email:
         return []
 
     own_connection = db is None
     if own_connection:
         db = get_db()
     try:
-        participant_ids = db.execute('''
-            SELECT p.id
-            FROM participants p
-            JOIN demographics d ON p.id = d.participant_id
-            WHERE d.email = ?
-        ''', (email,)).fetchall()
-
-        if not participant_ids:
-            return []
-
-        pid_list = [p['id'] for p in participant_ids]
-        placeholders = ','.join('?' * len(pid_list))
-
-        rows = db.execute(f'''
+        rows = db.execute('''
             SELECT DISTINCT image_pair_id, responses
             FROM survey_responses
-            WHERE participant_id IN ({placeholders})
-                AND responses IS NOT NULL
-        ''', pid_list).fetchall()
-
-        completed = []
-        required_questions = [q for q in CONFIG['questions'] if q.get('required') or q['type'] == 'ab_preference']
-
-        for row in rows:
-            try:
-                resp = json.loads(row['responses'])
-            except (json.JSONDecodeError, TypeError):
-                continue
-
-            # Check all visible required questions have answers
-            all_answered = True
-            for q in required_questions:
-                q_resp = resp.get(q['name'])
-                if not q_resp:
-                    # If question depends on an optional input, it might not be required
-                    if q.get('depends_on'):
-                        continue
-                    all_answered = False
-                    break
-                if q['type'] == 'ab_preference':
-                    if not q_resp.get('choice'):
-                        all_answered = False
-                        break
-                    if q.get('confidence') and q_resp.get('confidence') is None:
-                        all_answered = False
-                        break
-                if q['type'] == 'free_text' and not str(q_resp.get('text') or '').strip():
-                    # The page posts {text: ''} for an empty box, and a dict holding '' is truthy.
-                    all_answered = False
-                    break
-
-            if all_answered:
-                completed.append(row['image_pair_id'])
-
-        return completed
+            WHERE responses IS NOT NULL
+                AND (participant_id = ?
+                     OR (? IS NOT NULL AND participant_id IN
+                         (SELECT participant_id FROM demographics WHERE email = ?)))
+        ''', (participant_id, email, email)).fetchall()
+        return _completed_trial_ids(rows)
     finally:
         if own_connection:
             db.close()
@@ -750,36 +764,31 @@ def index():
     ).fetchone()
 
     if participant:
-        demo = db.execute(
-            'SELECT email, data FROM demographics WHERE participant_id = ?',
-            (participant['id'],)
-        ).fetchone()
+        email = _get_session_email(db)
         db.close()
+        # "Has this person finished?" spans the address's rows: a returner who finished in an earlier browser must not be sent back through the study.
+        completed_pair_ids = _get_completed_trial_ids(participant['id'], email)
+        expected_pairs = _trial_count()
 
-        if demo and demo['email']:
-            completed_pair_ids = _get_completed_trial_ids_for_email(demo['email'])
-            expected_pairs = _trial_count()
+        if DEV_MODE:
+            logger.debug("Index route check: participant=%s, completed=%d, expected=%d, tutorial_complete=%s", participant["id"], len(completed_pair_ids), expected_pairs, session.get("tutorial_completed", False))
 
+        if len(completed_pair_ids) >= expected_pairs:
+            if DEV_MODE and force_new:
+                logger.debug("Showing survey (force_new)")
+                return render_template('index.html', config=CONFIG,
+                                       tile_layout=TILE_LAYOUT,
+                                       show_prompt=SHOW_PROMPT)
             if DEV_MODE:
-                logger.debug("Index route check: email=%s, completed=%d, expected=%d, tutorial_complete=%s", demo["email"], len(completed_pair_ids), expected_pairs, session.get("tutorial_completed", False))
+                logger.debug("Showing thank you page (survey complete)")
+            return render_template('thank_you.html', already_submitted=True,
+                                   dev_mode=DEV_MODE, config=CONFIG)
 
-            if len(completed_pair_ids) >= expected_pairs:
-                if DEV_MODE and force_new:
-                    if DEV_MODE:
-                        logger.debug("Showing survey (force_new)")
-                    return render_template('index.html', config=CONFIG,
-                                           tile_layout=TILE_LAYOUT,
-                                           show_prompt=SHOW_PROMPT)
-                if DEV_MODE:
-                    logger.debug("Showing thank you page (survey complete)")
-                return render_template('thank_you.html', already_submitted=True,
-                                       dev_mode=DEV_MODE, config=CONFIG)
-
-            tutorial_enabled = CONFIG.get('tutorial', {}).get('enabled', True)
-            if tutorial_enabled and not session.get('tutorial_completed', False):
-                if DEV_MODE:
-                    logger.debug("Redirecting to tutorial")
-                return redirect(url_for('tutorial'))
+        tutorial_enabled = CONFIG.get('tutorial', {}).get('enabled', True)
+        if tutorial_enabled and not session.get('tutorial_completed', False):
+            if DEV_MODE:
+                logger.debug("Redirecting to tutorial")
+            return redirect(url_for('tutorial'))
     else:
         db.close()
 
@@ -976,7 +985,7 @@ def check_demographics():
             return jsonify({'submitted': False})
 
         # Count completed pairs
-        completed_pair_ids = _get_completed_trial_ids_for_email(demo['email'])
+        completed_pair_ids = _get_completed_trial_ids(participant['id'])
 
         return jsonify({
             'submitted': True,
@@ -1125,11 +1134,11 @@ def get_image_pair(pair_index):
             return jsonify(stim)
         return jsonify({'error': 'No image pairs available'}), 404
 
-    # One connection, one answered set: this route used to read the email and its answers twice on a session's first pair request.
+    # One connection, one read, both keys: this session's own rows, and its address's earlier ones for the cap.
     db = get_db()
     try:
-        session_email = _get_session_email(db)
-        completed_ids = set(_get_completed_trial_ids_for_email(session_email, db)) if session_email else set()
+        completed_ids = set(_get_completed_trial_ids(_get_session_participant_id(db),
+                                                    _get_session_email(db), db))
     finally:
         db.close()
 
@@ -1137,7 +1146,7 @@ def get_image_pair(pair_index):
     if 'user_image_pairs' not in session or session.get('session_dev_mode') != DEV_MODE:
         available_ids = [pid for pid in IMAGE_PAIRS.ids if pid not in completed_ids]
 
-        # The pairs_per_user cap counts every trial this email answered, so assign only what is left.
+        # The pairs_per_user cap counts every trial this participant answered, so assign only what is left.
         num_pairs = min(len(available_ids), max(0, _trial_count() - len(completed_ids)))
 
         user_pair_ids = _assign_pairs(available_ids, num_pairs)
@@ -1289,21 +1298,13 @@ def submit_survey():
         user_pairs_count = session.get('user_pairs_count', _trial_count())
         db.commit()
 
-        demo = db.execute(
-            'SELECT email FROM demographics WHERE participant_id = ?',
-            (participant['id'],)
-        ).fetchone()
-
-        if demo and demo['email']:
-            completed_pair_ids = _get_completed_trial_ids_for_email(demo['email'])
-            # Count this session's own assignment: the email's earlier answers are not its progress, and counting them sent a returner to the thank-you page at 11 of the 20 pairs they were told.
-            served = set(session.get('user_image_pairs', []))
-            session_pairs_done = len(served.intersection(completed_pair_ids))
-            completed = session_pairs_done >= user_pairs_count
-            if DEV_MODE:
-                logger.debug("Submit check: email=%s, session_pairs_done=%d of %d, user_pairs_count=%d, completed=%s", demo["email"], session_pairs_done, len(served), user_pairs_count, completed)
-        else:
-            completed = False
+        # Counted on this session's own rows: an earlier account's answers under the same email are not its progress.
+        completed_pair_ids = _get_completed_trial_ids(participant['id'])
+        served = set(session.get('user_image_pairs', []))
+        session_pairs_done = len(served.intersection(completed_pair_ids))
+        completed = session_pairs_done >= user_pairs_count
+        if DEV_MODE:
+            logger.debug("Submit check: participant=%s, session_pairs_done=%d of %d, user_pairs_count=%d, completed=%s", participant["id"], session_pairs_done, len(served), user_pairs_count, completed)
 
         return jsonify({'success': True, 'completed': completed})
     except Exception as e:

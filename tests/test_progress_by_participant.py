@@ -83,7 +83,7 @@ def run_study(client, demographics_payload):
     assert submitted.status_code == 200, submitted.get_json()
 
     last = None
-    for index in range(3):
+    for index in range(12):
         pair = client.get(f'/api/get_image_pair/{index}')
         if pair.status_code != 200:
             break

@@ -33,7 +33,7 @@ def _answer_for(client, monkeypatch, email, pair_id, text):
                    (participant_id, pair_id, '{}', json.dumps({'why': {'text': text}})))
         db.commit()
         db.close()
-    return app_module._get_completed_trial_ids_for_email(email)
+    return app_module._get_completed_trial_ids(participant_id)
 
 
 def test_a_blank_required_free_text_is_not_a_completed_trial(client, app, monkeypatch):
