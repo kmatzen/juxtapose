@@ -110,10 +110,19 @@ export function mountConditioningTiles(
     function showOverlay(index: number): void {
         const mask = masks[index];
         if (!mask) return;
-        for (const image of props.outputImages()) {
-            if (image.complete) paintOverlay(image, mask, index);
-        }
         activeIndex = index;
+        for (const image of props.outputImages()) {
+            if (image.complete) {
+                paintOverlay(image, mask, index);
+                continue;
+            }
+            // A tile still in flight at hover time paints when it arrives, if the hover is still the live one.
+            const paintOnArrival = () => {
+                if (activeIndex === index) paintOverlay(image, mask, index);
+            };
+            image.addEventListener('load', paintOnArrival, { once: true });
+            bound.push(() => image.removeEventListener('load', paintOnArrival));
+        }
     }
 
     function bindIdentity(image: HTMLImageElement, index: number, label: string): void {
