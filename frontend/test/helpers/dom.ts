@@ -92,6 +92,19 @@ function radios(name: string, values: string[]): string {
     return values.map((v) => `<input type="radio" name="${name}" value="${v}">`).join('');
 }
 
+/** index.html renders one section per question, and a free_text section is a textarea and nothing else. */
+export function withFreeTextQuestions(names: string[]): void {
+    const container = document.querySelector('.questions-container');
+    if (!container) throw new Error('no .questions-container in the fixture');
+    container.innerHTML = names.map((name) => `
+      <div id="${name}-evaluation" class="evaluation-section">
+        <div class="form-group">
+          <label>${name}</label>
+          <textarea name="${name}_text" rows="3" class="form-control"></textarea>
+        </div>
+      </div>`).join('');
+}
+
 export function surveyFixture(): void {
     document.body.innerHTML = SURVEY_HTML;
 }

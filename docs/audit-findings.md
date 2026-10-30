@@ -1,10 +1,12 @@
 # Audit findings and their disposition
 
-Source: three full-repo senior-engineer audits (correctness, security, scale, tests, speed, lean) of the
-survey app, 2026-11, 2026-11-05 and 2026-11-06. Each in-scope finding is one PR, merged with CI green on the
-merge SHA. The first audit's findings are the table below; the second audit's are in
-[Second audit, 2026-11-05](#second-audit-2026-11-05) and the third's in
-[Third audit, 2026-11-06](#third-audit-2026-11-06).
+Source: four full-repo senior-engineer audits (correctness, security, scale, tests, speed, lean) of the
+survey app, 2026-11, 2026-11-05, 2026-11-06 and 2026-10-30. The first three each landed as PRs merged with CI
+green on the merge SHA. The fourth landed as one commit on branch `wt/ponytail-audit-4`, not merged: merging
+is the owner's decision. The first audit's findings are the table below; the second audit's are in
+[Second audit, 2026-11-05](#second-audit-2026-11-05), the third's in
+[Third audit, 2026-11-06](#third-audit-2026-11-06) and the fourth's in
+[Fourth audit, 2026-10-30](#fourth-audit-2026-10-30).
 
 | # | Finding | Disposition |
 |---|---|---|
@@ -103,6 +105,61 @@ dashboard and the retake warning each read a narrower slice than the one they de
 | Retake modal copy | Out of scope by decision. Finding 13 fixed what the modal *promises*; the wording is the study owner's. Trigger: the owner asks for different copy. |
 | Content-Security-Policy | Out of scope by decision, as in audits 1-2. Finding 17 closed the one injection the audit found. Trigger: a study served to untrusted networks, where the header is worth its deployment cost. |
 | The second-audit deferrals (admin session-id rotation, `PRAGMA foreign_keys`, participant-count caching, old dev `survey.db`) | Unchanged. The third audit found nothing that raises their priority. |
+
+## Fourth audit, 2026-10-30
+
+The fourth full-repo pass, run against the state the third left. It found 16 defects (5 must fix, 5 should
+fix, 6 nice to have) and all 16 are fixed in one commit on `wt/ponytail-audit-4`, each by a test that fails
+without the fix - a grep showing no reference left, for a deletion - with the red run recorded before the
+green one, and every proof re-measured on the final SHA. The theme: the participant-facing edges that no
+test walked. CSRF was off in every fixture, so a form that cannot be submitted shipped; the proxy that
+production requires made every rate limit and every audit line speak about the wrong machine; and a
+returning participant was served a study that the app's own completion rule kept ending early.
+
+| # | Finding | Disposition |
+|---|---|---|
+| 1 | The "Start Over" form posted with no CSRF token, so with the gate on - which is production - `/reset_session_confirm` answered 400 and the button under the warning could never work | Fixed - the form carries a hidden `csrf_token()`. `tests/test_csrf_forms.py` reads the token off the page as the browser does, posts, and asserts 302 with the participant's rows gone; a tokenless post is 400 and deletes nothing |
+| 2 | Submit locked forever on a trial with no visible radio group: `isFormComplete([])` is false and the change handler listened only to radios, so typing the answer that trial asks for never re-ran the gate | Fixed - an empty set of visible radio groups is complete (`question-flow.ts`), and the free-text answers are what the trial requires. `frontend/test/components/no-radio-trial.test.ts` (all-free-text trial, and radios hidden by `depends_on`); the shipped config's gate stays shut until a radio is picked |
+| 3 | One non-numeric `confidence` value made `/api/admin/stats` raise TypeError on every poll, permanently, and `admin.ts` swallows poll errors, so the stat cards froze silently mid-study | Fixed - the average takes numbers only, junk excluded. `tests/test_stats_answer_shape.py` posts the string through the real submit route, then asserts 200 and a correct `avg_confidence`. Red pre-fix: 500 `unsupported operand type(s) for +: 'int' and 'str'` |
+| 4 | Behind the TLS proxy production requires, every client was `127.0.0.1`: the 10/hour admin-login cap was one global budget any visitor can exhaust, and every `audit.log` line named the proxy instead of the person who logged in | Fixed - `ProxyFix(app.wsgi_app, x_for=1)`, one trusted hop, named in the README. `tests/test_proxy_ip.py`: a second client behind the proxy keeps its own login budget, the audit line reads `203.0.113.9`, and a direct headerless request is unchanged |
+| 5 | A required `free_text` question rendered no `required` attribute, always posted `{text: ''}`, and passed the server's completeness rule, so the study collected blanks and reported the trial finished | Fixed - the textarea carries `required` when the config says so, and completeness needs non-blank text. `tests/test_required_free_text.py`: blank is not complete, filled is, and the attribute is in the rendered page |
+| 6 | Both app fixtures set `WTF_CSRF_ENABLED False`, so all 223 backend tests ran with the gate off - which is how finding 1 shipped | Fixed - `csrf_app` / `csrf_client` keep the gate ON and read the token off the rendered page, the referral and reset forms post through it, and a tokenless post is refused (that refusal is the proof the fixture is real, not decoration). The duplicated boot in `referral_client` is gone; the bulk suite keeps its off-switch |
+| 7 | A returning participant was told 30 pairs and cut off at 20/30: the assignment budget ignored what their email had already answered, while the completion gate counted by email, so the study ended with a third of the served assignment unserved | Fixed - the assignment is `pairs_per_user` minus what that email answered. `tests/test_resume_budget.py` (40 trials in the file, because with exactly 30 the `min()` masks the bug): told 20, ends at 20/20, thank-you page, stored rows exactly at the cap |
+| 8 | The dashboard's 30s poll reloaded offset 0 and threw away every page "Load more" had appended, so an analyst reading row 350 lost it on the next poll | Fixed - a refresh asks for the window the analyst has open. `frontend/test/admin.test.ts` boots the page through its `[data-admin-app]` marker, pages to 400 rows, advances the clock 30s, and asserts 400 are still there |
+| 9 | CSV export - the one action that copies every participant email out of the database - was the only admin action with no audit line | Fixed - `EXPORT_CSV` with the row count taken from the same FROM clause the stream uses. `tests/test_export_stream.py::test_exporting_the_csv_leaves_an_audit_line` |
+| 10 | A quoted `scale: "5"` was the one config value the boot gate did not refuse, and it 500s every page render at template time; on an `ab_preference` question `scale` also moved dev autofill's confidence range while the template renders a fixed 1-5, so dev runs silently left confidence empty | Fixed - a scale that is not a whole number ≥ 2 is refused at boot naming the question, and dev autofill uses 5. `tests/test_scale_gate.py` runs a real `import src.survey.app` in a subprocess: pre-fix it exits 0 on a config that 500s every page. `dev-autofill.test.ts` finds the confidence radio with `scale: 50` |
+| 11 | `empty()` in `lib/dom.ts` had no reference anywhere in the repo | Fixed - deleted. Grep over `src`, `frontend/src`, `frontend/test`, `tests`, `docs`, config: 0 references (the one `empty(` hit is the unrelated Python test name `test_get_completed_pair_ids_empty`) |
+| 12 | `renderDeviceInfo` and its `fmt` helper were a second implementation of the device list, used by their own test only; `mountDevicePanel` is what the page runs | Fixed - both deleted with the `byId` import they needed. The coverage moved by deletion, not by loss: `device-panel.test.ts` already asserts all five spans (`user-browser`/`-os`/`-screen`/`-pixel-ratio`/`-color`) and the page that has no list |
+| 13 | `visibleQuestionNames` was exported for the test suite only; the components ask `visibleSections()` | Fixed - deleted; `study-state.test.ts` filters with the exported `isSectionVisible` it is actually testing |
+| 14 | `_ROW_PARSES` was instrumentation inside production code, read by one test, and its `global` increment is not thread-safe | Fixed - deleted. `test_trial_store.py` counts parses by wrapping `_parse_trial_line` and measures boot on `_read_trial_row.cache_info()`, so the boot-cost, cache-hit and unknown-id assertions still bite |
+| 15 | `tests/README.md` stated 113 backend / 329 total where the suite is 254 backend / 195 frontend / 25 browser | Fixed - the counts are measured from the final SHA's run output, and the browser tier is named as Chromium-run |
+| 16 | `admin_export` held the whole study in memory twice and derived its columns from the rows it happened to find, so a partially answered study exported a different shape than a finished one | Fixed - streamed one row at a time with the header built from the config (`_export_fieldnames`). `tests/fixtures/export_snapshot.csv` pins the bytes (every column, every row, every `_csv_safe` prefix) against the pre-fix output, and the streaming test asserts the header leaves before a row is read |
+
+### Notes from the fourth audit
+
+- Consequence of finding 16, stated plainly: the columns are now the study's, not the answers'. Every
+  configured question and demographics field is a column whether or not anyone answered it, and a key the
+  browser posts that the config does not declare - the retake modal's `confirm_retake` - is no longer a
+  column. A study's CSV keeps one shape from the first answer to the last, which is what an analyst's
+  spreadsheet needs.
+- Finding 4's trust is unconditional by decision: exactly one TLS-terminating hop, no env knob. A
+  deployment with two proxies must collapse `X-Forwarded-For` at the edge; the README says so. Trusting
+  more than one hop is how a client gets to choose the address the login cap and the audit log see.
+- `byId` in `lib/dom.ts` is now exported for its own test only - finding 13's pattern, in a new place. It
+  is not in the 16, so it stays for the next pass.
+- `docs/screenshots/06-mobile-survey.png` is NOT part of this commit, and it should not be. Running the
+  browser tier rewrites it, and it lands on one of two states on this SHA (measured: three isolated runs
+  gave one md5, two full-suite runs gave each of the two), where the pre-fix SHA gave the other state on
+  three isolated runs. The pixels that move are the two identity-thumbnail tiles, dealt from the client's
+  pinned `Math.random` stream - the same fragility the specs themselves warn about ("a shifted draw count
+  moves them"), amplified because the behavioural suite is unseeded on purpose. Deleting code from
+  `frontend/src` changes how many draws page boot consumes, so this shot is expected to move, and it is
+  not evidence of a layout change. Pinning the gallery order for shot runs would fix the artifact; that is
+  not one of the 16, so the committed screenshot is left exactly as it was.
+- `tests/README.md`'s *Test Structure* tree is still a map of a suite that no longer exists: it lists a
+  `tests/frontend/` directory of `.test.js` files (the frontend tests are `frontend/test/*.ts`) and 5 of
+  the 12 Playwright specs. Finding 15 corrected the counts and the one documented command that named a test
+  which does not exist; the tree itself is the same rot and was left for the next pass on the docs.
 
 ## Known limit: the audit log is appended to inside the request
 

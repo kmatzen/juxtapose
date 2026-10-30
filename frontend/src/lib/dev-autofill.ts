@@ -52,7 +52,8 @@ export function autofillSurvey(host: ParentNode, config: SurveyConfig, env: Auto
         if (question.type === 'ab_preference') {
             check(section, `${question.name}_choice`, env.random() < 0.5 ? 'A' : 'B');
             if (question.confidence) {
-                check(section, `${question.name}_confidence`, String(pick(question.scale ?? 5, env)));
+                // The template renders confidence as a fixed 1-5; question.scale belongs to likert only.
+                check(section, `${question.name}_confidence`, String(pick(5, env)));
             }
         } else if (question.type === 'likert') {
             check(section, `${question.name}_value`, String(pick(question.scale ?? 5, env)));

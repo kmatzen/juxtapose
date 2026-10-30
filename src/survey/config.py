@@ -74,6 +74,12 @@ def _validate(config):
         # _apply_defaults reads q['type'], so a question without one stops here rather than as a KeyError.
         if not question.get('type'):
             raise ValueError(f"Question '{question.get('name')}' is missing 'type'")
+        scale = question.get('scale')
+        if scale is not None and (isinstance(scale, bool) or not isinstance(scale, int) or scale < 2):
+            # The template counts to it: a quoted scale is valid YAML and 500s every page render.
+            raise ValueError(
+                f"Question '{question.get('name')}' has scale {scale!r}: it must be a whole number "
+                "of at least 2")
 
     method_cols = [config['methods'].get('a'), config['methods'].get('b')]
     for col in method_cols:

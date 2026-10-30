@@ -197,6 +197,10 @@ and a restart does not reset it. The production boot refuses to start otherwise.
 follows the study (`pairs_per_user` + 20 per hour), so a participant can always finish the study
 they started; login and delete-by-email stay fixed caps per address.
 
+The app trusts exactly **one** `X-Forwarded-For` hop, because production terminates TLS at one
+proxy in front of it. Put more than one proxy (or none) in front of the app and both the per-address
+login cap and the `ip` field in `audit.log` are wrong: they name the nearest proxy, not the client.
+
 `audit.log` entries are stamped in **UTC** from 2026-11-05, so an entry lines up with the database row
 it explains (`CURRENT_TIMESTAMP` is UTC). Entries written before that date carry server-local time:
 subtract the server's UTC offset when correlating an old deletion with a row.

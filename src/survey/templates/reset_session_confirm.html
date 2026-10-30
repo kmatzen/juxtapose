@@ -178,6 +178,7 @@
             </div>
             
             <form method="POST" action="/reset_session_confirm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="button-group">
                     <button type="submit" class="btn-reset">Yes, Reset My Session</button>
                     <a href="/" class="btn-cancel">Cancel</a>

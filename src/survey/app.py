@@ -1,9 +1,11 @@
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, abort, send_from_directory
+import csv
 import sqlite3
 import uuid
 import os
 import logging
 from datetime import datetime, timezone, timedelta
+from io import StringIO
 import json
 import random
 import hmac
@@ -13,6 +15,7 @@ from functools import lru_cache, wraps
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect, generate_csrf
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from src.survey.config import (
     load_config, get_email_field, get_inputs_by_name,
@@ -39,6 +42,9 @@ if not SECRET_KEY:
         raise ValueError("SECRET_KEY environment variable must be set in production!")
     SECRET_KEY = 'dev-secret-key-change-in-production'
 app.secret_key = SECRET_KEY
+
+# Trusts the one TLS hop production always has; untrusted, every client logs as the proxy's IP (F4).
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1)
 
 # Security: Session configuration
 # Only require HTTPS cookies in production
@@ -140,9 +146,6 @@ TUTORIAL_PAIRS_FILE = os.environ.get('TUTORIAL_PAIRS_FILE', 'examples/tutorial_i
 # Load trial data from TSV (config-driven columns)
 # ---------------------------------------------------------------------------
 
-_ROW_PARSES = 0
-
-
 def _trial_file_path(file_path_relative):
     base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     return os.path.join(base_path, file_path_relative)
@@ -151,7 +154,6 @@ def _trial_file_path(file_path_relative):
 def _parse_trial_line(parts, columns, trial_id):
     """One split TSV line -> one trial row. Shared by the eager tutorial load and the on-demand
     store, so both agree on the optional-blank-is-None rule and the id numbering."""
-    global _ROW_PARSES
     row = {}
     for i, col in enumerate(columns):
         val = parts[i].strip()
@@ -163,7 +165,6 @@ def _parse_trial_line(parts, columns, trial_id):
             val = None
         row[col] = val
     row['id'] = trial_id
-    _ROW_PARSES += 1
     return row
 
 
@@ -670,6 +671,10 @@ def _get_completed_trial_ids_for_email(email, db=None):
                     if q.get('confidence') and q_resp.get('confidence') is None:
                         all_answered = False
                         break
+                if q['type'] == 'free_text' and not str(q_resp.get('text') or '').strip():
+                    # The page posts {text: ''} for an empty box, and a dict holding '' is truthy.
+                    all_answered = False
+                    break
 
             if all_answered:
                 completed.append(row['image_pair_id'])
@@ -1117,8 +1122,8 @@ def get_image_pair(pair_index):
     if 'user_image_pairs' not in session or session.get('session_dev_mode') != DEV_MODE:
         available_ids = [pid for pid in IMAGE_PAIRS.ids if pid not in completed_ids]
 
-        max_pairs = _trial_count()
-        num_pairs = min(len(available_ids), max_pairs)
+        # The pairs_per_user cap counts every trial this email answered, so assign only what is left.
+        num_pairs = min(len(available_ids), max(0, _trial_count() - len(completed_ids)))
 
         user_pair_ids = _assign_pairs(available_ids, num_pairs)
 
@@ -1473,7 +1478,8 @@ def admin_stats():
                     if value:
                         prefs = preferences.setdefault(key[:-len('_preferred_method')], {})
                         prefs[value] = prefs.get(value, 0) + 1
-                elif key.endswith('_confidence') and value is not None:
+                elif key.endswith('_confidence') and isinstance(value, (int, float)):
+                    # Answers arrive as the browser posted them: a non-number here raised on every poll, forever.
                     confidences.append(value)
         cached = (preferences, confidences)
         _STATS_CACHE.clear()
@@ -1493,48 +1499,84 @@ def admin_stats():
 @app.route('/api/admin/export')
 @require_admin
 def admin_export():
-    """Export results as CSV"""
-    import csv
-    from io import StringIO
-
+    """Export results as CSV."""
+    fieldnames = _export_fieldnames()
     db = get_db()
-    results = db.execute('''
-        SELECT
+    try:
+        rows = db.execute('SELECT COUNT(*) AS n' + _EXPORT_FROM).fetchone()['n']
+    finally:
+        db.close()
+
+    # This is the one admin action that copies every participant email out of the database.
+    audit_log('EXPORT_CSV', {'rows': rows, 'columns': len(fieldnames)})
+
+    return app.response_class(
+        response=_stream_csv(fieldnames),
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=survey_results.csv'}
+    )
+
+
+# The columns every row carries because the SELECT and _flatten_result always produce them.
+_EXPORT_COLUMNS = (
+    'session_id', 'referral_code', 'participant_created', 'browser', 'browser_version', 'os',
+    'screen_width', 'screen_height', 'pixel_ratio', 'color_depth', 'email', 'image_pair_id',
+    'was_randomized', 'time_spent', 'timing_flag', 'response_created',
+    'method_a', 'method_b', 'prompt', 'image_a_url', 'image_b_url', 'identity_urls', 'mask_url',
+)
+
+_EXPORT_SELECT = '''
             p.session_id, p.referral_code, p.created_at as participant_created,
             p.browser, p.browser_version, p.os,
             p.screen_width, p.screen_height, p.pixel_ratio, p.color_depth,
             d.email, d.data as demographics_data,
             s.image_pair_id, s.stimulus_data, s.responses,
             s.was_randomized, s.time_spent, s.timing_flag, s.created_at as response_created
+        '''
+
+# Shared by the audited count and the stream, so the number logged is the number that ships.
+_EXPORT_FROM = '''
         FROM participants p
         LEFT JOIN demographics d ON p.id = d.participant_id
         LEFT JOIN survey_responses s ON p.id = s.participant_id
         WHERE s.id IS NOT NULL
-        ORDER BY p.id, s.image_pair_id
-    ''').fetchall()
-    db.close()
+        '''
 
-    flat = []
-    all_keys = set()
-    for row in results:
-        r = _flatten_result(row)
-        all_keys.update(r.keys())
-        flat.append(r)
 
-    output = StringIO()
-    if flat:
-        fieldnames = sorted(all_keys)
-        writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction='ignore')
+def _export_fieldnames():
+    """The CSV's columns, from the config: a stream has to name its header before it reads a row."""
+    keys = set(_EXPORT_COLUMNS)
+    keys.update(f"input_{inp['name']}" for inp in CONFIG['inputs'])
+    keys.update(field['name'] for field in CONFIG['demographics'])
+    for question in CONFIG['questions']:
+        name = question['name']
+        if question['type'] == 'ab_preference':
+            keys.update({f'{name}_choice', f'{name}_confidence', f'{name}_preferred_method'})
+        else:
+            keys.add(f"{name}_{'text' if question['type'] == 'free_text' else 'value'}")
+    return sorted(keys)
+
+
+def _stream_csv(fieldnames):
+    """One joined row per CSV line: the study used to sit in memory twice before the first byte."""
+    buffer = StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=fieldnames, extrasaction='ignore')
+    db = get_db()
+
+    def drain():
+        chunk = buffer.getvalue()
+        buffer.seek(0)
+        buffer.truncate(0)
+        return chunk
+
+    try:
         writer.writeheader()
-        for r in flat:
-            writer.writerow({key: _csv_safe(value) for key, value in r.items()})
-
-    response = app.response_class(
-        response=output.getvalue(),
-        mimetype='text/csv',
-        headers={'Content-Disposition': 'attachment; filename=survey_results.csv'}
-    )
-    return response
+        yield drain()
+        for row in db.execute(f'SELECT {_EXPORT_SELECT} {_EXPORT_FROM} ORDER BY p.id, s.image_pair_id'):
+            writer.writerow({key: _csv_safe(value) for key, value in _flatten_result(row).items()})
+            yield drain()
+    finally:
+        db.close()
 
 
 @app.route('/api/admin/delete_by_email', methods=['POST'])

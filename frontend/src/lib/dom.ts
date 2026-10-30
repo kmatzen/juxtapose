@@ -54,10 +54,6 @@ export function toggleClass(node: Element, name: string, on: boolean): void {
     node.classList.toggle(name, on);
 }
 
-export function empty(node: Element): void {
-    node.replaceChildren();
-}
-
 /** Escape text destined for an innerHTML assignment. */
 export function escapeHtml(value: string): string {
     return value
