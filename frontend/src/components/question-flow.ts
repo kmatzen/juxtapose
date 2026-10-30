@@ -20,6 +20,8 @@ export type QuestionFlowProps = {
 
 export type QuestionFlow = Disposable & {
     showTrial(trial: Trial): void;
+    /** The sections this trial can answer, in config order: the submit payload is built from these. */
+    visibleSections(): string[];
     /** Re-measure after a resize or orientation change. */
     layout(): void;
     validate(): void;
@@ -40,6 +42,7 @@ export function mountQuestionFlow(host: HTMLElement, props: QuestionFlowProps): 
     const viewport = props.viewport ?? (() => ({ width: window.innerWidth, height: window.innerHeight }));
 
     let current = 0;
+    let visible: string[] = props.questions().map((question) => question.name);
     const timers: ReturnType<typeof setTimeout>[] = [];
 
     function updateButtons(): void {
@@ -98,17 +101,20 @@ export function mountQuestionFlow(host: HTMLElement, props: QuestionFlowProps): 
     }
 
     function showTrial(trial: Trial): void {
+        const shown: string[] = [];
         for (const question of props.questions()) {
             const el = host.querySelector<HTMLElement>(`#${question.name}-evaluation`);
             if (!el) continue;
-            const visible = isSectionVisible(question, trial, props.inputs());
-            el.style.display = visible ? 'block' : 'none';
+            const isVisible = isSectionVisible(question, trial, props.inputs());
+            el.style.display = isVisible ? 'block' : 'none';
+            if (isVisible) shown.push(question.name);
             // A hidden required field would lock Submit on a question the participant cannot see.
-            if (!visible) {
+            if (!isVisible) {
                 for (const input of el.querySelectorAll('input[required]')) input.removeAttribute('required');
             }
         }
 
+        visible = shown;
         current = 0;
         layout();
         if (container) container.scrollTop = 0;
@@ -154,6 +160,7 @@ export function mountQuestionFlow(host: HTMLElement, props: QuestionFlowProps): 
 
     return {
         showTrial,
+        visibleSections: () => visible,
         layout,
         validate,
         navigate,

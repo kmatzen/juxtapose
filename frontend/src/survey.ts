@@ -1,4 +1,6 @@
 import { mountDemographicsForm } from './components/demographics-form';
+import { mountDevBadge, mountDevicePanel } from './components/device-panel';
+import { mountTrialRunner } from './components/trial-runner';
 import { mountErrorBanner } from './components/error-banner';
 import { mountLightbox } from './components/lightbox';
 import { mountRetakeModal } from './components/retake-modal';
@@ -12,14 +14,13 @@ import { need } from './lib/dom';
 import { createSurveyApi } from './lib/session-api';
 import type { SurveyConfig } from './lib/session-api';
 import type { TutorialStep } from './study-state';
-import type { SurveySeam } from './seam';
 import * as studyState from './study-state';
 import { buildTutorialSteps } from './study-state';
 
 type ConfigReady = (onReady: (config: SurveyConfig) => void) => void;
 
 // Grows with each step of docs/frontend-architecture.md: the classic script's duties land here.
-function mountSurveyPage(): SurveySeam {
+function mountSurveyPage(): void {
     const api = createSurveyApi(fetch);
     const banner = mountErrorBanner(document.body, {
         activeSection: () => document.querySelector<HTMLElement>('.section.active'),
@@ -62,6 +63,7 @@ function mountSurveyPage(): SurveySeam {
 
     const lightbox = mountLightbox(need(document.body, '#image-lightbox'));
     const tutorial = mountTutorial(document.getElementById('tutorial-banner'), onConfig);
+    mountDevicePanel(document.body, () => browserEnv()).render();
 
     // Pages that carry no question block (thank you, admin) mount no flow.
     const surveySection = document.getElementById('survey-section');
@@ -75,30 +77,41 @@ function mountSurveyPage(): SurveySeam {
             observeSectionsIn(surveySection.querySelector('.questions-container'), sections, onVisible),
     });
 
-    return {
-        core: studyState,
-        banner,
+    const conditioning = mountConditioningTiles(document.body, {
         lightbox,
-        retake,
-        stimulus: mountStimulusView(document.body, {
-            lightbox,
-            banner,
-            onBlockingChange: blockForm,
-            onSettled: (ok) => document.dispatchEvent(new CustomEvent('jx:stimulus-settled', { detail: { ok } })),
-            // The conditioning tiles are still script.js; step 6 moves them behind this event.
-            onTrial: (trial) => document.dispatchEvent(new CustomEvent('jx:trial-loaded', { detail: trial })),
-        }),
-        conditioning: mountConditioningTiles(document.body, {
-            lightbox,
-            galleryInput: () => inputOfType('image_gallery'),
-            maskInput: () => inputOfType('image'),
-            outputImages: outputTiles,
-            tapThresholdPx: TAP_THRESHOLD_PX,
-        }),
+        galleryInput: () => inputOfType('image_gallery'),
+        maskInput: () => inputOfType('image'),
+        outputImages: outputTiles,
+        tapThresholdPx: TAP_THRESHOLD_PX,
+    });
+
+    const stimulus = mountStimulusView(document.body, {
+        lightbox,
+        banner,
+        onBlockingChange: blockForm,
+        onSettled: (ok) => runner?.tilesSettled(ok),
+        onTrial: () => {},
+    });
+
+    // The runner is the last thing mounted and the first thing started: it needs every component.
+    const runner = mountTrialRunner(document.body, {
+        api,
+        config: () => studyConfig,
+        banner,
+        stimulus,
+        conditioning,
         questions,
         tutorial,
-    };
+        navigate: (url) => { window.location.href = url; },
+    });
+
+    onConfig((loaded) => {
+        mountDevBadge(document.body, loaded);
+        void runner.start();
+    });
+
 }
+
 
 const TAP_THRESHOLD_PX = 10;
 let studyConfig: SurveyConfig | null = null;
@@ -151,7 +164,7 @@ function mountTutorial(
 }
 
 function start(): void {
-    window.__JX__ = mountSurveyPage();
+    mountSurveyPage();
     document.documentElement.dataset.build = 'vite';
 }
 

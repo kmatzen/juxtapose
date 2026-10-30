@@ -36,7 +36,7 @@ export function mountThing(host: HTMLElement, props: ThingProps): Thing & Dispos
 
 ## Components
 
-| Component | Owns | Replaces in `script.js` |
+| Component | Owns | Replaces |
 |---|---|---|
 | `error-banner` | one dismissible banner, auto-hide timer | `showError` |
 | `retake-modal` | the retake decision, scroll lock, promise result | `showRetakeModal` |
@@ -84,15 +84,14 @@ This page is a research instrument, so these behaviours are the spec. Each is as
 `mount()` (mount + auto-dispose), `fakeApi()` (routes → responses), `imageLoader()` (eager, manual
 or failing image loads), `flush()`.
 
-**Jest retires as its code moves.** The 9 jest suites drive the old `script.js`; each extraction
-replaces its jest coverage with a component test, and `script.js` shrinks. When `script.js` is
-deleted, jest, `babel-jest`, the babel config and the `frontend/.cjs` CommonJS shim go with it —
-`window.JX` and the CJS copy of the model exist only to feed that legacy pipeline.
+**One runner.** Jest, `babel-jest`, the babel config, the CommonJS copy of the model and the
+9 suites that drove `script.js` were deleted with the file they served. What they covered is
+component coverage now, on the code the page actually runs.
 
 ## Migration ledger
 
-Strangler: one component per commit, every commit green (`typecheck`, vitest, jest, playwright,
-pytest), `script.js` shrinking each step.
+Strangler: one component per commit, every commit green (`typecheck`, vitest, playwright, pytest),
+`script.js` shrinking to nothing.
 
 | # | Step | `script.js` lines |
 |---|---|---|
@@ -103,14 +102,8 @@ pytest), `script.js` shrinking each step.
 | 5 | `stimulus-view` (+ `lib/image-loader`) | 1206 |
 | 6 | `conditioning-tiles` (+ mask scan, overlay, stacked slicing in `study-state`) | 783 |
 | 7 | `question-flow` (+ `lib/layout`) | 448 |
-| 8 | `trial-runner` + entry; delete `script.js`, jest, babel, the CommonJS shim, `seam.ts` | 0 |
+| 8 | `trial-runner`, `device-panel`, `lib/dev-autofill`; delete `script.js`, jest, babel, the CommonJS shim, `seam.ts` | 0 |
 
-Step 8 is the runner and nothing else: pair fetching, progress counters, dev-mode autofill, the
-submit payload and its navigation, `checkDemographicsSubmitted`, and the four helper wrappers the
-runner still calls. Its jest suites (`page-boot`, `runner`, `submissions`, `tutorial-gate`,
-`image-loading`) move to vitest as `trial-runner` tests plus service tests; jest, babel and the
-CommonJS shim in `study-state.ts` leave with the file they served.
-
-During steps 2–7 the shrinking `script.js` calls the extracted components through one narrow
-seam, `window.__JX__`, created by the module entry. It is a migration seam, not architecture: it
-is typed, it is documented here, and step 8 deletes it.
+During steps 2–7 the shrinking `script.js` drove the extracted components through one narrow seam,
+`window.__JX__`. It was a migration seam, not architecture: typed, documented here, and deleted
+with the file that read it. `index.html` now loads one module bundle and nothing else.
