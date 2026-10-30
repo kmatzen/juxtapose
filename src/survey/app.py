@@ -1442,7 +1442,9 @@ def admin_results():
 
     db = get_db()
     rows = db.execute(
-        _ADMIN_RESULTS_SELECT + ' ORDER BY s.created_at DESC LIMIT ? OFFSET ?',
+        # Newest-first on a second-granularity timestamp gives no order inside a second, and every
+        # answer that lands while the analyst pages shifts the window: one row on two pages.
+        _ADMIN_RESULTS_SELECT + ' ORDER BY s.id LIMIT ? OFFSET ?',
         (limit, offset)
     ).fetchall()
     total = db.execute('SELECT COUNT(*) AS n FROM survey_responses').fetchone()['n']
