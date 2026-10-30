@@ -78,6 +78,9 @@ SESSION_VERSION = 3  # Incremented for config-driven schema change
 # Under 1.0s a participant cannot have viewed three tiles and set two scales; the flag is what analysis filters on, the raw value is kept (study owner, 2026-11-04).
 TIMING_FLOOR_S = 1.0
 
+# Over 120s the browser clock was almost certainly running on a hidden tab, not on a judgement (study owner, 2026-11-05). Same flag, same rule: raw kept, analysis excludes.
+TIMING_CEILING_S = 120.0
+
 # Layout Configuration: Order of tiles in the three-tile grid
 # Options: 'AMB' (A, Mask, B) or 'MAB' (Mask, A, B)
 TILE_LAYOUT = os.environ.get('TILE_LAYOUT', 'MAB').upper()
@@ -1184,7 +1187,8 @@ def submit_survey():
             time_spent = float(data.get('time_spent'))
         except (TypeError, ValueError):
             time_spent = None
-        timing_flag = 1 if time_spent is not None and time_spent < TIMING_FLOOR_S else 0
+        timing_flag = 1 if time_spent is not None and (
+                         time_spent < TIMING_FLOOR_S or time_spent > TIMING_CEILING_S) else 0
 
         existing = db.execute(
             'SELECT id FROM survey_responses WHERE participant_id = ? AND image_pair_id = ?',

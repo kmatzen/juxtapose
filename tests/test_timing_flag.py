@@ -5,6 +5,10 @@ Decided with the study owner: keep the raw reported value - the audit trail is w
 and a stored 4.2 that used to be 0.02 is unrecoverable - and record timing_flag = 1 on rows under the
 1.0s floor, below which a participant cannot have viewed three tiles and set two scales. Analysis
 excludes flagged rows; nothing is overwritten.
+
+Decided with the study owner on 2026-11-05: the same flag covers the other end, over 120s. The
+browser clock keeps running while the tab is hidden, so an idle participant reports an hour, and one
+such row outvotes every real judgement in an average.
 """
 import sqlite3
 
@@ -65,6 +69,28 @@ def test_a_normal_time_is_untouched_and_unflagged(app, client):
     row = _row('normal-42')
     assert row['time_spent'] == 4.2
     assert row['timing_flag'] == 0
+
+
+def test_an_over_ceiling_time_is_flagged_and_the_raw_value_survives(app, client):
+    """A hidden tab keeps counting, so an hour from one idle participant is not a judgement either."""
+    pair_id = app_module.IMAGE_PAIRS.ids[0]
+    _participant('slow-121', pair_id, 121.0, client)
+    row = _row('slow-121')
+    assert row['time_spent'] == 121.0, 'the reported value must stay as reported'
+    assert row['timing_flag'] == 1
+
+
+def test_a_time_at_the_ceiling_is_still_a_judgement(app, client):
+    """The ceiling flags over 120s, so exactly 120.0 stays in analysis."""
+    pair_id = app_module.IMAGE_PAIRS.ids[0]
+    _participant('at-ceiling', pair_id, 120.0, client)
+    assert _row('at-ceiling')['timing_flag'] == 0
+
+
+def test_a_time_just_under_the_ceiling_is_not_flagged(app, client):
+    pair_id = app_module.IMAGE_PAIRS.ids[0]
+    _participant('slow-119', pair_id, 119.0, client)
+    assert _row('slow-119')['timing_flag'] == 0
 
 
 def test_a_missing_time_is_not_flagged_as_fast(app, client):
