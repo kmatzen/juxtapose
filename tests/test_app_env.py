@@ -57,3 +57,9 @@ def test_dev_starts_without_secrets():
 def test_an_unrecognised_mode_refuses_to_start():
     result = boot(APP_ENV='stagign')
     assert result.returncode != 0 and 'APP_ENV' in result.stderr
+
+
+def test_production_refuses_dev_mode(tmp_path):
+    """DEV_MODE bypasses referral codes, cuts the pair count and turns on answer autofill."""
+    result = boot(APP_ENV='production', DEV_MODE='true', DATA_DIR=tmp_path, **PRODUCTION_SECRETS)
+    assert result.returncode != 0 and 'DEV_MODE' in result.stderr
