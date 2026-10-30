@@ -379,6 +379,20 @@ def _trial_count():
     return min(len(IMAGE_PAIRS), max_pairs)
 
 
+def _assign_pairs(available_pairs, num_pairs):
+    """The trials this participant takes, in order. Under E2E_RANDOM_SEED the draw comes from a
+    generator keyed to the session, so an extra pair request cannot shift the assignment by consuming
+    a stream draw; production keeps the module stream. Keyed per session on purpose - per-participant
+    variety is the counterbalancing, unlike the A/B flip, which must not follow the session id."""
+    seed = os.environ.get('E2E_RANDOM_SEED')
+    rng = random.Random(f'{seed}:{session.get("session_id")}') if seed else random
+    pairs = list(available_pairs)
+    if len(pairs) <= num_pairs:
+        rng.shuffle(pairs)
+        return pairs
+    return rng.sample(pairs, num_pairs)
+
+
 def _randomize_pair(key):
     """Which image of a pair the participant sees as A. Under E2E_RANDOM_SEED the flip comes from the
     seed and the pair, not from a stream draw (a draw's value moves when a busy runner makes the
@@ -934,11 +948,7 @@ def get_image_pair(pair_index):
         max_pairs = _trial_count()
         num_pairs = min(len(available_pairs), max_pairs)
 
-        if len(available_pairs) <= num_pairs:
-            user_pairs = available_pairs.copy()
-            random.shuffle(user_pairs)
-        else:
-            user_pairs = random.sample(available_pairs, num_pairs)
+        user_pairs = _assign_pairs(available_pairs, num_pairs)
 
         session['user_image_pairs'] = [pair['id'] for pair in user_pairs]
         session['user_pairs_count'] = len(user_pairs)
