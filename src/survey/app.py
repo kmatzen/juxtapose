@@ -3,7 +3,7 @@ import sqlite3
 import uuid
 import os
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 import json
 import random
 import hmac
@@ -300,7 +300,9 @@ def _redact_audit_details(details):
 def audit_log(action, details, user_ip=None):
     """Log security-sensitive actions"""
     try:
-        timestamp = datetime.now().isoformat()
+        # CURRENT_TIMESTAMP in the database is UTC; a local stamp here cannot be joined to the row
+        # it explains. Entries before 2026-11-05 carry server-local stamps (docs/audit-findings.md).
+        timestamp = datetime.now(timezone.utc).isoformat()
         ip = user_ip or get_remote_address()
         session_id = session.get('session_id', 'unknown')
         admin_session = 'ADMIN' if session.get('admin_authenticated') else 'USER'
