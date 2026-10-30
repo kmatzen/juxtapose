@@ -6,8 +6,12 @@ const {
 
 const TRIALS = parseInt(process.env.E2E_ROWS || '4', 10);
 // The same table the app scans and the fixture paints with — the overlay must come back in it.
-const EXPECTED_COLOURS = require('../../frontend/src/identity-colors.json')
-  .slice(0, 3).map(([r, g, b]) => `${r},${g},${b}`);
+const PALETTE = require('../../frontend/src/identity-colors.json');
+const EXPECTED_COLOURS = PALETTE.slice(0, 3).map(([r, g, b]) => `${r},${g},${b}`);
+const paletteColour = (index) => {
+  const [r, g, b] = PALETTE[index];
+  return { r, g, b };
+};
 
 // The mask decoder is a pure model function with unit tests; what only a browser can prove is that
 // every identity colour in the fixture's sheet arrives as that identity's own painted region.
@@ -91,7 +95,7 @@ test('the stacked identity sheet arrives as one square tile per panel', async ({
     const [r, g, b] = ctx.getImageData(5, 5, 1, 1).data;
     return { r, g, b };
   });
-  expect(middle).toEqual({ r: 0, g: 255, b: 0 });
+  expect(middle).toEqual(paletteColour(1));
 });
 
 test('the trial with no mask is submittable and the study completes', async ({ page }) => {
