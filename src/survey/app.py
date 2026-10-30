@@ -636,14 +636,27 @@ def _get_session_participant_id(db=None):
             db.close()
 
 
+def _question_shown(question, inputs):
+    """The page's own visibility rule: a depends_on question shows when that input has a value.
+
+    The stored stimulus input is the only record of what the participant was shown, so the server
+    asks it rather than exempting every depends_on question from the completeness rule.
+    """
+    name = question.get('depends_on')
+    if not name or name not in inputs:
+        return True
+    return str(inputs[name] or '').strip() != ''
+
+
 def _completed_trial_ids(rows):
-    """The trials in `rows` - (image_pair_id, responses) pairs - whose answers are all in."""
+    """The trials in `rows` - (image_pair_id, responses, stimulus_data) - whose shown questions are answered."""
     completed = []
     required_questions = [q for q in CONFIG['questions'] if q.get('required') or q['type'] == 'ab_preference']
 
     for row in rows:
         try:
             resp = json.loads(row['responses'])
+            inputs = json.loads(row['stimulus_data'] or '{}').get('inputs') or {}
         except (json.JSONDecodeError, TypeError):
             continue
 
@@ -651,8 +664,7 @@ def _completed_trial_ids(rows):
         for q in required_questions:
             q_resp = resp.get(q['name'])
             if not q_resp:
-                # If question depends on an optional input, it might not be required
-                if q.get('depends_on'):
+                if not _question_shown(q, inputs):
                     continue
                 all_answered = False
                 break
@@ -690,7 +702,7 @@ def _get_completed_trial_ids(participant_id, email=None, db=None):
         db = get_db()
     try:
         rows = db.execute('''
-            SELECT DISTINCT image_pair_id, responses
+            SELECT DISTINCT image_pair_id, responses, stimulus_data
             FROM survey_responses
             WHERE responses IS NOT NULL
                 AND (participant_id = ?

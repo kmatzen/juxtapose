@@ -136,15 +136,12 @@ def test_a_finished_trial_needs_the_followup_when_the_mask_is_there(tmp_path, mo
 def test_a_hidden_followup_does_not_block_the_trial(tmp_path, monkeypatch):
     """A trial with no mask hides the follow-up: the page never shows it, so it cannot be required."""
     client = joined_client(tmp_path, monkeypatch)
+    served = [serve(client, index) for index in range(2)]
+    maskless = [pair for pair in served if not has_mask(pair)]
+    assert maskless, 'the study served no trial without a mask'
 
-    for index in range(2):
-        pair = serve(client, index)
-        if has_mask(pair):
-            submit(client, pair, BOTH)
-            continue
-        submit(client, pair, IMAGE_ONLY)
-        progress = client.get('/api/check_demographics').get_json()
-        assert progress['completed_pairs'] == 1, (
-            f'the mask-less trial was not counted with only the always-shown question answered: {progress}')
-        return
-    pytest.fail('the study served no trial without a mask')
+    submit(client, maskless[0], IMAGE_ONLY)
+
+    progress = client.get('/api/check_demographics').get_json()
+    assert progress['completed_pairs'] == 1, (
+        f'the mask-less trial did not count with only the always-shown question answered: {progress}')

@@ -8,10 +8,15 @@ trial, and the loop repeats. The email stays what it was for: retake detection.
 """
 import pytest
 
+from src.survey import app as app_module
 from tests.conftest import _boot_app
 
-ANSWERS = {'image_quality': {'choice': 'A', 'confidence': 4},
-           'prompt_adherence': {'choice': 'B', 'confidence': 3}}
+
+def answers_for_study():
+    """Every question the booted study asks: submit_survey rejects answers to questions it does not ask."""
+    return {q['name']: {'choice': 'A', 'confidence': 4}
+            for q in app_module.CONFIG['questions']
+            if q.get('required') or q['type'] == 'ab_preference'}
 
 QUESTIONS = """  - name: image_quality
     type: ab_preference
@@ -88,7 +93,7 @@ def run_study(client, demographics_payload):
         if pair.status_code != 200:
             break
         last = client.post('/api/submit_survey', json={
-            'image_pair_id': pair.get_json()['id'], 'responses': ANSWERS,
+            'image_pair_id': pair.get_json()['id'], 'responses': answers_for_study(),
             'time_spent': 12}).get_json()
     return last
 
