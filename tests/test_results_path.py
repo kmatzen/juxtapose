@@ -93,7 +93,7 @@ def test_flat_submit_is_rejected(client):
         sess['session_id'] = 'flat-payload-session'
 
     response = client.post('/api/submit_survey', json={
-        'image_pair_id': IMAGE_PAIRS[0]['id'],
+        'image_pair_id': IMAGE_PAIRS.ids[0],
         'better_image': 'A',
         'image_confidence': 3,
     }, content_type='application/json')

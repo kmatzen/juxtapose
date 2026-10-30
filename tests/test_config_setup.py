@@ -160,7 +160,7 @@ def test_app_boots_on_generated_pairs_file(tmp_path):
 
     result = subprocess.run(
         [sys.executable, '-c',
-         'import src.survey.app as a; print(f"booted {len(a.IMAGE_PAIRS)} trials")'],
+         'import src.survey.app as a; print(f"booted {a.IMAGE_PAIRS.count} trials")'],
         env=env, cwd=str(tmp_path), capture_output=True, text=True,
     )
 

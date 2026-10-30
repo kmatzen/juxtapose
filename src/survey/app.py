@@ -6,6 +6,7 @@ import logging
 from datetime import datetime, timedelta
 import json
 import random
+from collections import OrderedDict
 from functools import wraps
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -120,15 +121,47 @@ TUTORIAL_PAIRS_FILE = os.environ.get('TUTORIAL_PAIRS_FILE', 'examples/tutorial_i
 # Load trial data from TSV (config-driven columns)
 # ---------------------------------------------------------------------------
 
-def _load_trials_from_file(file_path_relative, start_id=1):
-    """Load trials from a tab-separated file using config-defined columns."""
-    columns = CONFIG['data']['columns']
-    base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    file_path = os.path.join(base_path, file_path_relative)
+_ROW_PARSES = 0
 
+
+def _trial_file_path(file_path_relative):
+    base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return os.path.join(base_path, file_path_relative)
+
+
+def _parse_trial_line(parts, columns, trial_id):
+    """One split TSV line -> one trial row. Shared by the eager tutorial load and the on-demand
+    store, so both agree on the optional-blank-is-None rule and the id numbering."""
+    global _ROW_PARSES
+    row = {}
+    for i, col in enumerate(columns):
+        val = parts[i].strip()
+        # Treat empty strings as None for optional inputs
+        inp = INPUTS_BY_NAME.get(col) or next(
+            (inp for inp in CONFIG['inputs'] if inp.get('column') == col), None
+        )
+        if inp and inp.get('optional') and not val:
+            val = None
+        row[col] = val
+    row['id'] = trial_id
+    _ROW_PARSES += 1
+    return row
+
+
+def _missing_file_message(file_path, file_path_relative):
+    # Inventing placeholder trials here would collect real responses against fake stimuli.
+    return (f"Trial data file not found: {file_path} "
+            f"(data.file is '{file_path_relative}'; generate one with generate_pairs.py "
+            "or set IMAGE_PAIRS_FILE)")
+
+
+def _load_trials_from_file(file_path_relative, start_id=1):
+    """Every trial row from a TSV, in memory. Used for the one-row tutorial; the study itself is
+    served from TrialStore so a large study does not cost a dict per pair per worker."""
+    columns = CONFIG['data']['columns']
+    file_path = _trial_file_path(file_path_relative)
     trials = []
     trial_id = start_id
-
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             for line_num, line in enumerate(f, 1):
@@ -136,50 +169,97 @@ def _load_trials_from_file(file_path_relative, start_id=1):
                 line = line.rstrip('\r\n')
                 if not line or line.startswith('#'):
                     continue
-
                 parts = line.split('\t')
                 if len(parts) != len(columns):
                     logger.warning("Line %d has %d fields (expected %d), skipping", line_num, len(parts), len(columns))
                     continue
-
-                row = {}
-                for i, col in enumerate(columns):
-                    val = parts[i].strip()
-                    # Treat empty strings as None for optional inputs
-                    inp = INPUTS_BY_NAME.get(col) or next(
-                        (inp for inp in CONFIG['inputs'] if inp.get('column') == col), None
-                    )
-                    if inp and inp.get('optional') and not val:
-                        val = None
-                    row[col] = val
-
-                row['id'] = trial_id
-                trials.append(row)
+                trials.append(_parse_trial_line(parts, columns, trial_id))
                 trial_id += 1
-
-        if not trials:
-            raise ValueError(f"No valid trials found in {file_path_relative}")
-
-        logger.info("Loaded %d image pairs from %s", len(trials), file_path_relative)
-        return trials
-
     except FileNotFoundError:
-        # Inventing placeholder trials here would collect real responses against fake stimuli.
-        raise FileNotFoundError(
-            f"Trial data file not found: {file_path} "
-            f"(data.file is '{file_path_relative}'; generate one with generate_pairs.py "
-            "or set IMAGE_PAIRS_FILE)"
-        ) from None
-
+        raise FileNotFoundError(_missing_file_message(file_path, file_path_relative)) from None
     except Exception as e:
         logger.error("Error loading %s: %s", file_path_relative, e)
         raise
 
+    if not trials:
+        raise ValueError(f"No valid trials found in {file_path_relative}")
+    logger.info("Loaded %d image pairs from %s", len(trials), file_path_relative)
+    return trials
+
+
+class TrialStore:
+    """The study's trials, indexed at boot and parsed on demand.
+
+    A study of N pairs used to cost N dicts in every worker, and each pair request scanned that list
+    for its id. Boot now keeps an id and a byte range per row; a row becomes a dict when a
+    participant is served it, and the most recent ROW_CACHE_SIZE stay hot.
+    """
+
+    ROW_CACHE_SIZE = 512
+
+    def __init__(self, file_path_relative, start_id=1):
+        self.relative_path = file_path_relative
+        self.path = _trial_file_path(file_path_relative)
+        self.columns = CONFIG['data']['columns']
+        self.ids = []
+        self._offsets = {}
+        self._cache = OrderedDict()
+        self._index(start_id)
+
+    def _index(self, start_id):
+        trial_id = start_id
+        offset = 0
+        try:
+            with open(self.path, 'rb') as f:
+                for line in f:
+                    text = line.decode('utf-8').rstrip('\r\n')
+                    if text and not text.startswith('#'):
+                        parts = text.split('\t')
+                        if len(parts) != len(self.columns):
+                            logger.warning("Line %d has %d fields (expected %d), skipping",
+                                           trial_id, len(parts), len(self.columns))
+                        else:
+                            self.ids.append(trial_id)
+                            self._offsets[trial_id] = (offset, len(line))
+                            trial_id += 1
+                    offset += len(line)
+        except FileNotFoundError:
+            raise FileNotFoundError(_missing_file_message(self.path, self.relative_path)) from None
+
+        if not self.ids:
+            raise ValueError(f"No valid trials found in {self.relative_path}")
+        logger.info("Indexed %d image pairs from %s", len(self.ids), self.relative_path)
+
+    def get(self, trial_id):
+        """One trial row, parsed from its byte range on first use."""
+        cached = self._cache.get(trial_id)
+        if cached is not None:
+            self._cache.move_to_end(trial_id)
+            return cached
+        location = self._offsets.get(trial_id)
+        if location is None:
+            return None
+        with open(self.path, 'rb') as f:
+            f.seek(location[0])
+            line = f.read(location[1])
+        row = _parse_trial_line(line.decode('utf-8').rstrip('\r\n').split('\t'), self.columns, trial_id)
+        self._cache[trial_id] = row
+        if len(self._cache) > self.ROW_CACHE_SIZE:
+            self._cache.popitem(last=False)
+        return row
+
+    def first(self):
+        return self.get(self.ids[0]) if self.ids else None
+
+    @property
+    def count(self):
+        return len(self.ids)
+
 
 def load_image_pairs():
-    """Load main survey image pairs."""
+    """The study's trials: ids and byte ranges at boot, rows when served."""
     data_file = os.environ.get('IMAGE_PAIRS_FILE', CONFIG['data']['file'])
-    return _load_trials_from_file(data_file, start_id=1)
+    return TrialStore(data_file, start_id=1)
 
 
 def load_tutorial_pair():
@@ -191,7 +271,7 @@ def load_tutorial_pair():
         return None
     except Exception as e:
         logger.warning("Could not load tutorial pair: %s", e)
-        return IMAGE_PAIRS[0] if IMAGE_PAIRS else None
+        return IMAGE_PAIRS.first()
 
 
 # Load image pairs on startup
@@ -395,17 +475,17 @@ def ensure_db():
 def _trial_count():
     """Number of trials a user sees."""
     max_pairs = SURVEY.get('dev_pairs', 3) if DEV_MODE else SURVEY.get('pairs_per_user', 30)
-    return min(len(IMAGE_PAIRS), max_pairs)
+    return min(IMAGE_PAIRS.count, max_pairs)
 
 
-def _assign_pairs(available_pairs, num_pairs):
+def _assign_pairs(available_ids, num_pairs):
     """The trials this participant takes, in order. Under E2E_RANDOM_SEED the draw comes from a
     generator keyed to the session, so an extra pair request cannot shift the assignment by consuming
     a stream draw; production keeps the module stream. Keyed per session on purpose - per-participant
     variety is the counterbalancing, unlike the A/B flip, which must not follow the session id."""
     seed = os.environ.get('E2E_RANDOM_SEED')
     rng = random.Random(f'{seed}:{session.get("session_id")}') if seed else random
-    pairs = list(available_pairs)
+    pairs = list(available_ids)
     if len(pairs) <= num_pairs:
         rng.shuffle(pairs)
         return pairs
@@ -543,7 +623,7 @@ def health():
     """Simple health check endpoint for monitoring"""
     return jsonify({
         'status': 'healthy',
-        'pairs_loaded': len(IMAGE_PAIRS),
+        'pairs_loaded': IMAGE_PAIRS.count,
         'dev_mode': DEV_MODE,
         'database': DATABASE
     }), 200
@@ -949,11 +1029,12 @@ def get_image_pair(pair_index):
             # Also include flat fields for backward compat with current JS
             _add_flat_fields(stim, TUTORIAL_PAIR, randomized)
             return jsonify(stim)
-        if IMAGE_PAIRS:
-            randomized = _randomize_pair(IMAGE_PAIRS[0]['id'])
-            stim = _build_stimulus_data(IMAGE_PAIRS[0], randomized)
+        first_pair = IMAGE_PAIRS.first()
+        if first_pair:
+            randomized = _randomize_pair(first_pair['id'])
+            stim = _build_stimulus_data(first_pair, randomized)
             stim['total_trials'] = 1
-            _add_flat_fields(stim, IMAGE_PAIRS[0], randomized)
+            _add_flat_fields(stim, first_pair, randomized)
             return jsonify(stim)
         return jsonify({'error': 'No image pairs available'}), 404
 
@@ -962,15 +1043,15 @@ def get_image_pair(pair_index):
         user_email = _get_session_email()
 
         completed_pair_ids = _get_completed_trial_ids_for_email(user_email) if user_email else []
-        available_pairs = [p for p in IMAGE_PAIRS if p['id'] not in completed_pair_ids]
+        available_ids = [pid for pid in IMAGE_PAIRS.ids if pid not in completed_pair_ids]
 
         max_pairs = _trial_count()
-        num_pairs = min(len(available_pairs), max_pairs)
+        num_pairs = min(len(available_ids), max_pairs)
 
-        user_pairs = _assign_pairs(available_pairs, num_pairs)
+        user_pair_ids = _assign_pairs(available_ids, num_pairs)
 
-        session['user_image_pairs'] = [pair['id'] for pair in user_pairs]
-        session['user_pairs_count'] = len(user_pairs)
+        session['user_image_pairs'] = user_pair_ids
+        session['user_pairs_count'] = len(user_pair_ids)
         session['session_dev_mode'] = DEV_MODE
 
     user_pair_ids = session.get('user_image_pairs', [])
@@ -985,7 +1066,7 @@ def get_image_pair(pair_index):
         return jsonify({'error': 'Invalid image pair index'}), 404
 
     pair_id = user_pair_ids[position]
-    trial = next((p for p in IMAGE_PAIRS if p['id'] == pair_id), None)
+    trial = IMAGE_PAIRS.get(pair_id)
 
     if not trial:
         return jsonify({'error': 'Image pair not found'}), 404
@@ -1064,7 +1145,7 @@ def submit_survey():
             return jsonify({'error': 'Participant not found'}), 404
 
         trial_id = data.get('image_pair_id')
-        trial = next((p for p in IMAGE_PAIRS if p['id'] == trial_id), None)
+        trial = IMAGE_PAIRS.get(trial_id)
 
         if trial is None:
             return jsonify({'error': 'Image pair not found'}), 404

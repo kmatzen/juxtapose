@@ -34,5 +34,5 @@ def test_the_config_the_app_serves_from_is_the_one_it_parsed():
     """_trial_count must answer from the parsed config, which is what the test above proves is enough."""
     from src.survey import app as app_module
 
-    expected = min(len(app_module.IMAGE_PAIRS), app_module.SURVEY['pairs_per_user'])
+    expected = min(app_module.IMAGE_PAIRS.count, app_module.SURVEY['pairs_per_user'])
     assert app_module._trial_count() == expected

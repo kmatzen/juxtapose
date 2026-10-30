@@ -35,7 +35,7 @@ def test_an_unseeded_flip_consumes_the_stream(monkeypatch):
     assert len({_flip(1) for _ in range(20)}) == 2
 
 
-PAIRS = [{'id': i} for i in range(10)]
+PAIR_IDS = list(range(10))
 
 
 def _assign(session_id, seed='20260301'):
@@ -46,7 +46,7 @@ def _assign(session_id, seed='20260301'):
         os.environ['E2E_RANDOM_SEED'] = seed
     with app_module.app.test_request_context():
         app_module.session['session_id'] = session_id
-        return tuple(p['id'] for p in app_module._assign_pairs(PAIRS, 5))
+        return tuple(app_module._assign_pairs(PAIR_IDS, 5))
 
 
 def test_the_seeded_assignment_is_unmoved_by_stream_draws(monkeypatch):
