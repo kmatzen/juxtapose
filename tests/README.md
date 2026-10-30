@@ -156,7 +156,6 @@ tests/
 
 ### Backend Data Logic (`test_data_logic.py`)
 - - Completed pair detection (critical bug fix)
-- - `ENABLE_PROMPT_QUESTION` flag handling
 - - Multiple participants with same email
 - - Empty result handling
 
@@ -176,9 +175,7 @@ through its props, with `fakeApi` for the network and injected seams for canvas 
 ## Key Test Cases
 
 ### 1. Survey Completion Bug Fix
-**File**: `test_data_logic.py::test_get_completed_pair_ids_with_prompt_question_disabled`
-
-**Tests**: That survey completion works correctly when `ENABLE_PROMPT_QUESTION=false`
+**File**: `test_data_logic.py::test_completed_pairs_are_counted_once_per_trial`
 
 **Why Important**: Fixed a bug where responses weren't counted as complete if prompt fields were NULL. Added `DISTINCT` to prevent duplicate counting.
 

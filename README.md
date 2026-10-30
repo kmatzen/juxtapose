@@ -94,7 +94,7 @@ Shared context shown for each trial. Optional inputs are hidden when their colum
 | `image` | Single image, click to enlarge |
 | `image_gallery` | Row of images from comma-separated URLs, or one stacked image sliced into a row |
 
-An input named `prompt` with type `text` is not a widget: it enables the prompt box that shows the trial's `prompt` column. `SHOW_PROMPT=false` overrides it.
+An input named `prompt` with type `text` is not a widget: it enables the prompt box that shows the trial's `prompt` column. The config is the only switch for it.
 
 ### Outputs
 
