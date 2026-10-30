@@ -299,6 +299,12 @@ IMAGE_PAIRS = load_image_pairs()
 TUTORIAL_PAIR = load_tutorial_pair()
 
 # Security: Audit logging
+def _pii_hash(value):
+    """A stable, short hash: rows about one participant or one code stay joinable without the value
+    itself living in a wider-read operational file."""
+    return hashlib.sha256(value.strip().lower().encode('utf-8')).hexdigest()[:16]
+
+
 def _redact_audit_details(details):
     """Participant emails are PII and audit.log is an operational file; a stable hash keeps rows
     about one participant joinable without copying the address into a wider-read file."""
@@ -307,7 +313,7 @@ def _redact_audit_details(details):
     redacted = dict(details)
     for key, value in redacted.items():
         if key.endswith('email') and isinstance(value, str) and value:
-            redacted[key] = hashlib.sha256(value.strip().lower().encode('utf-8')).hexdigest()[:16]
+            redacted[key] = _pii_hash(value)
     return redacted
 
 
@@ -768,6 +774,9 @@ def referral():
         if code in REFERRAL_CODES:
             session['referral_validated'] = True
             session['referral_code'] = code
+            # The code is a shared bearer token with no expiry: which code admitted which session is
+            # the only way to trace contaminated responses back to a leak. Hashed, as emails are.
+            audit_log('REFERRAL_ACCEPTED', {'referral_code_hash': _pii_hash(code)})
             return redirect(url_for('index'))
         else:
             return render_template('referral.html', config=CONFIG,
