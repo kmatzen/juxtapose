@@ -1,15 +1,16 @@
 """Audit F3+F8: participants who submit at the same time must not lose their answers.
 
-Every request opens its own SQLite connection, reads, then writes. Two of those upgrading from read
-to write at once is the classic SQLITE_BUSY: the loser has to wait for the writer. On fast local
-storage the wait is short and invisible; on a NAS-backed volume the lock outlasts the connection's
-patience, the request 500s, and that is a paying participant's trial, gone, behind a client-side
-error they cannot do anything about.
+Every request opens its own SQLite connection, reads, then writes; on a contended volume that
+read-to-write upgrade is where a submit died behind a client-side error the participant could do
+nothing about. WAL and PRAGMA busy_timeout (see get_db) are what let the writers share the file,
+so this test drives every submit of 16 participants through one barrier - all 48 requests reach
+the write at the same moment on every run - and requires every one of them to land.
 
-The test makes the contended case deterministic by patching sqlite3.connect to refuse to wait
-(timeout=0) - the stand-in for a deployment where the write lock is held longer than the app is
-willing to sit. The fix, PRAGMA busy_timeout, is precisely the mechanism that makes a connection
-wait; journal_mode=WAL is what lets readers and the one writer share the file at all.
+The barrier is also what exposed the flake recorded in docs/audit-findings.md (4 of 20 runs): this
+test used to patch sqlite3.connect to timeout=0, and a simultaneous writer then gets SQLITE_BUSY
+on the read-to-write upgrade, which busy_timeout does not cover. Patching away the mechanism the
+test is about cannot end in "all submits land"; storage that will not wait at all is a deployment
+condition, not a property the app can promise.
 """
 import json
 import sqlite3
@@ -40,24 +41,28 @@ def _seed_participants(app_module, count):
     return rows
 
 
-def _refuse_to_wait(monkeypatch):
-    """The contended-storage stand-in: a connection that will not sit and wait for the writer."""
-    real_connect = sqlite3.connect
+def _race(submit, members):
+    """Every thread leaves the barrier together, so the write contention is real on every run
+    instead of depending on how fast the interpreter happens to start threads."""
+    start = threading.Barrier(len(members))
 
-    def connect(*args, **kwargs):
-        kwargs['timeout'] = 0
-        return real_connect(*args, **kwargs)
+    def at_the_barrier(member):
+        start.wait()
+        submit(*member)
 
-    monkeypatch.setattr(sqlite3, 'connect', connect)
+    threads = [threading.Thread(target=at_the_barrier, args=(member,)) for member in members]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
 
 
-def test_parallel_submits_all_land(app, monkeypatch):
+def test_parallel_submits_all_land(app):
     from src.survey import app as app_module
 
     pair_ids = app_module.IMAGE_PAIRS.ids[:TRIALS_EACH]
     assert len(pair_ids) == TRIALS_EACH, 'the study fixture is too small to exercise concurrency'
     sessions = [sid for sid, _ in _seed_participants(app_module, PARTICIPANTS)]
-    _refuse_to_wait(monkeypatch)
 
     outcomes = []
     lock = threading.Lock()
@@ -67,11 +72,12 @@ def test_parallel_submits_all_land(app, monkeypatch):
         with client.session_transaction() as sess:
             sess['session_id'] = session_id
             sess['user_pairs_count'] = TRIALS_EACH
+            sess['user_image_pairs'] = list(pair_ids)
             sess['pair_randomized'] = {}
         try:
             response = client.post('/api/submit_survey', json={
                 'image_pair_id': pair_id,
-                'responses': {'choice': 'a', 'confidence': 4},
+                'responses': {'image_quality': {'choice': 'A', 'confidence': 4}},
                 'time_spent': 3.5,
             })
             outcome = (session_id, pair_id, response.status_code)
@@ -80,12 +86,7 @@ def test_parallel_submits_all_land(app, monkeypatch):
         with lock:
             outcomes.append(outcome)
 
-    threads = [threading.Thread(target=submit, args=(sid, pair_id))
-               for sid in sessions for pair_id in pair_ids]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
+    _race(submit, [(sid, pair_id) for sid in sessions for pair_id in pair_ids])
 
     failed = [o for o in outcomes if o[2] != 200]
     assert not failed, f'{len(failed)} of {len(outcomes)} parallel submits lost: {failed[:3]}'

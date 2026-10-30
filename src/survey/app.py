@@ -49,6 +49,8 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)  # Session timeout
 
 # Security: CSRF Protection
 app.config['WTF_CSRF_ENABLED'] = True
+# One trial's answers are a few hundred bytes; this is the ceiling on what a POST may store.
+app.config['MAX_CONTENT_LENGTH'] = 64 * 1024
 app.config['WTF_CSRF_TIME_LIMIT'] = None  # Don't expire CSRF tokens
 csrf = CSRFProtect(app)
 
@@ -495,7 +497,8 @@ def init_db():
             time_spent REAL,
             timing_flag INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (participant_id) REFERENCES participants (id)
+            FOREIGN KEY (participant_id) REFERENCES participants (id),
+            UNIQUE (participant_id, image_pair_id)
         )
     ''')
 
@@ -514,6 +517,14 @@ def init_db():
     ''')
     db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_demographics_participant '
                'ON demographics (participant_id)')
+
+    # Same for answers: a trial is answered once, so the newest row per (participant, trial) wins.
+    db.execute('''
+        DELETE FROM survey_responses
+        WHERE id NOT IN (SELECT MAX(id) FROM survey_responses GROUP BY participant_id, image_pair_id)
+    ''')
+    db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_responses_participant_pair '
+               'ON survey_responses (participant_id, image_pair_id)')
 
     db.commit()
     db.close()
@@ -1213,6 +1224,9 @@ def submit_survey():
         if trial is None:
             return jsonify({'error': 'Image pair not found'}), 404
 
+        if trial_id not in session.get('user_image_pairs', []):
+            return jsonify({'error': 'Image pair was not served to this session'}), 400
+
         # The browser reports answers only; the served order is the session's record.
         randomized = bool(session.get('pair_randomized', {}).get(str(trial_id)))
         stimulus_data = _build_stimulus_data(trial, randomized)
@@ -1223,6 +1237,10 @@ def submit_survey():
         responses = data.get('responses')
         if not isinstance(responses, dict):
             return jsonify({'error': 'responses must be a structured object'}), 400
+
+        unknown = sorted(set(responses) - {q['name'] for q in CONFIG['questions']})
+        if unknown:
+            return jsonify({'error': f"responses has questions this study does not ask: {', '.join(unknown)}"}), 400
 
         stimulus_json = json.dumps(stimulus_data)
         responses_json = json.dumps(responses)
@@ -1235,25 +1253,19 @@ def submit_survey():
         timing_flag = 1 if time_spent is not None and (
                          time_spent < TIMING_FLOOR_S or time_spent > TIMING_CEILING_S) else 0
 
-        existing = db.execute(
-            'SELECT id FROM survey_responses WHERE participant_id = ? AND image_pair_id = ?',
-            (participant['id'], trial_id)
-        ).fetchone()
-
-        if existing:
-            db.execute('''
-                UPDATE survey_responses
-                SET stimulus_data = ?, responses = ?, was_randomized = ?,
-                    time_spent = ?, timing_flag = ?, created_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            ''', (stimulus_json, responses_json, was_randomized, time_spent, timing_flag, existing['id']))
-        else:
-            db.execute('''
-                INSERT INTO survey_responses
-                (participant_id, image_pair_id, stimulus_data, responses, was_randomized, time_spent, timing_flag)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (participant['id'], trial_id, stimulus_json, responses_json,
-                  was_randomized, time_spent, timing_flag))
+        db.execute('''
+            INSERT INTO survey_responses
+            (participant_id, image_pair_id, stimulus_data, responses, was_randomized, time_spent, timing_flag)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (participant_id, image_pair_id) DO UPDATE SET
+                stimulus_data = excluded.stimulus_data,
+                responses = excluded.responses,
+                was_randomized = excluded.was_randomized,
+                time_spent = excluded.time_spent,
+                timing_flag = excluded.timing_flag,
+                created_at = CURRENT_TIMESTAMP
+        ''', (participant['id'], trial_id, stimulus_json, responses_json,
+              was_randomized, time_spent, timing_flag))
 
         user_pairs_count = session.get('user_pairs_count', _trial_count())
         db.commit()

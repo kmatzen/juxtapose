@@ -36,11 +36,13 @@ def _participant(session_id, pair_id, time_spent, client):
         db.commit()
     finally:
         db.close()
-    payload = {'image_pair_id': pair_id, 'responses': {'q1': {'choice': 'A', 'confidence': 4}}}
+    payload = {'image_pair_id': pair_id,
+               'responses': {'image_quality': {'choice': 'A', 'confidence': 4}}}
     if time_spent is not None:
         payload['time_spent'] = time_spent
     with client.session_transaction() as sess:
         sess['session_id'] = session_id
+        sess['user_image_pairs'] = [pair_id]
     response = client.post('/api/submit_survey', json=payload)
     assert response.status_code == 200, response.get_data(as_text=True)
 
