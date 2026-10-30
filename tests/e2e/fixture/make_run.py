@@ -6,6 +6,7 @@ crossOrigin='anonymous' for canvas access, and Chromium refuses data: URIs under
 Usage: make_run.py <out_dir> [rows]
 """
 import json
+import os
 import shutil
 import struct
 import sys
@@ -83,7 +84,9 @@ def main():
     images.mkdir(parents=True)
 
     config = yaml.safe_load((REPO / 'survey_config.yaml').read_text())
-    config['survey']['pairs_per_user'] = rows
+    # Fewer pairs owed than rows available takes app.py's random.sample path; equal counts only ever
+    # reaches its shuffle branch.
+    config['survey']['pairs_per_user'] = int(os.environ.get('E2E_PAIRS_PER_USER', rows))
     config['tutorial']['enabled'] = False
     config['data']['file'] = 'trials.tsv'
     (out / 'survey_config.yaml').write_text(yaml.safe_dump(config, sort_keys=False, width=100))

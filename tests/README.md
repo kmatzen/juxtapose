@@ -4,10 +4,10 @@ This directory contains automated tests for the survey application, covering bot
 
 ## Test Summary
 
-**Total: 327 tests passing -**
+**Total: 329 tests passing -**
 - Backend (Python): 113 tests
 - Frontend (Vitest, jsdom): 192 tests
-- Browser (Playwright/Chromium): 22 tests
+- Browser (Playwright/Chromium): 24 tests
 
 Frontend suites import the shipped `frontend/src` modules directly — the component under test is
 the component the page runs. Never re-implement app logic inside a test: an inline copy passes
