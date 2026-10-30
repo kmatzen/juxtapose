@@ -5,6 +5,8 @@ import pytest
 import tempfile
 import os
 import json
+os.environ.setdefault('APP_ENV', 'dev')
+
 from src.survey import app as app_module
 
 

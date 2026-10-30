@@ -21,6 +21,7 @@ export IMAGE_PAIRS_FILE="$RUN/trials.tsv"
 export TUTORIAL_PAIRS_FILE="$RUN/tutorial_image_pair.txt"
 export SECRET_KEY="${SECRET_KEY:-e2e-secret-key}"
 export ADMIN_PASSWORD="${ADMIN_PASSWORD:-e2e-admin-password}"
+export APP_ENV="${APP_ENV:-dev}"
 export DEV_MODE=false
 export PORT="$PORT"
 
