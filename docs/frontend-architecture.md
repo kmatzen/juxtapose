@@ -78,7 +78,7 @@ This page is a research instrument, so these behaviours are the spec. Each is as
 | Unit | vitest | model, services (fake `fetch`), pure extraction (mask scan, tutorial steps, layout math) |
 | Component | vitest + jsdom | one component: mount into a fixture host, interact, assert DOM + callbacks |
 | Integration | playwright | the real page against the real Flask fixture server: flow, images, touch, mobile, dashboard |
-| Visual | playwright | `docs/screenshots/*.png`, pixel-identical across runs on a quiet runner; the specs assert the A/B and identity placement, so a shifted draw fails the run instead of drifting an image, and PNG bytes can still differ because the encoder's compression varies |
+| Visual | playwright | `docs/screenshots/*.png` — 4 of 7 pixel-stable across runs; 01, 03 and 06 move in a 56×106 identity-highlight patch because the highlight rides a client `Math.random` draw whose count varies (the specs assert identity DOM order, so a swapped tile fails the run — the ring colour does not). PNG bytes are never stable: the encoder's compression varies run to run, so compare pixels, not hashes |
 
 `frontend/test/helpers/` carries the harness: `surveyFixture()` (a DOM mirror of `index.html`),
 `mount()` (mount + auto-dispose), `fakeApi()` (routes → responses), `imageLoader()` (eager, manual
