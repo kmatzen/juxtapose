@@ -39,7 +39,7 @@ describe('two submits on one trial', () => {
             api,
             config: () => CONFIG as SurveyConfig,
             banner: { show: vi.fn(), hide: vi.fn(), dispose: vi.fn() },
-            stimulus: { show: vi.fn(async () => {}), dispose: vi.fn() },
+            stimulus: { show: vi.fn(async () => {}), failed: () => false, dispose: vi.fn() },
             conditioning: { show: vi.fn(), clear: vi.fn(), dispose: vi.fn() },
             questions: {
                 showTrial: vi.fn(), validate: vi.fn(), layout: vi.fn(), navigate: vi.fn(),

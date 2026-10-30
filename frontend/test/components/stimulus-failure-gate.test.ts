@@ -9,8 +9,11 @@ import type { InputConfig, QuestionConfig, Trial } from '../../src/study-state';
 
 /** Audit 6 F5, at the seam survey.ts wires: a pair the participant could not see must not be answerable. */
 
-const QUESTIONS: QuestionConfig[] = [{ name: 'image', label: 'Image', type: 'single_choice' }];
-const INPUTS: InputConfig[] = [];
+const QUESTIONS: QuestionConfig[] = [
+    { name: 'image', label: 'Image', type: 'single_choice' },
+    { name: 'mask', label: 'Mask', type: 'single_choice', depends_on: 'mask' },
+];
+const INPUTS: InputConfig[] = [{ name: 'mask', type: 'image', column: 'mask_url' }];
 
 const TRIAL = {
     id: 7,
@@ -48,17 +51,22 @@ function page(preload: (url: string) => Promise<LoadedImage>) {
     return { stimulus, flow, submit };
 }
 
+function answerThePair(): void {
+    answer('image_choice', 'A');
+    answer('image_confidence', '3');
+}
+
 describe('a stimulus that never rendered', () => {
     test('a fully answered form stays locked, and says what to do about it', async () => {
         const h = page(async () => ({ ok: false }));
         await h.stimulus.show(TRIAL);
         h.flow.showTrial(TRIAL);
 
-        answer('image', 'A');
+        answerThePair();
 
         expect(h.stimulus.failed()).toBe(true);
-        expect(h.submit.disabled).toBe(true,
-            'an answer to a pair nobody saw is submittable, so it enters the study data');
+        // An answer to a pair nobody saw would otherwise enter the study data.
+        expect(h.submit.disabled).toBe(true);
         expect(h.submit.title).toContain('Refresh the page');
     });
 
@@ -67,7 +75,7 @@ describe('a stimulus that never rendered', () => {
         await h.stimulus.show(TRIAL);
         h.flow.showTrial(TRIAL);
 
-        answer('image', 'A');
+        answerThePair();
 
         expect(h.stimulus.failed()).toBe(false);
         expect(h.submit.disabled).toBe(false);
