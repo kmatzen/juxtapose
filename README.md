@@ -198,7 +198,7 @@ SQLite with JSON columns for demographics and responses. Migration from older sc
 pip install ".[dev]" && npm ci
 python -m pytest tests/ -q     # 113 backend tests
 npm run test:unit              # 192 component and model tests (vitest + jsdom)
-npm run test:e2e               # 22 real-browser tests (builds, boots its own server)
+npm run test:e2e               # 24 real-browser tests (builds, boots its own server)
 ```
 
 The survey's rules (question gating, answer assembly, payload shape, progress) live in

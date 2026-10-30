@@ -27,14 +27,18 @@ async function pinRandom(context, seed = 0x9e3779b9) {
   }, seed);
 }
 
-async function startShotServer(port) {
+async function startShotServer(port, { rows = '1', pairsPerUser, seed = SHOT_SEED } = {}) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'juxtapose-shot-'));
+  const env = {
+    ...process.env,
+    ...(pairsPerUser ? { E2E_PAIRS_PER_USER: String(pairsPerUser) } : {}),
+  };
   const child = spawn('bash', ['tests/e2e/fixture/server.sh'], {
     env: {
-      ...process.env,
+      ...env,
       PORT: String(port),
-      E2E_ROWS: '1',
-      E2E_RANDOM_SEED: SHOT_SEED,
+      E2E_ROWS: rows,
+      ...(seed ? { E2E_RANDOM_SEED: seed } : {}),
       E2E_RUN_DIR: dataDir,
       ADMIN_PASSWORD: PASSWORD,
     },
