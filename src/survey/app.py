@@ -1580,6 +1580,92 @@ def admin_stats():
     })
 
 
+_PARTICIPANT_CACHE = {}
+
+
+def _participant_rollup(db):
+    """{participant id: (answers, trials completed)} for every participant with answers.
+
+    Completion is the app's one rule over stored answers, not a SQL count, so this reads the answer
+    rows the way the stats aggregate does and caches by the same counter the dashboard poll uses.
+    """
+    version = db.execute('SELECT n FROM stats_version WHERE id = 1').fetchone()['n']
+    cached = _PARTICIPANT_CACHE.get(version)
+    if cached is not None:
+        return cached
+
+    by_participant = {}
+    for row in db.execute('SELECT participant_id, image_pair_id, responses, stimulus_data '
+                          'FROM survey_responses'):
+        by_participant.setdefault(row['participant_id'], []).append(row)
+    rollup = {pid: (len(rows), len(_completed_trial_ids(rows)))
+              for pid, rows in by_participant.items()}
+    _PARTICIPANT_CACHE.clear()
+    _PARTICIPANT_CACHE[version] = rollup
+    return rollup
+
+
+@app.route('/api/admin/participants')
+@require_admin
+def admin_participants():
+    """The roster: one row per participant with their own progress, and where the study loses people.
+
+    The results page is paged by response, so grouping it in the browser listed only the
+    participants inside that window - the audit read 14 of 30 people there and one participant's
+    truncated 5 answers as a dropout at trial 5.
+    """
+    limit = request.args.get('limit', ADMIN_PAGE_SIZE, type=int) or ADMIN_PAGE_SIZE
+    limit = max(1, min(limit, ADMIN_MAX_PAGE_SIZE))
+    offset = max(request.args.get('offset', 0, type=int) or 0, 0)
+
+    db = get_db()
+    total = db.execute('SELECT COUNT(*) AS n FROM participants').fetchone()['n']
+    rows = db.execute('''
+        SELECT p.id, p.session_id, p.referral_code, p.browser, p.browser_version, p.os,
+               p.screen_width, p.screen_height, p.created_at, d.email, d.data AS demographics
+        FROM participants p
+        LEFT JOIN demographics d ON d.participant_id = p.id
+        ORDER BY p.id LIMIT ? OFFSET ?
+    ''', (limit, offset)).fetchall()
+    rollup = _participant_rollup(db)
+    db.close()
+
+    pairs_per_user = _trial_count()
+    counts = [completed for _answers, completed in rollup.values()]
+    dropout = {}
+    for count in counts + [0] * (total - len(rollup)):
+        if count < pairs_per_user:
+            dropout[str(count)] = dropout.get(str(count), 0) + 1
+
+    return jsonify({
+        'rows': [{
+            **_json_object(row['demographics']),
+            'id': row['id'],
+            'session_id': row['session_id'],
+            'email': row['email'],
+            'referral_code': row['referral_code'],
+            'browser': row['browser'],
+            'browser_version': row['browser_version'],
+            'os': row['os'],
+            'screen_width': row['screen_width'],
+            'screen_height': row['screen_height'],
+            'created_at': row['created_at'],
+            'responses': rollup.get(row['id'], (0, 0))[0],
+            'trials_completed': rollup.get(row['id'], (0, 0))[1],
+            'pairs_per_user': pairs_per_user,
+        } for row in rows],
+        'total': total,
+        'limit': limit,
+        'offset': offset,
+        'summary': {
+            'started': total,
+            'completed': sum(1 for count in counts if count >= pairs_per_user),
+            'pairs_per_user': pairs_per_user,
+            'dropout': dropout,
+        },
+    })
+
+
 @app.route('/api/admin/export')
 @require_admin
 def admin_export():
