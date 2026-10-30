@@ -4,6 +4,7 @@ const {
     answer,
     apiMock,
     flush,
+    seam,
     loadSurvey,
     script,
     stubLocation,
@@ -12,7 +13,6 @@ const {
     surveyDom,
 } = require('./helpers/survey-env');
 
-const modal = () => document.getElementById('retake-modal');
 const postBody = (url) => {
     const calls = global.fetch.mock.calls.filter(([u, opts]) => u === url && opts && opts.body);
     return calls.length ? JSON.parse(calls[calls.length - 1][1].body) : undefined;
@@ -181,8 +181,7 @@ describe('survey submission payload', () => {
         submit('survey-form');
         await flush();
 
-        expect(document.querySelector('.error-message').textContent)
-            .toBe('Failed to submit response. Please try again.');
+        expect(seam().shown).toContain('Failed to submit response. Please try again.');
         expect(document.querySelector('input[name="image_choice"]:checked').value).toBe('A');
     });
 
@@ -254,15 +253,15 @@ describe('demographics submission payload', () => {
 
         await submitDemographics();
 
-        expect(modal().classList.contains('show')).toBe(true);
+        expect(seam().asks).toBe(1);
+        // The destructive delete must not be on the wire before the participant has answered.
         expect(postCount('/api/submit_demographics')).toBe(1);
 
-        document.getElementById('retake-confirm').click();
+        seam().answer(true);
         await flush();
 
         expect(postCount('/api/submit_demographics')).toBe(2);
         expect(postBody('/api/submit_demographics').confirm_retake).toBe(true);
-        expect(modal().classList.contains('show')).toBe(false);
         expect(location.href).toBe('/');
     });
 
@@ -276,7 +275,7 @@ describe('demographics submission payload', () => {
         });
 
         await submitDemographics();
-        document.getElementById('retake-cancel').click();
+        seam().answer(false);
         await flush();
 
         expect(postCount('/api/submit_demographics')).toBe(1);
@@ -288,8 +287,7 @@ describe('demographics submission payload', () => {
 
         await submitDemographics();
 
-        expect(document.querySelector('.error-message').textContent)
-            .toBe('Failed to submit demographics. Please try again.');
+        expect(seam().shown).toContain('Failed to submit demographics. Please try again.');
         expect(location.href).toBe('/survey');
     });
 });

@@ -103,18 +103,21 @@ afterEach(() => {
 });
 
 // Auto-disposed: a listener the component leaks fails the next test, which is the point.
-type AnyMount = (host: HTMLElement, props: never) => Disposable;
-
 // Auto-disposed: a listener the component leaks fails the next test, which is the point.
-export function mount<M extends AnyMount>(
-    mountFn: M,
+export function mount<P, R extends Disposable>(
+    mountFn: (host: HTMLElement, props: P) => R,
     host: HTMLElement,
-    props: Parameters<M>[1],
-): ReturnType<M> {
-    const attach = mountFn as (h: HTMLElement, p: Parameters<M>[1]) => Disposable;
-    const mounted = attach(host, props);
+    props: P,
+): R;
+export function mount<R extends Disposable>(mountFn: (host: HTMLElement) => R, host: HTMLElement): R;
+export function mount(
+    mountFn: (host: HTMLElement, props?: unknown) => Disposable,
+    host: HTMLElement,
+    props?: unknown,
+): Disposable {
+    const mounted = mountFn(host, props);
     disposables.push(mounted);
-    return mounted as ReturnType<M>;
+    return mounted;
 }
 
 export function host(id: string): HTMLElement {
@@ -142,7 +145,7 @@ export function submit(formId: string): Event {
 }
 
 export function byText(root: ParentNode, text: string): HTMLElement {
-    const nodes = Array.from(root.querySelectorAll<HTMLElement>('button, a, p, span'));
+    const nodes = Array.from(root.querySelectorAll<HTMLElement>('button, a, p, span, h1, h2, h3, label, li, strong'));
     const found = nodes.find((n) => n.textContent?.trim() === text);
     if (!found) throw new Error(`no element reading ${JSON.stringify(text)}`);
     return found;

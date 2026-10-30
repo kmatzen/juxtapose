@@ -1,12 +1,5 @@
-const {
-    PAIR,
-    apiMock,
-    flush,
-    loadSurvey,
-    script,
-    stubScrolling,
-    surveyDom,
-} = require('./helpers/survey-env');
+const { PAIR, apiMock, flush, loadSurvey, script, stubScrolling, surveyDom } =
+    require('./helpers/survey-env');
 
 beforeEach(async () => {
     surveyDom();
@@ -48,39 +41,5 @@ describe('checkDemographicsSubmitted', () => {
         await flush();
 
         expect(document.getElementById('demographics-section').classList.contains('active')).toBe(true);
-    });
-});
-
-describe('image lightbox', () => {
-    const lightbox = () => document.getElementById('image-lightbox');
-
-    beforeEach(() => script.setupEventListeners());
-
-    test('opening shows the full image with a caption', () => {
-        window.openLightbox('https://img/a.png', 'Image A');
-
-        expect(document.getElementById('lightbox-image').src).toBe('https://img/a.png');
-        expect(document.querySelector('.lightbox-caption').textContent).toBe('Image A');
-        expect(lightbox().classList.contains('show')).toBe(true);
-    });
-
-    test('escape, the close button and the backdrop all dismiss it', () => {
-        window.openLightbox('https://img/a.png', 'Image A');
-
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-        expect(lightbox().classList.contains('show')).toBe(false);
-
-        window.openLightbox('https://img/b.png', 'Image B');
-        document.querySelector('.lightbox-close').click();
-        expect(lightbox().classList.contains('show')).toBe(false);
-
-        window.openLightbox('https://img/b.png', 'Image B');
-        lightbox().dispatchEvent(new Event('click'));
-        expect(lightbox().classList.contains('show')).toBe(false);
-    });
-
-    test('escape is ignored while the lightbox is closed', () => {
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-        expect(lightbox().classList.contains('show')).toBe(false);
     });
 });

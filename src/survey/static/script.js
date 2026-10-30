@@ -8,14 +8,13 @@ const CONFIG = {
     IMAGE_PRELOAD_DELAY_MS: 100     // Delay before auto-filling survey in dev mode
 };
 
-// A module script runs after this classic one parses, so window.JX is read on first use, not here.
-// The jsdom suites have no window.JX and get the CJS build of the same module.
+// A module script runs after this classic one parses, so the seam is read on first use, not here.
+// The jsdom suites have no seam and get the CJS build of the same module.
 let coreModule = null;
 function core() {
     if (!coreModule) {
-        coreModule = (typeof window !== 'undefined' && window.JX)
-            ? window.JX
-            : (typeof require === 'function' ? require('../../../frontend/.cjs/study-state.cjs') : null);
+        const mounted = typeof window !== 'undefined' && window.__JX__ ? window.__JX__.core : null;
+        coreModule = mounted || (typeof require === 'function' ? require('../../../frontend/.cjs/study-state.cjs') : null);
     }
     if (!coreModule) {
         throw new Error('study-state is not loaded: run npm run build');
@@ -165,44 +164,6 @@ function setupEventListeners() {
         console.error('Survey form not found during setup');
     }
     
-    // Image lightbox
-    setupImageLightbox();
-}
-
-function setupImageLightbox() {
-    const lightbox = document.getElementById('image-lightbox');
-    const lightboxImage = document.getElementById('lightbox-image');
-    const lightboxCaption = document.querySelector('.lightbox-caption');
-    const closeBtn = document.querySelector('.lightbox-close');
-    
-    // Function to open lightbox
-    window.openLightbox = function(imageSrc, caption) {
-        lightboxImage.src = imageSrc;
-        lightboxCaption.textContent = caption;
-        lightbox.classList.add('show');
-    };
-    
-    // Function to close lightbox
-    const closeLightbox = () => {
-        lightbox.classList.remove('show');
-    };
-    
-    // Close button
-    closeBtn.addEventListener('click', closeLightbox);
-    
-    // Close on background click
-    lightbox.addEventListener('click', (e) => {
-        if (e.target === lightbox) {
-            closeLightbox();
-        }
-    });
-    
-    // Close on Escape key
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && lightbox.classList.contains('show')) {
-            closeLightbox();
-        }
-    });
 }
 
 function fillDemographicsForm() {
@@ -613,50 +574,8 @@ async function handleSurveySubmit(event) {
 }
 
 function showRetakeModal() {
-    return new Promise((resolve) => {
-        const modal = document.getElementById('retake-modal');
-        const confirmBtn = document.getElementById('retake-confirm');
-        const cancelBtn = document.getElementById('retake-cancel');
-        // Show modal
-        modal.classList.add('show');
-        // The backdrop is fixed to the viewport, so an unlocked page scrolls undimmed content
-        // out from under a decision the participant has not made yet.
-        const scrollY = window.scrollY;
-        document.documentElement.style.setProperty('--modal-scroll-y', `${scrollY}px`);
-        document.documentElement.classList.add('modal-open');
-
-        const dismiss = () => {
-            modal.classList.remove('show');
-            document.documentElement.classList.remove('modal-open');
-            // While the body was out of flow the document had nothing to scroll, so the
-            // restore only lands once layout is back.
-            requestAnimationFrame(() => window.scrollTo(0, scrollY));
-            confirmBtn.removeEventListener('click', handleConfirm);
-            cancelBtn.removeEventListener('click', handleCancel);
-        };
-
-        // Handle confirm
-        const handleConfirm = () => {
-            dismiss();
-            resolve(true);
-        };
-
-        // Handle cancel
-        const handleCancel = () => {
-            dismiss();
-            resolve(false);
-        };
-        
-        confirmBtn.addEventListener('click', handleConfirm);
-        cancelBtn.addEventListener('click', handleCancel);
-        
-        // Close on background click
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                handleCancel();
-            }
-        });
-    });
+    // Fail closed: with no components mounted the answer to "overwrite my data?" is no.
+    return window.__JX__ ? window.__JX__.retake.ask() : Promise.resolve(false);
 }
 
 function updateQuestionVisibility(data) {
@@ -1094,22 +1013,20 @@ function hideMaskOverlay() {
 }
 
 function showError(message) {
-    // Create error element if it doesn't exist
-    let errorDiv = document.querySelector('.error-message');
-    if (!errorDiv) {
-        errorDiv = document.createElement('div');
-        errorDiv.className = 'error-message';
-        const activeSection = document.querySelector('.section.active');
-        activeSection.insertBefore(errorDiv, activeSection.firstChild);
+    // Components own this UI (frontend/src/components); the seam is the migration seam in seam.ts.
+    if (!window.__JX__) {
+        console.error('Unshown message:', message);
+        return;
     }
-    
-    errorDiv.textContent = message;
-    errorDiv.classList.add('show');
-    
-    // Hide after 5 seconds
-    setTimeout(() => {
-        errorDiv.classList.remove('show');
-    }, 5000);
+    window.__JX__.banner.show(message);
+}
+
+function openLightbox(src, caption) {
+    if (!window.__JX__) {
+        console.error('Lightbox is not mounted');
+        return;
+    }
+    window.__JX__.lightbox.open(src, caption);
 }
 
 // ==================================================================

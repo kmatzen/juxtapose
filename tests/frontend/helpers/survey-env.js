@@ -191,11 +191,42 @@ function stubScrolling() {
     return window.Element.prototype.scrollTo;
 }
 
-async function loadSurvey(config = CONFIG) {
+// The components in frontend/src/components are collaborators of script.js now: the suite stubs
+// the seam and asserts the page asked for the thing; the components' own tests cover the rendering.
+function installSeam() {
+    const seam = {
+        shown: [],
+        asks: 0,
+        answer: null,
+        opened: [],
+        banner: { show: (message) => seam.shown.push(message), hide() {}, dispose() {} },
+        lightbox: { open: (src, caption) => seam.opened.push([src, caption]), close() {}, dispose() {} },
+        // Held open on purpose: a test must see that nothing destructive posted before the answer.
+        retake: {
+            ask: () => {
+                seam.asks += 1;
+                return new Promise((resolve) => {
+                    seam.answer = resolve;
+                });
+            },
+            dispose() {},
+        },
+    };
+    window.__JX__ = seam;
+    return seam;
+}
+
+function seam() {
+    if (!window.__JX__) throw new Error('no seam: call loadSurvey() or installSeam() first');
+    return window.__JX__;
+}
+
+function loadSurvey(config = CONFIG) {
     surveyDom();
     autoLoadingImages();
+    installSeam();
     global.fetch = apiMock({ '/api/config': config });
-    await script.checkDevMode();
+    return script.checkDevMode();
 }
 
 function answer(name, value) {
@@ -218,6 +249,8 @@ const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
 module.exports = {
     CONFIG,
+    installSeam,
+    seam,
     PAIR,
     answer,
     apiMock,

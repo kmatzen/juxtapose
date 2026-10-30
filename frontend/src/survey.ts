@@ -1,11 +1,29 @@
-// script.js stays a classic script (inline handlers need globals), so the core reaches it on window.
+import { mountErrorBanner } from './components/error-banner';
+import { mountLightbox } from './components/lightbox';
+import { mountRetakeModal } from './components/retake-modal';
+import { need } from './lib/dom';
+import type { SurveySeam } from './seam';
 import * as studyState from './study-state';
 
-declare global {
-  interface Window {
-    JX: typeof studyState;
-  }
+// Grows with each step of docs/frontend-architecture.md: the classic script's duties land here.
+function mountSurveyPage(): SurveySeam {
+    return {
+        core: studyState,
+        banner: mountErrorBanner(document.body, {
+            activeSection: () => document.querySelector<HTMLElement>('.section.active'),
+        }),
+        lightbox: mountLightbox(need(document.body, '#image-lightbox')),
+        retake: mountRetakeModal(document.body),
+    };
 }
 
-window.JX = studyState;
-document.documentElement.dataset.build = 'vite';
+function start(): void {
+    window.__JX__ = mountSurveyPage();
+    document.documentElement.dataset.build = 'vite';
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start, { once: true });
+} else {
+    start();
+}

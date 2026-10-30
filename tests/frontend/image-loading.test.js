@@ -5,6 +5,7 @@ const {
     autoLoadingImages,
     flush,
     loadSurvey,
+    seam,
     script,
     stubLocation,
     stubScrolling,
@@ -114,7 +115,7 @@ describe('the form is locked while images are in flight', () => {
         await script.loadImagePair(0);
         await flush();
 
-        expect(document.querySelector('.error-message').textContent).toContain('Image B');
+        expect(seam().shown.join(' ')).toContain('Image B');
         expect(form().style.pointerEvents).toBe('auto');
         expect(srcOf('image-a')).toBe('');
     });
@@ -135,8 +136,7 @@ describe('loadImagePair failure paths', () => {
         await script.loadImagePair(0);
         await flush();
 
-        expect(document.querySelector('.error-message').textContent)
-            .toBe('Failed to load image pair. Please refresh the page.');
+        expect(seam().shown).toContain('Failed to load image pair. Please refresh the page.');
         expect(srcOf('image-a')).toBe('');
         expect(error).toHaveBeenCalled();
     });
@@ -147,8 +147,7 @@ describe('loadImagePair failure paths', () => {
         await script.loadImagePair(0);
         await flush();
 
-        expect(document.querySelector('.error-message').textContent)
-            .toBe('Network error. Please check your connection.');
+        expect(seam().shown).toContain('Network error. Please check your connection.');
     });
 
     test('a 404 means nothing is owed, so it hands over to the index route', async () => {
@@ -159,7 +158,7 @@ describe('loadImagePair failure paths', () => {
         await flush();
 
         expect(location.href).toBe('/');
-        expect(document.querySelector('.error-message')).toBeNull();
+        expect(seam().shown).toEqual([]);
     });
 
     test('a second pair clears the previous pair overlays and answers', async () => {
