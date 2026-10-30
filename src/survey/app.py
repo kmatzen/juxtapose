@@ -19,9 +19,15 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Detect production environment via DATA_DIR or /data mount
+# The mode is stated, never inferred: it decides which security gates are on, and guessing it wrong
+# used to boot a "production" study with dev secrets and no complaint.
+APP_ENV = os.environ.get('APP_ENV')
+if APP_ENV not in ('production', 'dev'):
+    raise ValueError(f"APP_ENV must be 'production' or 'dev', got {APP_ENV!r}: it decides which security gates are on, so there is no default")
+IS_PRODUCTION = APP_ENV == 'production'
+
+# Where results live; the /data mount is the container convention.
 DATA_DIR = os.environ.get('DATA_DIR', '/data' if os.path.exists('/data') else '')
-IS_PRODUCTION = bool(DATA_DIR)
 
 # Security: Require strong SECRET_KEY in production
 SECRET_KEY = os.environ.get('SECRET_KEY')

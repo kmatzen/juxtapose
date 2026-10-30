@@ -63,6 +63,8 @@ def test_app_imports_with_readme_minimal_config(tmp_path):
     env.update({
         'SURVEY_CONFIG': config_path,
         'IMAGE_PAIRS_FILE': pairs_path,
+        'APP_ENV': 'production',
+
         'DATA_DIR': str(tmp_path),
         'SECRET_KEY': 'a-real-secret-for-this-test',
         'ADMIN_PASSWORD': 'a-real-password-for-this-test',
@@ -123,6 +125,8 @@ def test_missing_data_file_fails_startup_without_writing_samples(tmp_path):
     env.update({
         'SURVEY_CONFIG': config_path,
         'IMAGE_PAIRS_FILE': str(tmp_path / 'definitely_missing.tsv'),
+        'APP_ENV': 'production',
+
         'DATA_DIR': str(tmp_path),
         'SECRET_KEY': 'a-real-secret-for-this-test',
         'ADMIN_PASSWORD': 'a-real-password-for-this-test',
@@ -146,6 +150,8 @@ def test_app_boots_on_generated_pairs_file(tmp_path):
     env.update({
         'SURVEY_CONFIG': config_path,
         'IMAGE_PAIRS_FILE': run_generator(tmp_path),
+        'APP_ENV': 'production',
+
         'DATA_DIR': str(tmp_path),
         'SECRET_KEY': 'a-real-secret-for-this-test',
         'ADMIN_PASSWORD': 'a-real-password-for-this-test',
