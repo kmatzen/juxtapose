@@ -5,6 +5,9 @@ const { spawn } = require('child_process');
 const { expect } = require('@playwright/test');
 
 const PASSWORD = process.env.ADMIN_PASSWORD || 'e2e-admin-password';
+// Change this and every committed screenshot moves: it fixes which image is A, and which
+// pair the single-row study shows. Name it in the PR when the images are regenerated.
+const SHOT_SEED = process.env.E2E_RANDOM_SEED || '20260301';
 
 // Committed screenshots are reviewable artifacts, so they must not drift between runs. These
 // servers get a one-row study (nothing to shuffle), a throwaway DATA_DIR and fixed emails.
@@ -31,6 +34,7 @@ async function startShotServer(port) {
       ...process.env,
       PORT: String(port),
       E2E_ROWS: '1',
+      E2E_RANDOM_SEED: SHOT_SEED,
       E2E_RUN_DIR: dataDir,
       ADMIN_PASSWORD: PASSWORD,
     },
@@ -126,4 +130,4 @@ async function shot(page, name, opts = {}) {
   });
 }
 
-module.exports = { pinRandom, startShotServer, settleForShot, shot, PASSWORD };
+module.exports = { pinRandom, startShotServer, settleForShot, shot, PASSWORD, SHOT_SEED };
