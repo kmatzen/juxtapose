@@ -9,8 +9,7 @@ import random
 import hmac
 import hashlib
 import tempfile
-from collections import OrderedDict
-from functools import wraps
+from functools import lru_cache, wraps
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect, generate_csrf
@@ -204,15 +203,31 @@ def _load_trials_from_file(file_path_relative, start_id=1):
     return trials
 
 
+ROW_CACHE_SIZE = 512
+
+
+@lru_cache(maxsize=ROW_CACHE_SIZE)
+def _read_trial_row(path, offset, length, trial_id, columns):
+    """One trial row, parsed from its byte range, cached by the position it came from.
+
+    lru_cache is the bound and the thread-safety: the store used to keep its own OrderedDict and
+    evict it by hand from every request thread, which is a check-then-act waiting to break. Two
+    threads may parse the same row concurrently, which costs a parse and changes nothing - the
+    work is pure.
+    """
+    with open(path, 'rb') as f:
+        f.seek(offset)
+        line = f.read(length)
+    return _parse_trial_line(line.decode('utf-8').rstrip('\r\n').split('\t'), list(columns), trial_id)
+
+
 class TrialStore:
     """The study's trials, indexed at boot and parsed on demand.
 
     A study of N pairs used to cost N dicts in every worker, and each pair request scanned that list
     for its id. Boot now keeps an id and a byte range per row; a row becomes a dict when a
-    participant is served it, and the most recent ROW_CACHE_SIZE stay hot.
+    participant is served it, and _read_trial_row keeps the most recent ROW_CACHE_SIZE hot.
     """
-
-    ROW_CACHE_SIZE = 512
 
     def __init__(self, file_path_relative, start_id=1):
         self.relative_path = file_path_relative
@@ -220,7 +235,6 @@ class TrialStore:
         self.columns = CONFIG['data']['columns']
         self.ids = []
         self._offsets = {}
-        self._cache = OrderedDict()
         self._index(start_id)
 
     def _index(self, start_id):
@@ -249,21 +263,10 @@ class TrialStore:
 
     def get(self, trial_id):
         """One trial row, parsed from its byte range on first use."""
-        cached = self._cache.get(trial_id)
-        if cached is not None:
-            self._cache.move_to_end(trial_id)
-            return cached
         location = self._offsets.get(trial_id)
         if location is None:
             return None
-        with open(self.path, 'rb') as f:
-            f.seek(location[0])
-            line = f.read(location[1])
-        row = _parse_trial_line(line.decode('utf-8').rstrip('\r\n').split('\t'), self.columns, trial_id)
-        self._cache[trial_id] = row
-        if len(self._cache) > self.ROW_CACHE_SIZE:
-            self._cache.popitem(last=False)
-        return row
+        return _read_trial_row(self.path, location[0], location[1], trial_id, tuple(self.columns))
 
     def first(self):
         return self.get(self.ids[0]) if self.ids else None

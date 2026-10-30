@@ -39,3 +39,16 @@ def test_boot_indexes_ids_without_materialising_rows():
     app_module.IMAGE_PAIRS.get(app_module.IMAGE_PAIRS.ids[1])
     assert app_module._ROW_PARSES == baseline + 2
     app_module._ROW_PARSES = before
+
+
+def test_the_row_cache_is_bounded_by_the_documented_size():
+    """The bound lives on the decorator now, so the hand-rolled eviction cannot come back unnoticed."""
+    assert app_module._read_trial_row.cache_info().maxsize == app_module.ROW_CACHE_SIZE
+
+    for _ in range(3):
+        for trial_id in app_module.IMAGE_PAIRS.ids:
+            app_module.IMAGE_PAIRS.get(trial_id)
+
+    info = app_module._read_trial_row.cache_info()
+    assert info.currsize <= app_module.ROW_CACHE_SIZE
+    assert info.hits >= len(app_module.IMAGE_PAIRS.ids) * 2, 'a repeat lookup must come from the cache'
