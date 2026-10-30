@@ -19,6 +19,8 @@ test('the committed desktop screenshots come from one deterministic study', asyn
 
   try {
     await startSurvey(page, EMAIL);
+    // Identity tiles come off a client Math.random draw, so a shifted draw count moves them: fail loudly.
+    await expect(page.locator('img.identity-image').first()).toHaveAttribute('src', /trial0_id0\.png$/);
     await shot(page, '01-survey-trial');
 
     await page.locator('#identity-images .identity-image').first().hover();
@@ -50,6 +52,14 @@ test('the committed desktop screenshots come from one deterministic study', asyn
     await admin.locator('#results-table th').first().waitFor();
     await admin.locator('#toggle-view').click();
     await expect(admin.locator('#view-mode')).toHaveText('Responses View');
+    // Measured elapsed time: a busy runner moved it 5.5 -> 5.8, and a committed image can't contain a stopwatch.
+    await admin.evaluate(() => { document.getElementById('avg-time').textContent = '—'; });
+    await expect(admin.locator('#avg-time')).toHaveText('—');
+    // The per-response times are measured too; the shot spends a fixed 4.2s per trial, so show that.
+    const timeCol = (await admin.locator('#results-table th').allInnerTexts())
+      .findIndex((t) => /Time \(s\)/.test(t)) + 1;
+    await admin.locator(`#results-table tbody tr td:nth-child(${timeCol})`)
+      .evaluateAll((tds) => tds.forEach((td) => { td.textContent = '4.2'; }));
     await shot(admin, '05-admin-dashboard');
     await admin.close();
   } finally {

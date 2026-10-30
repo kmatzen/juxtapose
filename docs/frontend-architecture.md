@@ -78,7 +78,7 @@ This page is a research instrument, so these behaviours are the spec. Each is as
 | Unit | vitest | model, services (fake `fetch`), pure extraction (mask scan, tutorial steps, layout math) |
 | Component | vitest + jsdom | one component: mount into a fixture host, interact, assert DOM + callbacks |
 | Integration | playwright | the real page against the real Flask fixture server: flow, images, touch, mobile, dashboard |
-| Visual | playwright | `docs/screenshots/*.png`, byte-identical across runs |
+| Visual | playwright | `docs/screenshots/*.png`, pixel-identical across runs on a quiet runner; the specs assert the A/B and identity placement, so a shifted draw fails the run instead of drifting an image, and PNG bytes can still differ because the encoder's compression varies |
 
 `frontend/test/helpers/` carries the harness: `surveyFixture()` (a DOM mirror of `index.html`),
 `mount()` (mount + auto-dispose), `fakeApi()` (routes → responses), `imageLoader()` (eager, manual
