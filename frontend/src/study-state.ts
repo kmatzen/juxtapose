@@ -8,6 +8,7 @@ export type QuestionConfig = {
     depends_on?: string;
     confidence?: boolean;
     scale?: number;
+    required?: boolean;
 };
 
 export type InputConfig = {
@@ -122,14 +123,6 @@ export function isSectionVisible(
     const input = inputs.find(i => i.name === question.depends_on);
     if (!input) return true;
     return String((trial && trial[input.column]) || '').trim() !== '';
-}
-
-export function visibleQuestionNames(
-    questions: QuestionConfig[],
-    trial: Trial | null,
-    inputs: InputConfig[],
-): string[] {
-    return questions.filter(q => isSectionVisible(q, trial, inputs)).map(q => q.name);
 }
 
 const toInt = (raw: string | undefined): number | null => {

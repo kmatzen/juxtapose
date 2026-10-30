@@ -36,24 +36,36 @@ def test_boot_indexes_ids_without_materialising_rows():
     """Import parses no rows; the first lookup parses exactly one."""
     import importlib
 
-    before = app_module._ROW_PARSES
     importlib.reload(app_module)
-    # The one-row tutorial is eager by design; the study itself is not. The count that used to scale
-    # with the study is the one that must not.
-    assert app_module._ROW_PARSES <= 1, (
-        f'import parsed {app_module._ROW_PARSES} rows; a 50k-pair study costs that per worker process')
+    # The row cache is the only place a parsed row lives, so its size after import is the boot cost.
+    held = app_module._read_trial_row.cache_info().currsize
+    assert held <= 1, f'a fresh import holds {held} parsed rows; only the tutorial is eager by design'
+    assert len(app_module.IMAGE_PAIRS.ids) >= 2, 'the study fixture needs several rows'
 
-    baseline = app_module._ROW_PARSES
-    first_id = app_module.IMAGE_PAIRS.ids[0]
-    app_module.IMAGE_PAIRS.get(first_id)
-    assert app_module._ROW_PARSES == baseline + 1
-    app_module.IMAGE_PAIRS.get(first_id)
-    assert app_module._ROW_PARSES == baseline + 1, 'the cache must serve a repeat lookup without re-parsing'
+
+def test_a_row_is_parsed_once_and_the_cache_serves_the_repeats(app, monkeypatch):
+    """The parse counter the app used to carry lived in production code for the test's benefit."""
+    parsed = []
+    real = app_module._parse_trial_line
+
+    def counting(parts, columns, trial_id):
+        parsed.append(trial_id)
+        return real(parts, columns, trial_id)
+
+    monkeypatch.setattr(app_module, '_parse_trial_line', counting)
+    first, second = app_module.IMAGE_PAIRS.ids[0], app_module.IMAGE_PAIRS.ids[1]
+
+    app_module.IMAGE_PAIRS.get(first)
+    assert parsed == [first], 'the first lookup must parse exactly the row it serves'
+
+    app_module.IMAGE_PAIRS.get(first)
+    assert parsed == [first], 'the cache must serve a repeat lookup without re-parsing'
+
     assert app_module.IMAGE_PAIRS.get(999_999) is None
-    assert app_module._ROW_PARSES == baseline + 1, 'a lookup of an unknown id must parse nothing'
-    app_module.IMAGE_PAIRS.get(app_module.IMAGE_PAIRS.ids[1])
-    assert app_module._ROW_PARSES == baseline + 2
-    app_module._ROW_PARSES = before
+    assert parsed == [first], 'a lookup of an unknown id must parse nothing'
+
+    app_module.IMAGE_PAIRS.get(second)
+    assert parsed == [first, second]
 
 
 def test_the_row_cache_is_bounded_by_the_documented_size():

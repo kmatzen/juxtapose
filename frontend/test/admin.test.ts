@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   demographicsColumns,
@@ -124,5 +124,57 @@ describe('formatters', () => {
       .toBe('method_a: 3, method_b: 1');
     expect(preferenceSummary({ preferences: {} }, 'image_quality')).toBe('No data');
     expect(preferenceSummary(null, 'image_quality')).toBe('No data');
+  });
+});
+
+describe('the 30s poll and paging', () => {
+  const PAGE_SIZE = 200;
+  const TOTAL = 400;
+
+  const shown = () => document.getElementById('row-count')!.textContent;
+  // A click kicks off a plain promise chain, so the fake clock must be nudged several times to drain it.
+  const settle = async () => { for (let i = 0; i < 8; i += 1) await vi.advanceTimersByTimeAsync(0); };
+
+  beforeEach(() => {
+    const rows = Array.from({ length: TOTAL }, (_, i) => ({
+      email: `p${i}@example.com`, image_pair_id: i + 1,
+    }));
+    vi.stubGlobal('fetch', vi.fn(async (url: unknown) => {
+      const target = new URL(String(url), 'http://test');
+      const payload = target.pathname.startsWith('/api/admin/results')
+        ? (() => {
+            const limit = Number(target.searchParams.get('limit'));
+            const offset = Number(target.searchParams.get('offset'));
+            return { rows: rows.slice(offset, offset + limit), total: TOTAL, limit, offset };
+          })()
+        : target.pathname.startsWith('/api/admin/stats')
+          ? { total_responses: TOTAL, preference_by_question: {} }
+          : { survey: { pairs_per_user: PAGE_SIZE }, questions: QUESTIONS };
+      return { ok: true, status: 200, json: async () => payload } as Response;
+    }));
+  });
+
+  it('keeps the rows the analyst paged to after one poll', async () => {
+    vi.useFakeTimers();
+    document.body.innerHTML = `<div data-admin-app>
+      <table><thead id="table-header"></thead><tbody id="results-body"></tbody></table>
+      <span id="row-count"></span><button id="load-more">Load more</button>
+      <div id="method-pref-cards"></div></div>`;
+    vi.resetModules();
+    // The page marker in that markup is what boots the dashboard, exactly as the served page does.
+    await import('../src/admin');
+    await settle();
+    expect(shown()).toBe(`Showing ${PAGE_SIZE} of ${TOTAL} responses`);
+
+    document.getElementById('load-more')!.click();
+    await settle();
+    expect(shown()).toBe(`Showing ${TOTAL} of ${TOTAL} responses`);
+
+    await vi.advanceTimersByTimeAsync(30000);
+    await settle();
+    expect(shown()).toBe(`Showing ${TOTAL} of ${TOTAL} responses`);
+
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 });

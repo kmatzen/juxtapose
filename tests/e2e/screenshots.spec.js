@@ -25,7 +25,7 @@ test('the committed desktop screenshots come from one deterministic study', asyn
 
     await page.locator('#identity-images .identity-image').first().hover();
     await expect(page.locator('canvas.mask-overlay')).toHaveCount(2);
-    await shot(page, '03-mask-overlay-hover');
+    await shot(page, '03-mask-overlay-hover', { keepHover: true });
     await page.mouse.move(0, 0);
 
     await page.clock.runFor(4200);
