@@ -4,9 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { demographicsColumns, participantSummary } from '../src/admin';
 
 const PARTICIPANTS = [
-    ...Array.from({ length: 14 }, (_unused, i) => ({ email: `f${i}@lab.example`, trials_completed: 20, responses: 20 })),
-    ...Array.from({ length: 5 }, (_unused, i) => ({ email: `d${i}@lab.example`, trials_completed: 15, responses: 15 })),
-    ...Array.from({ length: 11 }, (_unused, i) => ({ email: `e${i}@lab.example`, trials_completed: 1 + (i % 9), responses: 1 + (i % 9) })),
+    ...Array.from({ length: 14 }, (_unused, i) => ({ email: `f${i}@lab.example`, trials_completed: 20, responses: 20, pairs_per_user: 20 })),
+    ...Array.from({ length: 5 }, (_unused, i) => ({ email: `d${i}@lab.example`, trials_completed: 15, responses: 15, pairs_per_user: 20 })),
+    ...Array.from({ length: 11 }, (_unused, i) => ({ email: `e${i}@lab.example`, trials_completed: 1 + (i % 9), responses: 1 + (i % 9), pairs_per_user: 20 })),
 ];
 
 const SUMMARY = { started: 30, completed: 14, pairs_per_user: 20, dropout: { '15': 5, '1': 2, '2': 2, '3': 1, '4': 1, '5': 1, '6': 1, '7': 1, '8': 1, '9': 1 } };
