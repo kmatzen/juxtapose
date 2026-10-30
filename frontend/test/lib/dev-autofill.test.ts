@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, test } from 'vitest';
 
-import { autofillDemographics, autofillSurvey } from '../../src/lib/dev-autofill';
+import { autofillDemographics, autofillSurvey, seededRandom } from '../../src/lib/dev-autofill';
 import { CONFIG } from '../helpers/api';
 import { surveyFixture } from '../helpers/dom';
 import type { SurveyConfig } from '../../src/lib/session-api';
@@ -138,5 +138,37 @@ describe('dev auto-fill: survey', () => {
 
         expect(checked('mask_choice', 'A')).toBe(false);
         expect(checked('image_choice', 'A')).toBe(true);
+    });
+});
+
+describe('seeded autofill picks', () => {
+    const draw = (seed: number, n: number) => {
+        const random = seededRandom(seed);
+        return Array.from({ length: n }, () => random());
+    };
+
+    const filledState = (seed: number) => {
+        document.body.innerHTML = '';
+        surveyFixture();
+        autofillSurvey(document, config(), { random: seededRandom(seed) });
+        return Array.from(document.querySelectorAll('input')).map((i) => `${i.name}:${i.value}:${i.checked}`);
+    };
+
+    test('the sequence repeats for a seed and is unmoved by other generators', () => {
+        const before = draw(7, 3);
+        for (let i = 0; i < 50; i += 1) draw(99, 5);
+        expect(draw(42, 6)).toEqual(draw(42, 6));
+        expect(draw(1, 6)).not.toEqual(draw(2, 6));
+        expect(draw(7, 3)).toEqual(before);
+        for (const value of draw(3, 200)) {
+            expect(value).toBeGreaterThanOrEqual(0);
+            expect(value).toBeLessThan(1);
+        }
+    });
+
+    test('a trial seed fills the survey the same way every time', () => {
+        const first = filledState(7);
+        expect(first.length).toBeGreaterThan(0);
+        expect(filledState(7)).toEqual(first);
     });
 });
