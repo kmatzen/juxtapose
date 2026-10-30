@@ -5,6 +5,7 @@ Images are served same-origin by fixture/serve.py because the tiles set
 crossOrigin='anonymous' for canvas access, and Chromium refuses data: URIs under CORS.
 Usage: make_run.py <out_dir> [rows]
 """
+import json
 import shutil
 import struct
 import sys
@@ -61,6 +62,14 @@ def mask_pixel(regions):
     return p
 
 
+def identity_colors(count):
+    """The app's own palette, as tuples: the fixture paints masks with the bytes the scanner matches."""
+    colors = json.loads((REPO / 'frontend/src/identity-colors.json').read_text())
+    if len(colors) < count:
+        raise SystemExit(f'identity-colors.json has {len(colors)} colours, the fixture needs {count}')
+    return [tuple(colour) for colour in colors[:count]]
+
+
 def solid(colour):
     return lambda x, y: (*colour, 255) if len(colour) == 3 else colour
 
@@ -81,11 +90,12 @@ def main():
 
     columns = config['data']['columns']
     palette = [(30, 90, 200), (200, 90, 30), (30, 160, 90), (150, 40, 160)]
-    # Mirrors IDENTITY_COLORS in frontend/src/study-state.ts so the mask scan finds all three.
-    identity_colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
-    mask_regions = [(10, 10, 70, 70, identity_colors[0]),
-                    (80, 10, 140, 70, identity_colors[1]),
-                    (10, 80, 70, 140, identity_colors[2])]
+    # Read, not mirrored: the mask scan in study-state.ts matches these exact colours, so a fixture
+    # that hardcodes them keeps painting the old palette after the app moves on.
+    identities = identity_colors(3)
+    mask_regions = [(10, 10, 70, 70, identities[0]),
+                    (80, 10, 140, 70, identities[1]),
+                    (10, 80, 70, 140, identities[2])]
 
     lines = ['# E2E fixture trials -- tab-separated, one row per trial, no header row']
     for i in range(rows):
@@ -103,7 +113,7 @@ def main():
                 images, f'trial{i}_mask.png', 200, 150, mask_pixel(mask_regions)),
             'identity_urls': '' if empty_optional else ','.join(
                 write_png(images, f'trial{i}_id{k}.png', 90, 90, solid(c))
-                for k, c in enumerate(identity_colors)),
+                for k, c in enumerate(identities)),
         }
         lines.append('\t'.join(values[c] for c in columns))
     (out / 'trials.tsv').write_text('\n'.join(lines) + '\n')

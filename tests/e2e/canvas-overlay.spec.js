@@ -5,8 +5,9 @@ const {
 } = require('./helpers/survey');
 
 const TRIALS = parseInt(process.env.E2E_ROWS || '4', 10);
-// IDENTITY_COLORS order, and the colours the fixture's mask sheet paints its blocks with.
-const EXPECTED_COLOURS = ['255,0,0', '0,255,0', '0,0,255'];
+// The same table the app scans and the fixture paints with — the overlay must come back in it.
+const EXPECTED_COLOURS = require('../../frontend/src/identity-colors.json')
+  .slice(0, 3).map(([r, g, b]) => `${r},${g},${b}`);
 
 // The mask decoder is a pure model function with unit tests; what only a browser can prove is that
 // every identity colour in the fixture's sheet arrives as that identity's own painted region.
