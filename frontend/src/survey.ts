@@ -2,6 +2,7 @@ import { mountDemographicsForm } from './components/demographics-form';
 import { mountErrorBanner } from './components/error-banner';
 import { mountLightbox } from './components/lightbox';
 import { mountRetakeModal } from './components/retake-modal';
+import { mountStimulusView } from './components/stimulus-view';
 import { createTutorialBanner } from './components/tutorial-banner';
 import type { TutorialBanner } from './components/tutorial-banner';
 import { browserEnv, collectDeviceInfo } from './lib/device-info';
@@ -56,13 +57,30 @@ function mountSurveyPage(): SurveySeam {
         });
     }
 
+    const lightbox = mountLightbox(need(document.body, '#image-lightbox'));
     return {
         core: studyState,
         banner,
-        lightbox: mountLightbox(need(document.body, '#image-lightbox')),
+        lightbox,
         retake,
+        stimulus: mountStimulusView(document.body, {
+            lightbox,
+            banner,
+            onBlockingChange: blockForm,
+            onSettled: (ok) => document.dispatchEvent(new CustomEvent('jx:stimulus-settled', { detail: { ok } })),
+            // The conditioning tiles are still script.js; step 6 moves them behind this event.
+            onTrial: (trial) => document.dispatchEvent(new CustomEvent('jx:trial-loaded', { detail: trial })),
+        }),
         tutorial: mountTutorial(document.getElementById('tutorial-banner'), onConfig),
     };
+}
+
+/** The legacy page blocks the form with inline styles; the tiles decide when, the form decides how. */
+function blockForm(blocked: boolean): void {
+    const form = document.getElementById('survey-form') as HTMLElement | null;
+    if (!form) return;
+    form.style.pointerEvents = blocked ? 'none' : 'auto';
+    form.style.opacity = blocked ? '0.5' : '1';
 }
 
 /** Steps come from config, so the banner is built before the read and starts when the read lands. */

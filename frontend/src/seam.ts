@@ -2,6 +2,7 @@ import type { ErrorBanner } from './components/error-banner';
 import type * as StudyState from './study-state';
 import type { Lightbox } from './components/lightbox';
 import type { RetakeModal } from './components/retake-modal';
+import type { StimulusView } from './components/stimulus-view';
 import type { TutorialBanner } from './components/tutorial-banner';
 
 // Migration seam: what `script.js` still needs from code that already lives in components.
@@ -12,6 +13,7 @@ export type SurveySeam = {
     banner: ErrorBanner;
     lightbox: Lightbox;
     retake: RetakeModal;
+    stimulus: StimulusView;
     /** Null when the page has no walkthrough: the submit gate must not fire for its absence. */
     tutorial: TutorialBanner | null;
 };
