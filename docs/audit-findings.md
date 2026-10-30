@@ -1,7 +1,9 @@
 # Audit findings and their disposition
 
-Source: a full-repo senior-engineer audit (correctness, security, scale, tests, speed, lean) of the
-survey app, 2026-11. Each in-scope finding is one PR, merged with CI green on the merge SHA.
+Source: two full-repo senior-engineer audits (correctness, security, scale, tests, speed, lean) of the
+survey app, 2026-11 and 2026-11-05. Each in-scope finding is one PR, merged with CI green on the
+merge SHA. The first audit's findings are the table below; the second audit's are in
+[Second audit, 2026-11-05](#second-audit-2026-11-05).
 
 | # | Finding | Disposition |
 |---|---|---|
@@ -18,6 +20,45 @@ survey app, 2026-11. Each in-scope finding is one PR, merged with CI green on th
 | 11 | Participant emails in `audit.log` plaintext | Fixed - [#64](https://github.com/kmatzen/juxtapose/pull/64) (stable hash, IP kept) |
 | 12 | Dev run wrote `survey.db` into the source tree | Fixed - [#65](https://github.com/kmatzen/juxtapose/pull/65) (`$TMPDIR/juxtapose-dev/`) |
 | — | No Dockerfile/Procfile; `app.run` is the entrypoint | Out of scope by decision. README documents `gunicorn src.survey.app:app`; the repo ships no image build, so deployment stays the operator's. |
+
+## Second audit, 2026-11-05
+
+The first audit's fixes are in place; this pass looked at what a live study does under load and at the
+numbers the dashboard reports.
+
+| # | Finding | Disposition |
+|---|---|---|
+| 1 | The dashboard's "avg time per trial" averaged the rows `timing_flag` marks as not a judgement | Fixed - [#67](https://github.com/kmatzen/juxtapose/pull/67) (average over unflagged rows; raw values kept) |
+| 2 | No upper bound on browser-reported `time_spent`: a hidden tab keeps counting, so one idle participant reported an hour | Fixed - [#68](https://github.com/kmatzen/juxtapose/pull/68) (ceiling 120s, the study owner's value; same flag, raw kept) |
+| 3 | `audit.log` stamped server-local time while the database stamps UTC, so the two records of one deletion sat the UTC offset apart | Fixed - [#69](https://github.com/kmatzen/juxtapose/pull/69) (UTC from 2026-11-05; earlier lines are local, README says so) |
+| 4 | Every 30s dashboard poll re-read and re-parsed every answer in the study | Fixed - [#71](https://github.com/kmatzen/juxtapose/pull/71) (aggregate cached on answer count + newest timestamp) |
+| 5 | Rate-limit counters lived in one worker's memory while gunicorn runs several, so the caps were a multiple of the documented ones | Fixed - [#70](https://github.com/kmatzen/juxtapose/pull/70) (`RATELIMIT_STORAGE_URI`, redis in production, boot gate) |
+| 6 | The stale-session gate hung off Flask's `TESTING` flag, so any suite setting it stopped exercising a security behaviour | Fixed - [#72](https://github.com/kmatzen/juxtapose/pull/72) (named opt-out, production refuses it). **Report correction:** the gate did have coverage - two tests flipped `TESTING` off; the defect was the entanglement, not a coverage hole. |
+| 7 | `TrialStore` kept its own `OrderedDict` cache and evicted it by hand from request threads | Fixed - [#73](https://github.com/kmatzen/juxtapose/pull/73) (`lru_cache`). Stated as it was found: a latent trap, not a live bug. |
+| 8 | Referral codes left no trace of which code admitted which session, so a leak could not be traced | Fixed - [#74](https://github.com/kmatzen/juxtapose/pull/74) (`REFERRAL_ACCEPTED`, code hashed as emails are, tied to the session) |
+| 9 | `SHOW_PROMPT` / `ENABLE_PROMPT_QUESTION` env overrides mirrored values the study config already states, and could contradict it | Fixed - [#75](https://github.com/kmatzen/juxtapose/pull/75) (config decides; `ENABLE_PROMPT_QUESTION` was read by nothing and went with its input) |
+| 10 | `audit.log` is appended to inside the request, on the data volume | **Recorded, not coded** - [#76](https://github.com/kmatzen/juxtapose/pull/76) and the *Known limit* section above: trigger and fix shape, no thread before a measured cost |
+
+### Deferred from the second audit
+
+Four items were left out of the numbered findings because each is a decision, not a defect at today's
+size. Recorded so they are not rediscovered as surprises:
+
+| Item | Disposition |
+|---|---|
+| Admin login does not rotate the session id when it elevates | Deferred. Flask's signed cookie makes fixation hard to exploit; revisit if the session ever carries more than `admin_authenticated`. |
+| `FOREIGN KEY` constraints are declared and `PRAGMA foreign_keys` is never enabled | Deferred. Safe while every delete is explicit and inside one transaction. Enabling it needs a pass for pre-existing orphans first. |
+| The participant count is recomputed on every dashboard poll | Deferred. `COUNT(DISTINCT ...)` over the join is cheap next to what #71 removed; it belongs in the same cache when it matters. |
+| A dev `survey.db` from before #65 can sit in an existing checkout | Operator action: delete it. New dev runs write to `$TMPDIR/juxtapose-dev/` (#65). |
+
+### Measured along the way, not fixed by this goal
+
+- `tests/test_concurrent_submit.py::test_parallel_submits_all_land` is flaky: **4 failures in 20 runs
+  at `edd0307` with no change from this goal, 1 in 20 with #73's cache, 0 in isolation.** It is the
+  16-thread contended-submit test from #59 and it wants a deterministic barrier, not a longer sleep.
+- `tests/README.md` advertised `test_data_logic.py::test_get_completed_pair_ids_with_prompt_question_disabled`,
+  which does not exist in `tests/`. The stale reference went with #75; the DISTINCT-completeness
+  behaviour it described has no test named for it.
 
 ## Known limit: the audit log is appended to inside the request
 
