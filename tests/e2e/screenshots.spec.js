@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { startSurvey, completeSurvey, submitDemographics } = require('./helpers/survey');
-const { startShotServer, shot, PASSWORD } = require('./helpers/screens');
+const { startShotServer, pinRandom, shot, PASSWORD } = require('./helpers/screens');
 
 const PORT = 5071;
 const EMAIL = 'shot-participant@example.com';
@@ -12,6 +12,7 @@ test('the committed desktop screenshots come from one deterministic study', asyn
   test.setTimeout(300000);
   const server = await startShotServer(PORT);
   const context = await browser.newContext({ baseURL: server.base, viewport: { width: 1280, height: 900 } });
+  await pinRandom(context);
   const page = await context.newPage();
   // time_spent is a real elapsed measure, so freeze the clock and spend a fixed 4.2s per trial.
   await page.clock.install({ time: new Date('2026-03-01T09:00:00Z') });
@@ -31,6 +32,7 @@ test('the committed desktop screenshots come from one deterministic study', asyn
 
     // A returning email in a session that has not taken the study is what raises the warning.
     const returning = await browser.newContext({ baseURL: server.base, viewport: { width: 1280, height: 900 } });
+    await pinRandom(returning);
     const pageB = await returning.newPage();
     await submitDemographics(pageB, EMAIL);
     await expect(pageB.locator('#retake-modal')).toBeVisible();
