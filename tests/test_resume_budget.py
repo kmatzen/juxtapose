@@ -71,6 +71,7 @@ def answer(client, pair):
                            json={'image_pair_id': pair['id'], 'responses': answers},
                            content_type='application/json')
     assert response.status_code == 200, response.get_data(as_text=True)[:200]
+    return response.get_json().get('completed')
 
 
 def answer_trials(client, count):
@@ -108,6 +109,24 @@ def test_the_resumed_study_ends_where_it_says(long_study):
 
 def test_a_first_time_participant_is_still_told_the_whole_study(long_study):
     assert serve(join_study(long_study, 'fresh@example.com'))['total_pairs'] == 30
+
+
+def test_the_completion_gate_counts_this_session_not_the_email(long_study):
+    """F4 (fifth audit): the gate compared the email's whole answer count to this session's
+    assignment length, so a returner who kept 10 answers was sent to the thank-you page by the
+    client after 11 of the 20 pairs they were told. Serving continues past that flag, so only the
+    flag shows the cutoff.
+    """
+    email = 'gate@example.com'
+    answer_trials(join_study(long_study, email), 10)
+
+    client = join_study(long_study, email)
+    flags = [answer(client, serve(client)) for _ in range(20)]
+
+    assert flags[:19] == [False] * 19, (
+        f'completed:true arrived on trial {flags.index(True) + 1} of the 20 this session was told: '
+        'the gate counted the 10 answers this session did not make')
+    assert flags[19] is True, 'the session that answered its whole assignment is not called complete'
 
 
 def test_the_stored_rows_never_pass_the_study_cap(long_study):
