@@ -1438,8 +1438,8 @@ def _json_object(raw):
 
 
 def _csv_safe(value):
-    """Excel runs a cell starting with = + - @, and participant answers are the cell's author here."""
-    if isinstance(value, str) and value[:1] in ('=', '+', '-', '@'):
+    """Excel runs a cell starting with = + - @, tab or CR, and participant answers are the cell's author here."""
+    if isinstance(value, str) and value[:1] in ('=', '+', '-', '@', '\t', '\r'):
         return f"'{value}"
     return value
 
