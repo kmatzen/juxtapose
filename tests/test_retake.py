@@ -142,3 +142,25 @@ def test_retake_without_prior_responses_needs_no_confirmation(client):
 
     assert response.status_code == 200
     assert response.get_json()['is_retaking'] is False
+
+
+def test_the_warning_counts_every_account_the_confirm_deletes(client, tmp_path, monkeypatch):
+    """Audit #13: the warning read one participant's answers and the confirm deletes every participant's, so one email with two accounts warns about one and erases both."""
+    log_file = tmp_path / 'audit.log'
+    monkeypatch.setattr('src.survey.app.AUDIT_LOG_FILE', str(log_file))
+    seed_completed_participant(responses=0)
+    seed_completed_participant(responses=2)
+
+    warned = submit(client, 'two-account-retake')
+    assert warned.get_json()['is_retaking'] is True, \
+        'answers behind a second account for this email were invisible to the warning'
+
+    answered = response_count_for_email()
+    demographics = demographics_count_for_email()
+    confirmed = submit(client, 'two-account-retake', confirm_retake=True)
+    assert confirmed.status_code == 200
+
+    entry = [e for e in _log_entries(log_file) if e['action'] == 'RETAKE_DELETE'][-1]
+    assert entry['details']['responses_deleted'] == answered
+    assert entry['details']['demographics_deleted'] == demographics
+    assert response_count_for_email() == 0

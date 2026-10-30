@@ -998,39 +998,36 @@ def submit_demographics():
             return jsonify({'error': 'Invalid email address'}), 400
 
         if email:
-            previous_participant = db.execute('''
-                SELECT p.id
-                FROM participants p
-                JOIN demographics d ON p.id = d.participant_id
-                WHERE d.email = ?
-                LIMIT 1
-            ''', (email,)).fetchone()
+            # Counted over the same accounts the confirm below deletes: one account's share is not the answer to "will this erase finished work?".
+            answered = db.execute('''
+                SELECT COUNT(*)
+                FROM survey_responses s
+                WHERE s.participant_id IN (
+                    SELECT p.id FROM participants p
+                    JOIN demographics d ON p.id = d.participant_id
+                    WHERE d.email = ?
+                )
+            ''', (email,)).fetchone()[0]
+            is_retaking = answered > 0
 
-            if previous_participant:
-                response_count = db.execute(
-                    'SELECT COUNT(*) as count FROM survey_responses WHERE participant_id = ?',
-                    (previous_participant['id'],)
-                ).fetchone()
-                is_retaking = response_count and response_count['count'] > 0
-
-                if is_retaking and data.get('confirm_retake'):
-                    # Irreversible: only the retake modal's Confirm may destroy finished answers.
-                    deleted_responses = db.execute('''
-                        DELETE FROM survey_responses
-                        WHERE participant_id IN (
-                            SELECT p.id FROM participants p
-                            JOIN demographics d ON p.id = d.participant_id
-                            WHERE d.email = ?
-                        )
-                    ''', (email,)).rowcount
-                    deleted_demographics = db.execute(
-                        'DELETE FROM demographics WHERE email = ?', (email,)
-                    ).rowcount
-                    audit_log('RETAKE_DELETE', {
-                        'email': email,
-                        'responses_deleted': deleted_responses,
-                        'demographics_deleted': deleted_demographics,
-                    })
+            if is_retaking and data.get('confirm_retake'):
+                # Irreversible: only the retake modal's Confirm may destroy finished answers.
+                deleted_responses = db.execute('''
+                    DELETE FROM survey_responses
+                    WHERE participant_id IN (
+                        SELECT p.id FROM participants p
+                        JOIN demographics d ON p.id = d.participant_id
+                        WHERE d.email = ?
+                    )
+                ''', (email,)).rowcount
+                deleted_demographics = db.execute(
+                    'DELETE FROM demographics WHERE email = ?', (email,)
+                ).rowcount
+                audit_log('RETAKE_DELETE', {
+                    'email': email,
+                    'responses_deleted': deleted_responses,
+                    'demographics_deleted': deleted_demographics,
+                })
 
         # Create or get participant
         participant = db.execute(
