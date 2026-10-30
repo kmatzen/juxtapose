@@ -82,6 +82,13 @@ async function settleForShot(page) {
     const loading = Array.from(document.querySelectorAll('.loading-indicator')).filter(shown);
     return loaded && formReady && loading.length === 0;
   }, null, { timeout: 20000 });
+  // screenshot({animations:'disabled'}) only fast-forwards transitions running when it looks; one restarted around the snapshot survives.
+  await page.evaluate(() => {
+    document.querySelectorAll('*').forEach((el) => {
+      el.style.transition = 'none';
+      if (el.getAnimations) el.getAnimations().forEach((a) => a.finish());
+    });
+  });
 }
 
 // Layout is measured after load (setQuestionsHeight), and the shot moves with any scroll, so
