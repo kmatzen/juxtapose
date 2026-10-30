@@ -151,6 +151,33 @@ describe('QuestionFlow', () => {
         expect(h.submit.disabled).toBe(false);
     });
 
+    test('a viewport change re-measures the tiles', () => {
+        let height = 900;
+        h = harness({ viewport: () => ({ width: 1280, height }) });
+        h.flow.showTrial(trial());
+        const tile = document.querySelector<HTMLElement>('.tile-image')!;
+        expect(tile.style.maxHeight).toBe('360px');
+
+        height = 600;
+        window.dispatchEvent(new Event('resize'));
+
+        // Without a re-measure the tiles keep the height computed for a viewport the participant left.
+        expect(tile.style.maxHeight).toBe('240px');
+    });
+
+    test('a disposed flow stops measuring on resize', () => {
+        let height = 900;
+        h = harness({ viewport: () => ({ width: 1280, height }) });
+        h.flow.showTrial(trial());
+        const tile = document.querySelector<HTMLElement>('.tile-image')!;
+
+        h.flow.dispose();
+        height = 600;
+        window.dispatchEvent(new Event('resize'));
+
+        expect(tile.style.maxHeight).toBe('360px');
+    });
+
     test('a required input in a hidden section stops being required', () => {
         const required = document.createElement('input');
         required.type = 'radio';
