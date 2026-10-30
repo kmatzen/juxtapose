@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import json
 import random
 import hmac
+import hashlib
 from collections import OrderedDict
 from functools import wraps
 from flask_limiter import Limiter
@@ -280,6 +281,18 @@ IMAGE_PAIRS = load_image_pairs()
 TUTORIAL_PAIR = load_tutorial_pair()
 
 # Security: Audit logging
+def _redact_audit_details(details):
+    """Participant emails are PII and audit.log is an operational file; a stable hash keeps rows
+    about one participant joinable without copying the address into a wider-read file."""
+    if not isinstance(details, dict):
+        return details
+    redacted = dict(details)
+    for key, value in redacted.items():
+        if key.endswith('email') and isinstance(value, str) and value:
+            redacted[key] = hashlib.sha256(value.strip().lower().encode('utf-8')).hexdigest()[:16]
+    return redacted
+
+
 def audit_log(action, details, user_ip=None):
     """Log security-sensitive actions"""
     try:
@@ -294,7 +307,7 @@ def audit_log(action, details, user_ip=None):
             'session': session_id,
             'role': admin_session,
             'action': action,
-            'details': details
+            'details': _redact_audit_details(details)
         }
 
         with open(AUDIT_LOG_FILE, 'a', encoding='utf-8') as f:
