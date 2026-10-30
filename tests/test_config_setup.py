@@ -60,6 +60,7 @@ def test_load_config_accepts_config_without_layout(tmp_path):
 def test_app_imports_with_readme_minimal_config(tmp_path):
     config_path, pairs_path = write_minimal_setup(tmp_path)
     env = dict(os.environ)
+    env.pop('SURVEY_DISABLE_SESSION_GATE', None)
     env.update({
         'SURVEY_CONFIG': config_path,
         'IMAGE_PAIRS_FILE': pairs_path,
@@ -123,6 +124,7 @@ def test_missing_data_file_fails_startup_without_writing_samples(tmp_path):
     """Startup must fail, not author a study out of placeholder rows."""
     config_path, _ = write_minimal_setup(tmp_path)
     env = dict(os.environ)
+    env.pop('SURVEY_DISABLE_SESSION_GATE', None)
     env.update({
         'SURVEY_CONFIG': config_path,
         'IMAGE_PAIRS_FILE': str(tmp_path / 'definitely_missing.tsv'),
@@ -149,6 +151,7 @@ def test_app_boots_on_generated_pairs_file(tmp_path):
     """The generator is the documented way to create a study's data file."""
     config_path, _ = write_minimal_setup(tmp_path)
     env = dict(os.environ)
+    env.pop('SURVEY_DISABLE_SESSION_GATE', None)
     env.update({
         'SURVEY_CONFIG': config_path,
         'IMAGE_PAIRS_FILE': run_generator(tmp_path),
