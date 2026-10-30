@@ -110,6 +110,8 @@ def test_production_refuses_default_admin_password(tmp_path):
     """Audit #16: production boots must not run on the shipped default password."""
     env = dict(os.environ)
     env.update({
+        'APP_ENV': 'production',
+
         'DATA_DIR': str(tmp_path),
         'SECRET_KEY': 'a-real-secret-for-this-test',
         'PYTHONPATH': os.pathsep.join(sys.path),
@@ -129,6 +131,8 @@ def test_production_boots_with_real_admin_password(tmp_path):
     """The same boot succeeds once the operator sets a real password."""
     env = dict(os.environ)
     env.update({
+        'APP_ENV': 'production',
+
         'DATA_DIR': str(tmp_path),
         'SECRET_KEY': 'a-real-secret-for-this-test',
         'ADMIN_PASSWORD': 'a-real-password-for-this-test',
