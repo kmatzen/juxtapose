@@ -174,38 +174,6 @@ def _missing_file_message(file_path, file_path_relative):
             "or set IMAGE_PAIRS_FILE)")
 
 
-def _load_trials_from_file(file_path_relative, start_id=1):
-    """Every trial row from a TSV, in memory. Used for the one-row tutorial; the study itself is
-    served from TrialStore so a large study does not cost a dict per pair per worker."""
-    columns = CONFIG['data']['columns']
-    file_path = _trial_file_path(file_path_relative)
-    trials = []
-    trial_id = start_id
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            for line_num, line in enumerate(f, 1):
-                # Stripping whitespace here would delete trailing empty fields, skipping valid rows.
-                line = line.rstrip('\r\n')
-                if not line or line.startswith('#'):
-                    continue
-                parts = line.split('\t')
-                if len(parts) != len(columns):
-                    logger.warning("Line %d has %d fields (expected %d), skipping", line_num, len(parts), len(columns))
-                    continue
-                trials.append(_parse_trial_line(parts, columns, trial_id))
-                trial_id += 1
-    except FileNotFoundError:
-        raise FileNotFoundError(_missing_file_message(file_path, file_path_relative)) from None
-    except Exception as e:
-        logger.error("Error loading %s: %s", file_path_relative, e)
-        raise
-
-    if not trials:
-        raise ValueError(f"No valid trials found in {file_path_relative}")
-    logger.info("Loaded %d image pairs from %s", len(trials), file_path_relative)
-    return trials
-
-
 ROW_CACHE_SIZE = 512
 
 
@@ -286,12 +254,9 @@ def load_image_pairs():
 
 
 def load_tutorial_pair():
-    """Load tutorial image pair."""
+    """The walkthrough's one pair, read the way a study row is read."""
     try:
-        pairs = _load_trials_from_file(TUTORIAL_PAIRS_FILE, start_id=0)
-        if pairs:
-            return pairs[0]
-        return None
+        return TrialStore(TUTORIAL_PAIRS_FILE, start_id=0).first()
     except Exception as e:
         logger.warning("Could not load tutorial pair: %s", e)
         return IMAGE_PAIRS.first()
@@ -621,11 +586,17 @@ def _build_stimulus_data(trial, randomized):
     return data
 
 
-def _get_session_email():
-    """Email of the participant this session submitted demographics for, None before that."""
+def _get_session_email(db=None):
+    """Email of the participant this session submitted demographics for, None before that.
+
+    Passes through a caller's open connection: the pair route wants this email and what it has
+    answered, which is one round trip, not two.
+    """
     if 'session_id' not in session:
         return None
-    db = get_db()
+    own_connection = db is None
+    if own_connection:
+        db = get_db()
     try:
         row = db.execute('''
             SELECT d.email
@@ -636,15 +607,22 @@ def _get_session_email():
         ''', (session['session_id'],)).fetchone()
         return row['email'] if row else None
     finally:
-        db.close()
+        if own_connection:
+            db.close()
 
 
-def _get_completed_trial_ids_for_email(email):
-    """Get list of trial IDs fully completed by this email address."""
+def _get_completed_trial_ids_for_email(email, db=None):
+    """Get list of trial IDs fully completed by this email address.
+
+    Takes a connection from a caller that has one, so reading the answered set alongside the
+    email that owns it costs one round trip.
+    """
     if not email:
         return []
 
-    db = get_db()
+    own_connection = db is None
+    if own_connection:
+        db = get_db()
     try:
         participant_ids = db.execute('''
             SELECT p.id
@@ -698,7 +676,8 @@ def _get_completed_trial_ids_for_email(email):
 
         return completed
     finally:
-        db.close()
+        if own_connection:
+            db.close()
 
 
 # ---------------------------------------------------------------------------
@@ -1129,12 +1108,17 @@ def get_image_pair(pair_index):
             return jsonify(stim)
         return jsonify({'error': 'No image pairs available'}), 404
 
+    # One connection, one answered set: this route used to read the email and its answers twice on a session's first pair request.
+    db = get_db()
+    try:
+        session_email = _get_session_email(db)
+        completed_ids = set(_get_completed_trial_ids_for_email(session_email, db)) if session_email else set()
+    finally:
+        db.close()
+
     # Initialize user's pair list
     if 'user_image_pairs' not in session or session.get('session_dev_mode') != DEV_MODE:
-        user_email = _get_session_email()
-
-        completed_pair_ids = _get_completed_trial_ids_for_email(user_email) if user_email else []
-        available_ids = [pid for pid in IMAGE_PAIRS.ids if pid not in completed_pair_ids]
+        available_ids = [pid for pid in IMAGE_PAIRS.ids if pid not in completed_ids]
 
         max_pairs = _trial_count()
         num_pairs = min(len(available_ids), max_pairs)
@@ -1148,7 +1132,6 @@ def get_image_pair(pair_index):
     user_pair_ids = session.get('user_image_pairs', [])
 
     # The client counts indices against the assignment, so completed trials are skipped in place.
-    completed_ids = set(_get_completed_trial_ids_for_email(_get_session_email()))
     position = pair_index
     while position < len(user_pair_ids) and user_pair_ids[position] in completed_ids:
         position += 1
