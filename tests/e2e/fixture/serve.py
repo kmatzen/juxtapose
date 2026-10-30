@@ -15,11 +15,13 @@ from src.survey.app import app
 
 IMAGES = Path(os.environ['E2E_RUN_DIR']) / 'images'
 
-# The app randomises which image a participant sees as A and which as B, per response
-# (random.random() < 0.5). Each run boots a fresh process, so the committed screenshots capture a
-# coin flip and differ run to run. The fixture is where determinism belongs: the app's prod path
-# keeps shuffling. Set E2E_RANDOM_SEED to a varying value to exercise both orientations.
-random.seed(int(os.environ.get('E2E_RANDOM_SEED', '20260301')))
+# Seed only on request. The committed screenshots need one stable presentation (the app flips which
+# image is A and shuffles the pairs a session sees, so an unseeded process captures a coin flip);
+# the behavioural suite is left unseeded on purpose, because that shuffle is counterbalancing
+# position bias and freezing it would take it out of test coverage.
+seed = os.environ.get('E2E_RANDOM_SEED')
+if seed is not None:
+    random.seed(int(seed))
 
 
 @app.route('/e2e-img/<path:name>')
