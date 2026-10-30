@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 # The gates read the environment as a whole, so the child starts from a clean room.
-STRIPPED = ('APP_ENV', 'SECRET_KEY', 'ADMIN_PASSWORD', 'DATA_DIR')
+STRIPPED = ('APP_ENV', 'SECRET_KEY', 'ADMIN_PASSWORD', 'DATA_DIR', 'RATELIMIT_STORAGE_URI')
 
 
 def boot(**env):
@@ -25,7 +25,8 @@ def boot(**env):
     )
 
 
-PRODUCTION_SECRETS = {'SECRET_KEY': 'a' * 32, 'ADMIN_PASSWORD': 'b' * 16}
+PRODUCTION_SECRETS = {'SECRET_KEY': 'a' * 32, 'ADMIN_PASSWORD': 'b' * 16,
+                    'RATELIMIT_STORAGE_URI': 'redis://limiter.test:6379/0'}
 
 
 def test_the_app_refuses_to_start_without_app_env():
@@ -63,3 +64,25 @@ def test_production_refuses_dev_mode(tmp_path):
     """DEV_MODE bypasses referral codes, cuts the pair count and turns on answer autofill."""
     result = boot(APP_ENV='production', DEV_MODE='true', DATA_DIR=tmp_path, **PRODUCTION_SECRETS)
     assert result.returncode != 0 and 'DEV_MODE' in result.stderr
+
+
+def test_production_without_a_shared_rate_limit_store_refuses_to_start():
+    """Counters living in one worker's memory are not the cap the README quotes: gunicorn runs several
+    workers, each counting only the traffic it happens to pick up."""
+    secrets = {k: v for k, v in PRODUCTION_SECRETS.items() if k != 'RATELIMIT_STORAGE_URI'}
+    result = boot(APP_ENV='production', **secrets)
+    assert result.returncode != 0, 'production booted with per-process rate-limit counters'
+    assert 'RATELIMIT_STORAGE_URI' in result.stderr
+
+
+def test_production_boots_with_a_redis_store_and_needs_no_server_to_import():
+    """The store is contacted when a limit is hit, not at import: configuring it must not require a
+    reachable redis for the app to start or for the test suite to run."""
+    result = boot(APP_ENV='production', **PRODUCTION_SECRETS)
+    assert result.returncode == 0, result.stderr
+
+
+def test_dev_keeps_the_in_process_store():
+    """Development and the test suite have no redis, and no rate-limit gate to protect."""
+    result = boot(APP_ENV='dev', SECRET_KEY='d' * 32, ADMIN_PASSWORD='e' * 16)
+    assert result.returncode == 0, result.stderr
