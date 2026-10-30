@@ -1,9 +1,10 @@
 # Audit findings and their disposition
 
-Source: two full-repo senior-engineer audits (correctness, security, scale, tests, speed, lean) of the
-survey app, 2026-11 and 2026-11-05. Each in-scope finding is one PR, merged with CI green on the
+Source: three full-repo senior-engineer audits (correctness, security, scale, tests, speed, lean) of the
+survey app, 2026-11, 2026-11-05 and 2026-11-06. Each in-scope finding is one PR, merged with CI green on the
 merge SHA. The first audit's findings are the table below; the second audit's are in
-[Second audit, 2026-11-05](#second-audit-2026-11-05).
+[Second audit, 2026-11-05](#second-audit-2026-11-05) and the third's in
+[Third audit, 2026-11-06](#third-audit-2026-11-06).
 
 | # | Finding | Disposition |
 |---|---|---|
@@ -53,12 +54,55 @@ size. Recorded so they are not rediscovered as surprises:
 
 ### Measured along the way, not fixed by this goal
 
-- `tests/test_concurrent_submit.py::test_parallel_submits_all_land` is flaky: **4 failures in 20 runs
+- `tests/test_concurrent_submit.py::test_parallel_submits_all_land` was flaky: **4 failures in 20 runs
   at `edd0307` with no change from this goal, 1 in 20 with #73's cache, 0 in isolation.** It is the
   16-thread contended-submit test from #59 and it wants a deterministic barrier, not a longer sleep.
+  **Fixed by the third audit** (its finding 4): the test now opens one `threading.Barrier` across every
+  submit and runs against the app's real WAL and `busy_timeout`. The old test patched
+  `sqlite3.connect(timeout=0)`, which disabled the very mechanism under test - that is why it was the
+  flaky one. 20 runs, 0 failures.
 - `tests/README.md` advertised `test_data_logic.py::test_get_completed_pair_ids_with_prompt_question_disabled`,
   which does not exist in `tests/`. The stale reference went with #75; the DISTINCT-completeness
   behaviour it described has no test named for it.
+
+## Third audit, 2026-11-06
+
+The third full-repo pass (senior-engineer review: correctness, security, scale, tests, speed, lean),
+run against the state the first two audits left. It found 19 defects; all 19 are fixed in one PR,
+[#78](https://github.com/kmatzen/juxtapose/pull/78), each by a test that fails without the fix
+(or, for a deletion, a grep showing no reference left), and every repro case was re-measured on the
+final SHA. The theme: what the app *stores* was audited against what it *shows* - the export, the
+dashboard and the retake warning each read a narrower slice than the one they describe.
+
+| # | Finding | Disposition |
+|---|---|---|
+| 1 | `_flatten_result` read only `{choice, confidence}`, so every `free_text`, `likert` and `multiple_choice` answer exported as an empty column (3 stored answers produced a row of blanks) | Fixed - writes `{name}_value` / `{name}_text`, and emits `_choice` / `_confidence` / `_preferred_method` only for answers that have a choice. `tests/test_export_answer_types.py`, `test_flatten_result.py::test_every_answer_shape_reaches_the_analyst` |
+| 2 | `submit_demographics` inserted a demographics row on every POST, so a retake's two POSTs joined every answer twice: 3 answers showed as 6 dashboard rows and 6 CSV rows, labelled "Showing 6 of 3" | Fixed - deletes the participant's row before the insert, `UNIQUE(participant_id)`, and a migration that dedupes to the newest row first. `tests/test_demographics_uniqueness.py` |
+| 3 | The stats cache was keyed on (database, answer count, newest timestamp), so an UPDATE landing in the same second with the same count never invalidated it: a corrected preference stayed invisible until the process restarted | Fixed - a one-row `stats_version` counter bumped by INSERT/UPDATE/DELETE triggers keys the cache. `PRAGMA data_version` was measured and cannot do this here (WAL, one connection per request). `test_an_updated_answer_changes_the_statistics`; #71's idle-poll win is still asserted |
+| 4 | Submit was a check-then-write with no unique key, so 4 parallel submits of one trial stored 4 rows | Fixed - `UNIQUE(participant_id, image_pair_id)` (existing duplicates deduped first) and one `INSERT … ON CONFLICT DO UPDATE`. `tests/test_submit_integrity.py`, and `test_parallel_submits_all_land` now passes 20/20 (see *Measured along the way*) |
+| 5 | The submit cap was the constant `60 per hour` while a study can be 80 pairs, so the 429 landed on the trial that ends the study | Fixed - the cap is derived from the study (`pairs_per_user` + 20). `tests/test_rate_limit.py`; README's rate-limit paragraph matches |
+| 6 | No body cap and no question-key check: a 2 MB `responses` blob was accepted and stored (2,044,890 bytes in one cell) | Fixed - `MAX_CONTENT_LENGTH` 64 KB (413), and 400 for response keys the study does not ask. `tests/test_submit_integrity.py` |
+| 7 | The results table paged on `ORDER BY s.created_at DESC`, which is second-granularity, so ties are undefined and one arriving answer shifts the window: of 251 answers, one was shown twice and the newest appeared on no page | Fixed - orders by `s.id`, a key that cannot tie. `test_an_answer_arriving_mid_paging_never_repeats_another` |
+| 8 | `trial-runner` had no in-flight guard (`demographics-form` has one), so a double click - or Enter on the last field, which bypasses the disabled button - posted the trial twice and advanced the index twice, skipping a trial | Fixed - guard with `finally`. `frontend/test/double-submit.test.ts` asserts one POST and one next-pair request |
+| 9 | Submit accepted any in-study `image_pair_id`, not just the trials served to that session, so a scripted client could bank answers for trials it never saw | Fixed - 400 unless the id is in `session['user_image_pairs']`. `tests/test_stimulus_integrity.py` |
+| 10 | `_validate` checked a column reference only when the key was present, and never required a question's `type`: a study that cannot serve a trial booted, and a question with no type died at import as a bare `KeyError` | Fixed - each refused by name at boot, including a real `import src.survey.app` in a subprocess that used to exit 0. `tests/test_config_setup.py`; README states the contract |
+| 11 | The tutorial's single pair was loaded by the eager loader: 0.42 s and 25.6 MB **per worker process** for one row at 50k rows | Fixed - `TrialStore(…, start_id=0).first()`, eager loader deleted. Measured 0.14 s / 9.5 MB |
+| 12 | The CSV writer emitted formula-leading cells, so a free-text answer starting `=`, `+`, `-` or `@` executes when opened in Excel | Fixed - `_csv_safe` prefixes a `'`. Latent at baseline, hidden by finding 1 (the text was not exported at all). `tests/test_export_answer_types.py` |
+| 13 | The retake warning counted the answers of ONE participant (`LIMIT 1`, no `ORDER BY`) while the confirm it gates deletes every participant for the email: it promised "nothing to lose" over 2 finished answers, and the delete branch never ran, so retakes stacked on the old answers | Fixed - the count runs over the same subquery the `DELETE` runs over. `test_the_warning_counts_every_account_the_confirm_deletes`. The modal's copy is unchanged |
+| 14 | The pair route read the session's email and that email's answered trials, then read both again to skip answered ones: 2 recomputes over 4 connections on a session's first pair request, with list membership scanned per candidate trial | Fixed - one connection and one set serve both jobs; both helpers accept a caller's connection. `test_one_pair_request_reads_the_answered_set_once` |
+| 15 | `/health` returned the database path to any unauthenticated caller | Fixed - key removed; the health check still reports what an operator needs |
+| 16 | The dashboard's results `SELECT` omitted `timing_flag`, which the CSV export carries, so answers the app flags as "not a judgement" were invisible on the page that reviews them | Fixed - column added, plus a Timing column in the results table. `frontend/test/admin.test.ts` |
+| 17 | The tutorial banner escaped `emphasis` and pasted `step.text` straight into `innerHTML`, so a study-config string built live markup in the page | Fixed - both fields escaped. The test puts an `<img onerror>` in a step and asserts no node is built |
+| 18 | Dead code and an ignored payload: the browser posted a copy of the stimulus record (`stimulus_data`, `was_randomized`) that `submit_survey` rebuilds from its own served-trial record, plus `q`, `setVisible`, `compose`, `preloadAll`, `ImagePreloader` and `StimulusView.isBlocked` | Fixed - the payload is `{image_pair_id, responses, time_spent}`, grep shows 0 references for each symbol, and `test_the_ignored_payload_keys_change_nothing` proves the stored row is identical with and without the dropped keys |
+| 19 | A `/api/config` that would not load returned silently, and the runner starts from the config callback, so the page sat on an intake form that could never advance - no message, no retry | Fixed - shows the failure, retries the read once, clears the warning on success. `tests/e2e/config-load.spec.js` aborts the first request in Chromium and lands on a working study |
+
+### Deferred from the third audit
+
+| Item | Disposition |
+|---|---|
+| Retake modal copy | Out of scope by decision. Finding 13 fixed what the modal *promises*; the wording is the study owner's. Trigger: the owner asks for different copy. |
+| Content-Security-Policy | Out of scope by decision, as in audits 1-2. Finding 17 closed the one injection the audit found. Trigger: a study served to untrusted networks, where the header is worth its deployment cost. |
+| The second-audit deferrals (admin session-id rotation, `PRAGMA foreign_keys`, participant-count caching, old dev `survey.db`) | Unchanged. The third audit found nothing that raises their priority. |
 
 ## Known limit: the audit log is appended to inside the request
 

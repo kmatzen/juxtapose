@@ -1,7 +1,7 @@
 import type { Disposable } from '../lib/dom';
 import { autofillDemographics, autofillSurvey, seededRandom } from '../lib/dev-autofill';
 import type { SurveyApi, SurveyConfig } from '../lib/session-api';
-import { buildResponses, buildSubmission, progressFrom } from '../study-state';
+import { buildResponses, progressFrom } from '../study-state';
 import type { Trial } from '../study-state';
 import type { ConditioningTiles } from './conditioning-tiles';
 import type { ErrorBanner } from './error-banner';
@@ -45,6 +45,7 @@ export function mountTrialRunner(host: HTMLElement, props: TrialRunnerProps): Tr
     let trial: Trial | null = null;
     let current = 0;
     let pairStart: number | null = null;
+    let inFlight = false;
 
     const devMode = () => !!props.config()?.dev_mode;
     const later = (fn: () => void, ms: number) => { timers.push(setTimeout(fn, ms)); };
@@ -139,53 +140,60 @@ export function mountTrialRunner(host: HTMLElement, props: TrialRunnerProps): Tr
 
     async function submit(event: Event): Promise<void> {
         event.preventDefault();
-
-        if (props.tutorial) {
-            // Best effort: the redirect is the point, and a failed write must not trap the participant.
-            try {
-                await props.api.completeTutorial();
-            } catch (error) {
-                console.error('Error:', error);
-            }
-            props.navigate('/');
-            return;
-        }
-
-        if (!form || !trial) return;
-        const fields: Record<string, string> = {};
-        for (const [name, value] of new FormData(form).entries()) {
-            if (typeof value === 'string') fields[name] = value;
-        }
-        const seconds = pairStart === null ? null : (now() - pairStart) / 1000;
-        const responses = buildResponses(
-            props.config()?.questions ?? [],
-            fields,
-            props.questions?.visibleSections() ?? [],
-        );
-        const payload = buildSubmission(trial, responses, seconds);
-
-        let result: Awaited<ReturnType<SurveyApi['submitSurvey']>>;
+        // Submit is disabled once pressed, but Enter on the last field and a double click both get past it.
+        if (inFlight) return;
+        inFlight = true;
         try {
-            result = await props.api.submitSurvey(payload);
-        } catch (error) {
-            props.banner.show(SUBMIT_NETWORK);
-            console.error('Error:', error);
-            return;
-        }
-
-        if (result.ok && result.body.success) {
-            if (result.body.completed) {
+            if (props.tutorial) {
+                // Best effort: the redirect is the point, and a failed write must not trap the participant.
+                try {
+                    await props.api.completeTutorial();
+                } catch (error) {
+                    console.error('Error:', error);
+                }
                 props.navigate('/');
                 return;
             }
-            current += 1;
-            await loadPair(current);
-            window.scrollTo(0, 0);
-            return;
-        }
 
-        props.banner.show('Failed to submit response. Please try again.');
-        console.error('Error:', result.body.error);
+            if (!form || !trial) return;
+            const fields: Record<string, string> = {};
+            for (const [name, value] of new FormData(form).entries()) {
+                if (typeof value === 'string') fields[name] = value;
+            }
+            const seconds = pairStart === null ? null : (now() - pairStart) / 1000;
+            const responses = buildResponses(
+                props.config()?.questions ?? [],
+                fields,
+                props.questions?.visibleSections() ?? [],
+            );
+            // The browser reports the answers only: the server rebuilds what was shown from its own record.
+            const payload = { image_pair_id: trial.id, responses, time_spent: seconds };
+
+            let result: Awaited<ReturnType<SurveyApi['submitSurvey']>>;
+            try {
+                result = await props.api.submitSurvey(payload);
+            } catch (error) {
+                props.banner.show(SUBMIT_NETWORK);
+                console.error('Error:', error);
+                return;
+            }
+
+            if (result.ok && result.body.success) {
+                if (result.body.completed) {
+                    props.navigate('/');
+                    return;
+                }
+                current += 1;
+                await loadPair(current);
+                window.scrollTo(0, 0);
+                return;
+            }
+
+            props.banner.show('Failed to submit response. Please try again.');
+            console.error('Error:', result.body.error);
+        } finally {
+            inFlight = false;
+        }
     }
 
     const onSubmit = (event: Event) => { void submit(event); };

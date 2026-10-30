@@ -96,6 +96,8 @@ Shared context shown for each trial. Optional inputs are hidden when their colum
 
 An input named `prompt` with type `text` is not a widget: it enables the prompt box that shows the trial's `prompt` column. The config is the only switch for it.
 
+Every input names the `data.columns` entry it reads with `column`. An input with no `column`, or one naming a column the data file does not carry, is refused at boot: the widget would have nothing to show, and a study that collects nothing is not worth running.
+
 ### Outputs
 
 Per-method results shown as an A/B comparison. Position is randomized per trial.
@@ -103,6 +105,8 @@ Per-method results shown as an A/B comparison. Position is randomized per trial.
 | Type | Description |
 |------|-------------|
 | `image` | Side-by-side images, click to enlarge |
+
+Every output names both of its columns, `column_a` and `column_b`, and each must be in `data.columns`. An output with only one of them is refused at boot.
 
 ### Questions
 
@@ -114,6 +118,8 @@ Evaluation criteria per trial. Rendered in order with progressive scroll navigat
 | `likert` | Numeric scale (configurable range) | `{name}_value` |
 | `free_text` | Open text response | `{name}_text` |
 | `multiple_choice` | Single selection from options list | `{name}_value` |
+
+Every question needs a `type` from the table above; a question without one is refused at boot.
 
 ```yaml
 questions:
@@ -187,7 +193,9 @@ restarts. When `DATA_DIR` is set, the app enables production mode: requires `SEC
 
 Rate limits are enforced per participant session, and the numbers are only real caps when the
 counters are shared: point `RATELIMIT_STORAGE_URI` at redis so all workers count against one tally
-and a restart does not reset it. The production boot refuses to start otherwise.
+and a restart does not reset it. The production boot refuses to start otherwise. The submit cap
+follows the study (`pairs_per_user` + 20 per hour), so a participant can always finish the study
+they started; login and delete-by-email stay fixed caps per address.
 
 `audit.log` entries are stamped in **UTC** from 2026-11-05, so an entry lines up with the database row
 it explains (`CURRENT_TIMESTAMP` is UTC). Entries written before that date carry server-local time:
@@ -210,7 +218,7 @@ SQLite with JSON columns for demographics and responses. Migration from older sc
 
 ```bash
 pip install ".[dev]" && npm ci
-python -m pytest tests/ -q     # 113 backend tests
+python -m pytest tests/ -q     # 223 backend tests
 npm run test:unit              # 192 component and model tests (vitest + jsdom)
 npm run test:e2e               # 24 real-browser tests (builds, boots its own server)
 ```

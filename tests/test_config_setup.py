@@ -41,7 +41,7 @@ MINIMAL_TSV = "a prompt\tMethod-A\tMethod-B\thttps://x/a.png\thttps://x/b.png\t\
 def write_minimal_setup(tmp_path):
     config_path = tmp_path / 'survey_config.yaml'
     config_path.write_text(MINIMAL_CONFIG, encoding='utf-8')
-    # Absolute path wins over the repo-root-relative resolution in _load_trials_from_file.
+    # Absolute path wins over the repo-root-relative resolution in TrialStore.
     pairs_path = tmp_path / 'pairs.tsv'
     pairs_path.write_text(MINIMAL_TSV, encoding='utf-8')
     return str(config_path), str(pairs_path)
@@ -99,13 +99,14 @@ def test_generate_pairs_output_loads_without_skips(tmp_path, caplog):
 
     from src.survey import app as app_module
     with caplog.at_level(logging.WARNING, logger='src.survey.app'):
-        trials = app_module._load_trials_from_file(pairs_path)
+        store = app_module.TrialStore(pairs_path)
 
     skipped = [r.getMessage() for r in caplog.records if 'skipping' in r.getMessage()]
     assert skipped == []
-    assert len(trials) == 9
-    assert trials[0]['method_a'] == 'Method-A'
-    assert trials[0]['prompt'] == 'A serene mountain landscape at sunset'
+    assert store.count == 9
+    first = store.get(store.ids[0])
+    assert first['method_a'] == 'Method-A'
+    assert first['prompt'] == 'A serene mountain landscape at sunset'
 
 
 def test_missing_data_file_raises_naming_the_path(tmp_path):
@@ -114,7 +115,7 @@ def test_missing_data_file_raises_naming_the_path(tmp_path):
 
     missing = str(tmp_path / 'no_such_study.tsv')
     with pytest.raises(FileNotFoundError) as excinfo:
-        app_module._load_trials_from_file(missing)
+        app_module.TrialStore(missing)
 
     assert 'no_such_study.tsv' in str(excinfo.value)
     assert not os.path.exists(missing)
@@ -204,3 +205,65 @@ def test_the_environment_cannot_override_what_the_study_config_decides(tmp_path)
     assert _boot_show_prompt(tmp_path, {}) == 'True'
     assert _boot_show_prompt(tmp_path, {'SHOW_PROMPT': 'false'}) == 'True', \
         'SHOW_PROMPT still overrides what the config says'
+
+
+# --- Audit #10: a config that cannot serve a trial must be refused at boot, not at the first participant.
+
+def write_config(tmp_path, text):
+    """The minimal study with one key removed from one entry."""
+    (tmp_path / 'survey_config.yaml').write_text(text, encoding='utf-8')
+    (tmp_path / 'pairs.tsv').write_text(MINIMAL_TSV, encoding='utf-8')
+    return str(tmp_path / 'survey_config.yaml')
+
+
+def test_an_input_that_names_no_column_is_refused(tmp_path):
+    from src.survey.config import load_config
+
+    path = write_config(tmp_path, MINIMAL_CONFIG.replace('    column: prompt\n', ''))
+
+    with pytest.raises(ValueError, match='column'):
+        load_config(path)
+
+
+def test_an_output_that_names_only_one_of_its_columns_is_refused(tmp_path):
+    from src.survey.config import load_config
+
+    path = write_config(tmp_path, MINIMAL_CONFIG.replace('    column_b: image_b_url\n', ''))
+
+    with pytest.raises(ValueError, match='column_b'):
+        load_config(path)
+
+
+def test_a_question_with_no_type_is_refused_by_name(tmp_path):
+    """A question without a type reaches _apply_defaults' q['type'] and 500s the boot with a bare KeyError."""
+    from src.survey.config import load_config
+
+    path = write_config(tmp_path, MINIMAL_CONFIG.replace('    type: ab_preference\n', ''))
+
+    with pytest.raises(ValueError, match='image_quality'):
+        load_config(path)
+
+
+def test_a_config_missing_a_column_refuses_to_boot(tmp_path):
+    """The README's setup guide ends at `flask run`, so the refusal has to be the app's, not the loader's."""
+    write_config(tmp_path, MINIMAL_CONFIG.replace('    column: prompt\n', ''))
+    env = dict(os.environ)
+    env.pop('SURVEY_DISABLE_SESSION_GATE', None)
+    env.update({
+        'SURVEY_CONFIG': str(tmp_path / 'survey_config.yaml'),
+        'IMAGE_PAIRS_FILE': str(tmp_path / 'pairs.tsv'),
+        'APP_ENV': 'production',
+        'RATELIMIT_STORAGE_URI': 'redis://limiter.test:6379/0',
+        'DATA_DIR': str(tmp_path),
+        'SECRET_KEY': 'a-real-secret-for-this-test',
+        'ADMIN_PASSWORD': 'a-real-password-for-this-test',
+        'PYTHONPATH': os.pathsep.join(sys.path),
+    })
+
+    result = subprocess.run(
+        [sys.executable, '-c', 'import src.survey.app'],
+        env=env, cwd=str(tmp_path), capture_output=True, text=True,
+    )
+
+    assert result.returncode != 0
+    assert 'column' in result.stderr

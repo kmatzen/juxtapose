@@ -80,8 +80,15 @@ export function responseColumns(questions: QuestionConfig[]): Column[] {
         { header: 'Method B', narrow: true, cell: row => text(row.method_b) },
     ];
 
-    for (const question of questions.filter(q => q.type === 'ab_preference')) {
+    for (const question of questions) {
         const label = question.section_label || question.name;
+        if (question.type !== 'ab_preference') {
+            columns.push({
+                header: `Answer (${label})`,
+                cell: row => text(row[`${question.name}_value`] ?? row[`${question.name}_text`]),
+            });
+            continue;
+        }
         columns.push(
             { header: `Choice (${label})`, cell: row => text(row[`${question.name}_choice`]) },
             { header: `Preferred (${label})`, cell: row => text(row[`${question.name}_preferred_method`]) },
@@ -92,6 +99,8 @@ export function responseColumns(questions: QuestionConfig[]): Column[] {
     }
 
     columns.push({ header: 'Time (s)', cell: row => formatTimeSpent(row.time_spent) });
+    // The export's timing_flag, next to the seconds it explains: 1 means the row is not a judgement.
+    columns.push({ header: 'Timing', narrow: true, cell: row => (Number(row.timing_flag) ? 'not a judgement' : '') });
     return columns;
 }
 

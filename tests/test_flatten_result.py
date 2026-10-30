@@ -72,3 +72,26 @@ def test_admin_surfaces_survive_a_corrupt_response_cell(client, raw):
 
     rows = client.get('/api/admin/results').get_json()['rows']
     assert rows[0]['email'] == 'corrupt@example.com'
+
+
+def test_every_answer_shape_reaches_the_analyst():
+    """A likert answer is {value}, a free text is {text}: reading only the A/B shape exported
+    `notes_choice`/`notes_confidence` empty and dropped the answer the participant gave."""
+    flat = _flatten_result({
+        'id': 1,
+        'stimulus_data': json.dumps({'methods': {'a': 'gen5', 'b': 'gen6'}}),
+        'responses': json.dumps({
+            'image_quality': {'choice': 'B', 'confidence': 3},
+            'difficulty': {'value': 4},
+            'device': {'value': 'phone'},
+            'notes': {'text': 'the windows are wrong'},
+        }),
+    })
+
+    assert flat['notes_text'] == 'the windows are wrong'
+    assert flat['difficulty_value'] == 4
+    assert flat['device_value'] == 'phone'
+    assert flat['image_quality_choice'] == 'B'
+    assert flat['image_quality_preferred_method'] == 'gen6'
+    assert 'difficulty_choice' not in flat, 'a likert answer has no A/B choice to report'
+    assert 'notes_confidence' not in flat

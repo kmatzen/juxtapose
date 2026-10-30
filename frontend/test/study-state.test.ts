@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildResponses,
-  buildSubmission,
   detectBrowser,
   detectOs,
   isFormComplete,
@@ -103,35 +102,6 @@ describe('answer assembly', () => {
   it('nulls a confidence that is not a number', () => {
     const responses = buildResponses([QUESTIONS[0]], { image_choice: 'A', image_confidence: 'high' }, ['image']);
     expect(responses.image.confidence).toBeNull();
-  });
-});
-
-describe('submission payload', () => {
-  it('carries the whole stimulus record, because that is the only record of what was shown', () => {
-    const payload = buildSubmission(TRIAL, { image: { choice: 'A', confidence: 4 } }, 12.5) as any;
-    expect(payload).toEqual({
-      image_pair_id: 7,
-      stimulus_data: {
-        prompt: 'a red cube',
-        method_a: 'MethodA',
-        method_b: 'MethodB',
-        image_a_url: 'https://img/a.png',
-        image_b_url: 'https://img/b.png',
-        identity_urls: 'https://img/id.png',
-        mask_url: 'https://img/mask.png',
-        methods: { method_a: 'MethodA' },
-      },
-      responses: { image: { choice: 'A', confidence: 4 } },
-      was_randomized: true,
-      time_spent: 12.5,
-    });
-  });
-
-  it('sends null, not undefined, for absent conditioning images', () => {
-    const trial = { ...TRIAL, identity_urls: null, mask_url: undefined, methods: undefined };
-    const payload = buildSubmission(trial, {}, null) as any;
-    expect(payload.stimulus_data).toMatchObject({ identity_urls: null, mask_url: null, methods: {} });
-    expect(payload.time_spent).toBeNull();
   });
 });
 

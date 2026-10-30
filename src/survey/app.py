@@ -49,6 +49,8 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)  # Session timeout
 
 # Security: CSRF Protection
 app.config['WTF_CSRF_ENABLED'] = True
+# One trial's answers are a few hundred bytes; this is the ceiling on what a POST may store.
+app.config['MAX_CONTENT_LENGTH'] = 64 * 1024
 app.config['WTF_CSRF_TIME_LIMIT'] = None  # Don't expire CSRF tokens
 csrf = CSRFProtect(app)
 
@@ -172,38 +174,6 @@ def _missing_file_message(file_path, file_path_relative):
             "or set IMAGE_PAIRS_FILE)")
 
 
-def _load_trials_from_file(file_path_relative, start_id=1):
-    """Every trial row from a TSV, in memory. Used for the one-row tutorial; the study itself is
-    served from TrialStore so a large study does not cost a dict per pair per worker."""
-    columns = CONFIG['data']['columns']
-    file_path = _trial_file_path(file_path_relative)
-    trials = []
-    trial_id = start_id
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            for line_num, line in enumerate(f, 1):
-                # Stripping whitespace here would delete trailing empty fields, skipping valid rows.
-                line = line.rstrip('\r\n')
-                if not line or line.startswith('#'):
-                    continue
-                parts = line.split('\t')
-                if len(parts) != len(columns):
-                    logger.warning("Line %d has %d fields (expected %d), skipping", line_num, len(parts), len(columns))
-                    continue
-                trials.append(_parse_trial_line(parts, columns, trial_id))
-                trial_id += 1
-    except FileNotFoundError:
-        raise FileNotFoundError(_missing_file_message(file_path, file_path_relative)) from None
-    except Exception as e:
-        logger.error("Error loading %s: %s", file_path_relative, e)
-        raise
-
-    if not trials:
-        raise ValueError(f"No valid trials found in {file_path_relative}")
-    logger.info("Loaded %d image pairs from %s", len(trials), file_path_relative)
-    return trials
-
-
 ROW_CACHE_SIZE = 512
 
 
@@ -284,12 +254,9 @@ def load_image_pairs():
 
 
 def load_tutorial_pair():
-    """Load tutorial image pair."""
+    """The walkthrough's one pair, read the way a study row is read."""
     try:
-        pairs = _load_trials_from_file(TUTORIAL_PAIRS_FILE, start_id=0)
-        if pairs:
-            return pairs[0]
-        return None
+        return TrialStore(TUTORIAL_PAIRS_FILE, start_id=0).first()
     except Exception as e:
         logger.warning("Could not load tutorial pair: %s", e)
         return IMAGE_PAIRS.first()
@@ -479,7 +446,8 @@ def init_db():
             email TEXT,
             data TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (participant_id) REFERENCES participants (id)
+            FOREIGN KEY (participant_id) REFERENCES participants (id),
+            UNIQUE (participant_id)
         )
     ''')
 
@@ -494,7 +462,8 @@ def init_db():
             time_spent REAL,
             timing_flag INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (participant_id) REFERENCES participants (id)
+            FOREIGN KEY (participant_id) REFERENCES participants (id),
+            UNIQUE (participant_id, image_pair_id)
         )
     ''')
 
@@ -502,9 +471,42 @@ def init_db():
     db.execute('CREATE INDEX IF NOT EXISTS idx_demographics_email ON demographics (email)')
     db.execute('CREATE INDEX IF NOT EXISTS idx_responses_participant ON survey_responses (participant_id)')
 
+    # The stats cache's version: an updated answer changes neither the answer count nor the newest timestamp.
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS stats_version (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            n INTEGER NOT NULL
+        )
+    ''')
+    db.execute('INSERT OR IGNORE INTO stats_version (id, n) VALUES (1, 0)')
+    for event in ('INSERT', 'UPDATE', 'DELETE'):
+        db.execute(f'''
+            CREATE TRIGGER IF NOT EXISTS survey_responses_{event.lower()}_bumps_stats
+            AFTER {event} ON survey_responses
+            BEGIN
+                UPDATE stats_version SET n = n + 1 WHERE id = 1;
+            END
+        ''')
+
     columns = {row['name'] for row in db.execute('PRAGMA table_info(survey_responses)')}
     if 'timing_flag' not in columns:
         db.execute('ALTER TABLE survey_responses ADD COLUMN timing_flag INTEGER DEFAULT 0')
+
+    # Two demographics rows for one participant make the admin join report each of their answers twice.
+    db.execute('''
+        DELETE FROM demographics
+        WHERE id NOT IN (SELECT MAX(id) FROM demographics GROUP BY participant_id)
+    ''')
+    db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_demographics_participant '
+               'ON demographics (participant_id)')
+
+    # Same for answers: a trial is answered once, so the newest row per (participant, trial) wins.
+    db.execute('''
+        DELETE FROM survey_responses
+        WHERE id NOT IN (SELECT MAX(id) FROM survey_responses GROUP BY participant_id, image_pair_id)
+    ''')
+    db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_responses_participant_pair '
+               'ON survey_responses (participant_id, image_pair_id)')
 
     db.commit()
     db.close()
@@ -584,11 +586,17 @@ def _build_stimulus_data(trial, randomized):
     return data
 
 
-def _get_session_email():
-    """Email of the participant this session submitted demographics for, None before that."""
+def _get_session_email(db=None):
+    """Email of the participant this session submitted demographics for, None before that.
+
+    Passes through a caller's open connection: the pair route wants this email and what it has
+    answered, which is one round trip, not two.
+    """
     if 'session_id' not in session:
         return None
-    db = get_db()
+    own_connection = db is None
+    if own_connection:
+        db = get_db()
     try:
         row = db.execute('''
             SELECT d.email
@@ -599,15 +607,22 @@ def _get_session_email():
         ''', (session['session_id'],)).fetchone()
         return row['email'] if row else None
     finally:
-        db.close()
+        if own_connection:
+            db.close()
 
 
-def _get_completed_trial_ids_for_email(email):
-    """Get list of trial IDs fully completed by this email address."""
+def _get_completed_trial_ids_for_email(email, db=None):
+    """Get list of trial IDs fully completed by this email address.
+
+    Takes a connection from a caller that has one, so reading the answered set alongside the
+    email that owns it costs one round trip.
+    """
     if not email:
         return []
 
-    db = get_db()
+    own_connection = db is None
+    if own_connection:
+        db = get_db()
     try:
         participant_ids = db.execute('''
             SELECT p.id
@@ -661,7 +676,8 @@ def _get_completed_trial_ids_for_email(email):
 
         return completed
     finally:
-        db.close()
+        if own_connection:
+            db.close()
 
 
 # ---------------------------------------------------------------------------
@@ -671,11 +687,11 @@ def _get_completed_trial_ids_for_email(email):
 @app.route('/health')
 def health():
     """Simple health check endpoint for monitoring"""
+    # /health is unauthenticated: it must not name where the study's answers live.
     return jsonify({
         'status': 'healthy',
         'pairs_loaded': IMAGE_PAIRS.count,
         'dev_mode': DEV_MODE,
-        'database': DATABASE
     }), 200
 
 
@@ -982,39 +998,36 @@ def submit_demographics():
             return jsonify({'error': 'Invalid email address'}), 400
 
         if email:
-            previous_participant = db.execute('''
-                SELECT p.id
-                FROM participants p
-                JOIN demographics d ON p.id = d.participant_id
-                WHERE d.email = ?
-                LIMIT 1
-            ''', (email,)).fetchone()
+            # Counted over the same accounts the confirm below deletes: one account's share is not the answer to "will this erase finished work?".
+            answered = db.execute('''
+                SELECT COUNT(*)
+                FROM survey_responses s
+                WHERE s.participant_id IN (
+                    SELECT p.id FROM participants p
+                    JOIN demographics d ON p.id = d.participant_id
+                    WHERE d.email = ?
+                )
+            ''', (email,)).fetchone()[0]
+            is_retaking = answered > 0
 
-            if previous_participant:
-                response_count = db.execute(
-                    'SELECT COUNT(*) as count FROM survey_responses WHERE participant_id = ?',
-                    (previous_participant['id'],)
-                ).fetchone()
-                is_retaking = response_count and response_count['count'] > 0
-
-                if is_retaking and data.get('confirm_retake'):
-                    # Irreversible: only the retake modal's Confirm may destroy finished answers.
-                    deleted_responses = db.execute('''
-                        DELETE FROM survey_responses
-                        WHERE participant_id IN (
-                            SELECT p.id FROM participants p
-                            JOIN demographics d ON p.id = d.participant_id
-                            WHERE d.email = ?
-                        )
-                    ''', (email,)).rowcount
-                    deleted_demographics = db.execute(
-                        'DELETE FROM demographics WHERE email = ?', (email,)
-                    ).rowcount
-                    audit_log('RETAKE_DELETE', {
-                        'email': email,
-                        'responses_deleted': deleted_responses,
-                        'demographics_deleted': deleted_demographics,
-                    })
+            if is_retaking and data.get('confirm_retake'):
+                # Irreversible: only the retake modal's Confirm may destroy finished answers.
+                deleted_responses = db.execute('''
+                    DELETE FROM survey_responses
+                    WHERE participant_id IN (
+                        SELECT p.id FROM participants p
+                        JOIN demographics d ON p.id = d.participant_id
+                        WHERE d.email = ?
+                    )
+                ''', (email,)).rowcount
+                deleted_demographics = db.execute(
+                    'DELETE FROM demographics WHERE email = ?', (email,)
+                ).rowcount
+                audit_log('RETAKE_DELETE', {
+                    'email': email,
+                    'responses_deleted': deleted_responses,
+                    'demographics_deleted': deleted_demographics,
+                })
 
         # Create or get participant
         participant = db.execute(
@@ -1048,6 +1061,7 @@ def submit_demographics():
 
         # Store demographics as JSON (email in dedicated column for indexing)
         demo_data = {k: v for k, v in data.items() if k != 'device_info'}
+        db.execute('DELETE FROM demographics WHERE participant_id = ?', (participant_id,))
         db.execute('''
             INSERT INTO demographics (participant_id, email, data)
             VALUES (?, ?, ?)
@@ -1091,12 +1105,17 @@ def get_image_pair(pair_index):
             return jsonify(stim)
         return jsonify({'error': 'No image pairs available'}), 404
 
+    # One connection, one answered set: this route used to read the email and its answers twice on a session's first pair request.
+    db = get_db()
+    try:
+        session_email = _get_session_email(db)
+        completed_ids = set(_get_completed_trial_ids_for_email(session_email, db)) if session_email else set()
+    finally:
+        db.close()
+
     # Initialize user's pair list
     if 'user_image_pairs' not in session or session.get('session_dev_mode') != DEV_MODE:
-        user_email = _get_session_email()
-
-        completed_pair_ids = _get_completed_trial_ids_for_email(user_email) if user_email else []
-        available_ids = [pid for pid in IMAGE_PAIRS.ids if pid not in completed_pair_ids]
+        available_ids = [pid for pid in IMAGE_PAIRS.ids if pid not in completed_ids]
 
         max_pairs = _trial_count()
         num_pairs = min(len(available_ids), max_pairs)
@@ -1110,7 +1129,6 @@ def get_image_pair(pair_index):
     user_pair_ids = session.get('user_image_pairs', [])
 
     # The client counts indices against the assignment, so completed trials are skipped in place.
-    completed_ids = set(_get_completed_trial_ids_for_email(_get_session_email()))
     position = pair_index
     while position < len(user_pair_ids) and user_pair_ids[position] in completed_ids:
         position += 1
@@ -1179,7 +1197,8 @@ def _add_flat_fields(stim, trial, randomized):
 # ---------------------------------------------------------------------------
 
 @app.route('/api/submit_survey', methods=['POST'])
-@limiter.limit("60 per hour")
+# The study length plus headroom for a re-answered trial; a cap under the study 429s the trial that ends it.
+@limiter.limit(lambda: f"{_trial_count() + 20} per hour")
 def submit_survey():
     """Submit survey response for a single trial."""
     if 'session_id' not in session:
@@ -1203,6 +1222,9 @@ def submit_survey():
         if trial is None:
             return jsonify({'error': 'Image pair not found'}), 404
 
+        if trial_id not in session.get('user_image_pairs', []):
+            return jsonify({'error': 'Image pair was not served to this session'}), 400
+
         # The browser reports answers only; the served order is the session's record.
         randomized = bool(session.get('pair_randomized', {}).get(str(trial_id)))
         stimulus_data = _build_stimulus_data(trial, randomized)
@@ -1213,6 +1235,10 @@ def submit_survey():
         responses = data.get('responses')
         if not isinstance(responses, dict):
             return jsonify({'error': 'responses must be a structured object'}), 400
+
+        unknown = sorted(set(responses) - {q['name'] for q in CONFIG['questions']})
+        if unknown:
+            return jsonify({'error': f"responses has questions this study does not ask: {', '.join(unknown)}"}), 400
 
         stimulus_json = json.dumps(stimulus_data)
         responses_json = json.dumps(responses)
@@ -1225,25 +1251,19 @@ def submit_survey():
         timing_flag = 1 if time_spent is not None and (
                          time_spent < TIMING_FLOOR_S or time_spent > TIMING_CEILING_S) else 0
 
-        existing = db.execute(
-            'SELECT id FROM survey_responses WHERE participant_id = ? AND image_pair_id = ?',
-            (participant['id'], trial_id)
-        ).fetchone()
-
-        if existing:
-            db.execute('''
-                UPDATE survey_responses
-                SET stimulus_data = ?, responses = ?, was_randomized = ?,
-                    time_spent = ?, timing_flag = ?, created_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            ''', (stimulus_json, responses_json, was_randomized, time_spent, timing_flag, existing['id']))
-        else:
-            db.execute('''
-                INSERT INTO survey_responses
-                (participant_id, image_pair_id, stimulus_data, responses, was_randomized, time_spent, timing_flag)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (participant['id'], trial_id, stimulus_json, responses_json,
-                  was_randomized, time_spent, timing_flag))
+        db.execute('''
+            INSERT INTO survey_responses
+            (participant_id, image_pair_id, stimulus_data, responses, was_randomized, time_spent, timing_flag)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (participant_id, image_pair_id) DO UPDATE SET
+                stimulus_data = excluded.stimulus_data,
+                responses = excluded.responses,
+                was_randomized = excluded.was_randomized,
+                time_spent = excluded.time_spent,
+                timing_flag = excluded.timing_flag,
+                created_at = CURRENT_TIMESTAMP
+        ''', (participant['id'], trial_id, stimulus_json, responses_json,
+              was_randomized, time_spent, timing_flag))
 
         user_pairs_count = session.get('user_pairs_count', _trial_count())
         db.commit()
@@ -1318,7 +1338,7 @@ _ADMIN_RESULTS_SELECT = '''
             p.screen_width, p.screen_height, p.pixel_ratio, p.color_depth,
             d.email, d.data as demographics_data,
             s.image_pair_id, s.stimulus_data, s.responses,
-            s.was_randomized, s.time_spent, s.created_at as response_created
+            s.was_randomized, s.time_spent, s.timing_flag, s.created_at as response_created
         FROM participants p
         LEFT JOIN demographics d ON p.id = d.participant_id
         LEFT JOIN survey_responses s ON p.id = s.participant_id
@@ -1339,6 +1359,13 @@ def _json_object(raw):
     except (json.JSONDecodeError, TypeError):
         return {}
     return value if isinstance(value, dict) else {}
+
+
+def _csv_safe(value):
+    """Excel runs a cell starting with = + - @, and participant answers are the cell's author here."""
+    if isinstance(value, str) and value[:1] in ('=', '+', '-', '@'):
+        return f"'{value}"
+    return value
 
 
 def _flatten_result(row):
@@ -1365,15 +1392,20 @@ def _flatten_result(row):
 
     for q_name, q_data in resp.items():
         if isinstance(q_data, dict):
-            choice = q_data.get('choice', '')
-            r[f'{q_name}_choice'] = choice
-            r[f'{q_name}_confidence'] = q_data.get('confidence')
-            if choice == 'A':
-                r[f'{q_name}_preferred_method'] = r.get('method_a', '')
-            elif choice == 'B':
-                r[f'{q_name}_preferred_method'] = r.get('method_b', '')
-            elif choice == 'equal':
-                r[f'{q_name}_preferred_method'] = 'equal'
+            # Only the A/B answer has `choice`; likert/multiple_choice carry `value`, free text carries `text`.
+            choice = q_data.get('choice')
+            if choice is not None:
+                r[f'{q_name}_choice'] = choice
+                r[f'{q_name}_confidence'] = q_data.get('confidence')
+                if choice == 'A':
+                    r[f'{q_name}_preferred_method'] = r.get('method_a', '')
+                elif choice == 'B':
+                    r[f'{q_name}_preferred_method'] = r.get('method_b', '')
+                elif choice == 'equal':
+                    r[f'{q_name}_preferred_method'] = 'equal'
+            for key in ('value', 'text'):
+                if key in q_data:
+                    r[f'{q_name}_{key}'] = q_data[key]
         else:
             r[q_name] = q_data
     r.pop('responses', None)
@@ -1390,7 +1422,9 @@ def admin_results():
 
     db = get_db()
     rows = db.execute(
-        _ADMIN_RESULTS_SELECT + ' ORDER BY s.created_at DESC LIMIT ? OFFSET ?',
+        # Newest-first on a second-granularity timestamp gives no order inside a second, and every
+        # answer that lands while the analyst pages shifts the window: one row on two pages.
+        _ADMIN_RESULTS_SELECT + ' ORDER BY s.id LIMIT ? OFFSET ?',
         (limit, offset)
     ).fetchall()
     total = db.execute('SELECT COUNT(*) AS n FROM survey_responses').fetchone()['n']
@@ -1425,12 +1459,9 @@ def admin_stats():
         LEFT JOIN demographics d ON p.id = d.participant_id
         JOIN survey_responses s ON s.participant_id = p.id
     ''').fetchone()
-    # The aggregate needs every answer row parsed, and the dashboard polls on a timer. Nothing in
-    # it changes without a new answer, so the answer count plus the newest timestamp is the version,
-    # and a poll with nothing new is two indexed reads. One entry, keyed on the database path: the
-    # path changes between studies and between test runs, which is the invalidation we want.
-    newest = db.execute('SELECT MAX(created_at) AS newest FROM survey_responses').fetchone()['newest']
-    cache_key = (DATABASE, totals['responses'], newest)
+    # The dashboard polls this on a timer and the aggregate parses every answer row, so the cached study is versioned by that counter.
+    version = db.execute('SELECT n FROM stats_version WHERE id = 1').fetchone()['n']
+    cache_key = (DATABASE, version)
     cached = _STATS_CACHE.get(cache_key)
     if cached is None:
         preferences = {}
@@ -1496,7 +1527,7 @@ def admin_export():
         writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction='ignore')
         writer.writeheader()
         for r in flat:
-            writer.writerow(r)
+            writer.writerow({key: _csv_safe(value) for key, value in r.items()})
 
     response = app.response_class(
         response=output.getvalue(),
