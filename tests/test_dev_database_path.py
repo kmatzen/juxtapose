@@ -34,5 +34,6 @@ def test_a_dev_run_writes_its_database_outside_the_repo():
 
 def test_production_still_uses_the_data_dir(tmp_path):
     database = _database(APP_ENV='production', DATA_DIR=tmp_path,
-                         SECRET_KEY='a' * 32, ADMIN_PASSWORD='b' * 16)
+                         SECRET_KEY='a' * 32, ADMIN_PASSWORD='b' * 16,
+                         RATELIMIT_STORAGE_URI='redis://limiter.test:6379/0')
     assert database == str(tmp_path / 'survey.db')

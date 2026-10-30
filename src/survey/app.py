@@ -60,11 +60,13 @@ def _participant_key():
     return session.get('session_id') or get_remote_address()
 
 
+RATELIMIT_STORAGE_URI = os.environ.get('RATELIMIT_STORAGE_URI', 'memory://')
+
 limiter = Limiter(
     app=app,
     key_func=_participant_key,
     default_limits=["1000 per hour"],
-    storage_uri="memory://",
+    storage_uri=RATELIMIT_STORAGE_URI,
 )
 
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')  # Change this in production
@@ -91,6 +93,15 @@ if TILE_LAYOUT not in ['AMB', 'MAB']:
 # The dashboard lists every participant email, so the shipped default is an open door.
 if ADMIN_PASSWORD == 'admin123' and IS_PRODUCTION:
     raise ValueError("ADMIN_PASSWORD environment variable must be set in production!")
+
+# A limit is only the cap the README quotes if every worker counts against the same counter.
+# gunicorn runs several workers and a request lands on whichever picks it up, so an in-process
+# store sees a fraction of one participant's traffic, and a restart wipes the tally.
+if IS_PRODUCTION and not RATELIMIT_STORAGE_URI.startswith(('redis://', 'rediss://')):
+    raise ValueError(
+        "RATELIMIT_STORAGE_URI must be a redis:// URL in production: with the in-process store "
+        "every gunicorn worker keeps its own counters, so the caps that protect admin login and "
+        "delete-by-email are a multiple of the numbers documented")
 
 # Audit log file
 AUDIT_LOG_FILE = os.path.join(DATA_DIR, 'audit.log') if DATA_DIR else 'audit.log'
