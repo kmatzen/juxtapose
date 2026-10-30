@@ -89,3 +89,15 @@ def test_dashboard_average_excludes_flagged_timings(client):
     stats = client.get('/api/admin/stats').get_json()
 
     assert stats['avg_time'] == 12.0
+
+
+def test_dashboard_average_excludes_flagged_timings_at_both_ends(client):
+    """The card drops sub-floor rows and over-ceiling rows, and keeps the judgements."""
+    session = make_participant(client)
+    submit(client, 12.0)
+    submit(client, 0.02, index=1)
+    submit(client, 900.0, index=2)
+    with client.session_transaction() as sess:
+        sess['admin_authenticated'] = True
+
+    assert client.get('/api/admin/stats').get_json()['avg_time'] == 12.0
