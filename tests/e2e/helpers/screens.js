@@ -125,7 +125,7 @@ async function waitForStableLayout(page) {
   }), null, { timeout: 30000 });
 }
 
-async function shot(page, name, opts = {}) {
+async function shot(page, name, { keepHover = false, ...opts } = {}) {
   await settleForShot(page);
   await page.evaluate(() => {
     window.scrollTo(0, 0);
@@ -133,6 +133,14 @@ async function shot(page, name, opts = {}) {
     if (container) container.scrollTop = 0;
   });
   await waitForStableLayout(page);
+  // Shots depict the first question: the flow enables #prev-question-btn as it advances, and that arrow is painted.
+  await page.waitForFunction(() => {
+    const section = document.getElementById('survey-section');
+    const prev = document.getElementById('prev-question-btn');
+    return !section || section.offsetParent === null || !prev || prev.disabled;
+  }, null, { timeout: 20000 });
+  // Park the pointer: a fullPage capture scrolls the page under it, and .radio-label:hover paints on what passes beneath.
+  if (!keepHover) await page.mouse.move(-1, -1);
   await page.screenshot({
     path: `docs/screenshots/${name}.png`,
     fullPage: true,
