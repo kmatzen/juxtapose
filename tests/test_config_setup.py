@@ -172,3 +172,35 @@ def test_app_boots_on_generated_pairs_file(tmp_path):
 
     assert result.returncode == 0, result.stderr
     assert 'booted 9 trials' in result.stdout
+
+
+def _boot_show_prompt(tmp_path, extra_env):
+    """Import the app in a child process and report the flag that decides whether the prompt box renders."""
+    config_path, pairs_path = write_minimal_setup(tmp_path)  # this config HAS a prompt text input
+    env = dict(os.environ)
+    env.pop('SURVEY_DISABLE_SESSION_GATE', None)
+    env.update({
+        'APP_ENV': 'dev',
+        'SECRET_KEY': 'a-real-secret-for-this-test',
+        'ADMIN_PASSWORD': 'a-real-password-for-this-test',
+        'SURVEY_CONFIG': config_path,
+        'IMAGE_PAIRS_FILE': pairs_path,
+        'PYTHONPATH': os.pathsep.join(sys.path),
+    })
+    env.update(extra_env)
+
+    result = subprocess.run(
+        [sys.executable, '-c', 'from src.survey import app; print(app.SHOW_PROMPT)'],
+        env=env, cwd=str(tmp_path), capture_output=True, text=True, timeout=180,
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout.strip()
+
+
+def test_the_environment_cannot_override_what_the_study_config_decides(tmp_path):
+    """SHOW_PROMPT / ENABLE_PROMPT_QUESTION mirrored config-derived values, so a deployment could
+    render a prompt box for a study whose config has no prompt input, or hide the prompt of a study
+    that has one. The config describes the study; the environment does not."""
+    assert _boot_show_prompt(tmp_path, {}) == 'True'
+    assert _boot_show_prompt(tmp_path, {'SHOW_PROMPT': 'false'}) == 'True', \
+        'SHOW_PROMPT still overrides what the config says'

@@ -161,7 +161,7 @@ methods:
 #   image_gallery Comma-separated URLs or a single stacked image, displayed
 #                 as a horizontal row of images
 #
-# An input named "prompt" of type "text" is a flag, not a widget: it shows the prompt box (SHOW_PROMPT overrides).
+# An input named "prompt" of type "text" is a flag, not a widget: it shows the prompt box.
 
 inputs:
   - name: prompt

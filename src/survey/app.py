@@ -126,9 +126,10 @@ EMAIL_FIELD = get_email_field(CONFIG)
 
 # Derive feature flags from config (env vars override)
 _has_prompt_input = any(i['name'] == 'prompt' and i['type'] == 'text' for i in CONFIG.get('inputs', []))
-_has_prompt_question = any(q['name'] == 'prompt_adherence' for q in CONFIG.get('questions', []))
-SHOW_PROMPT = os.environ.get('SHOW_PROMPT', str(_has_prompt_input)).lower() == 'true'
-ENABLE_PROMPT_QUESTION = os.environ.get('ENABLE_PROMPT_QUESTION', str(_has_prompt_question)).lower() == 'true'
+# What the prompts do is stated by the study config, not by the environment: an env override here
+# could render a prompt box for a study whose config has no prompt input, or hide the prompt of a
+# study that has one. ENABLE_PROMPT_QUESTION went the same way - it was read by nothing.
+SHOW_PROMPT = _has_prompt_input
 
 # Tutorial pairs file
 TUTORIAL_PAIRS_FILE = os.environ.get('TUTORIAL_PAIRS_FILE', 'examples/tutorial_image_pair.txt')
