@@ -1,4 +1,4 @@
-"""The A/B flip: a seeded run must reproduce it, production must keep randomising it."""
+"""Seeded randomness: a seeded run must reproduce it, production must keep randomising it."""
 import random
 import uuid
 
@@ -33,3 +33,36 @@ def test_the_seeded_flip_still_varies_across_pairs(monkeypatch):
 def test_an_unseeded_flip_consumes_the_stream(monkeypatch):
     monkeypatch.delenv('E2E_RANDOM_SEED', raising=False)
     assert len({_flip(1) for _ in range(20)}) == 2
+
+
+PAIRS = [{'id': i} for i in range(10)]
+
+
+def _assign(session_id, seed='20260301'):
+    import os
+    if seed is None:
+        os.environ.pop('E2E_RANDOM_SEED', None)
+    else:
+        os.environ['E2E_RANDOM_SEED'] = seed
+    with app_module.app.test_request_context():
+        app_module.session['session_id'] = session_id
+        return tuple(p['id'] for p in app_module._assign_pairs(PAIRS, 5))
+
+
+def test_the_seeded_assignment_is_unmoved_by_stream_draws(monkeypatch):
+    monkeypatch.setenv('E2E_RANDOM_SEED', '20260301')
+    first = _assign('participant-1')
+    for _ in range(7):
+        random.random()
+    assert _assign('participant-1') == first
+
+
+def test_the_seeded_assignment_varies_across_participants(monkeypatch):
+    """Per-participant variety is the counterbalancing; a seeded run must not flatten it."""
+    monkeypatch.setenv('E2E_RANDOM_SEED', '20260301')
+    assert len({_assign(f'participant-{n}') for n in range(12)}) > 1
+
+
+def test_an_unseeded_assignment_consumes_the_stream(monkeypatch):
+    monkeypatch.delenv('E2E_RANDOM_SEED', raising=False)
+    assert len({_assign('participant-1', seed=None) for _ in range(10)}) > 1
