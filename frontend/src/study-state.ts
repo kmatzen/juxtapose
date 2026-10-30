@@ -291,3 +291,10 @@ export function buildOverlayRgba(mask: BinaryMask, color: readonly number[]): Ui
 export function countStackedSegments(width: number, height: number): number {
     return Math.round(height / width);
 }
+
+/** The bands to cut a stacked sheet into: the sheet's own height divided by its segment count, because panels are not always square. */
+export function stackedSliceBands(width: number, height: number): { y: number; height: number }[] {
+    const segments = Math.max(1, countStackedSegments(width, height));
+    const at = (index: number) => Math.round((height * index) / segments);
+    return Array.from({ length: segments }, (_, index) => ({ y: at(index), height: at(index + 1) - at(index) }));
+}
