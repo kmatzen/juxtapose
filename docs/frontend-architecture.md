@@ -94,16 +94,22 @@ deleted, jest, `babel-jest`, the babel config and the `frontend/.cjs` CommonJS s
 Strangler: one component per commit, every commit green (`typecheck`, vitest, jest, playwright,
 pytest), `script.js` shrinking each step.
 
-| # | Step | `script.js` |
+| # | Step | `script.js` lines |
 |---|---|---|
 | 1 | harness: `lib/dom`, `session-api`, `device-info`, `tutorial-steps`, test helpers | 1650 |
-| 2 | `error-banner`, `retake-modal`, `lightbox` | −120 |
-| 3 | `tutorial-banner` (last inline handler leaves `index.html`) | −180 |
-| 4 | `demographics-form` | −150 |
-| 5 | `stimulus-view`, `conditioning-gallery` | −330 |
-| 6 | `mask-overlay` + `mask-scan` | −280 |
-| 7 | `question-sections` + `layout-metrics` | −400 |
-| 8 | `trial-runner` + `survey.ts` entry; delete `script.js`, jest, babel, `.cjs` shim | 0 |
+| 2 | `error-banner`, `retake-modal`, `lightbox` | 1567 |
+| 3 | `tutorial-banner` (last inline handler leaves `index.html`) | 1386 |
+| 4 | `demographics-form` | 1318 |
+| 5 | `stimulus-view` (+ `lib/image-loader`) | 1206 |
+| 6 | `conditioning-tiles` (+ mask scan, overlay, stacked slicing in `study-state`) | 783 |
+| 7 | `question-flow` (+ `lib/layout`) | 448 |
+| 8 | `trial-runner` + entry; delete `script.js`, jest, babel, the CommonJS shim, `seam.ts` | 0 |
+
+Step 8 is the runner and nothing else: pair fetching, progress counters, dev-mode autofill, the
+submit payload and its navigation, `checkDemographicsSubmitted`, and the four helper wrappers the
+runner still calls. Its jest suites (`page-boot`, `runner`, `submissions`, `tutorial-gate`,
+`image-loading`) move to vitest as `trial-runner` tests plus service tests; jest, babel and the
+CommonJS shim in `study-state.ts` leave with the file they served.
 
 During steps 2–7 the shrinking `script.js` calls the extracted components through one narrow
 seam, `window.__JX__`, created by the module entry. It is a migration seam, not architecture: it
