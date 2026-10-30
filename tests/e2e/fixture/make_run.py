@@ -100,6 +100,10 @@ def main():
     config['survey']['pairs_per_user'] = int(os.environ.get('E2E_PAIRS_PER_USER', rows))
     config['tutorial']['enabled'] = False
     config['data']['file'] = 'trials.tsv'
+    # The XSS spec needs a participant-authored cell, and F7 means an ab_preference choice no longer carries one.
+    config['questions'].append({'name': 'notes', 'type': 'free_text', 'label': 'Notes',
+                                'required': False, 'confidence': False, 'depends_on': None,
+                                'section_label': 'Notes'})
     (out / 'survey_config.yaml').write_text(yaml.safe_dump(config, sort_keys=False, width=100))
     check_the_app_accepts(out / 'survey_config.yaml')
 
