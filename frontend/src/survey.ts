@@ -3,6 +3,7 @@ import { mountErrorBanner } from './components/error-banner';
 import { mountLightbox } from './components/lightbox';
 import { mountRetakeModal } from './components/retake-modal';
 import { mountStimulusView } from './components/stimulus-view';
+import { mountConditioningTiles } from './components/conditioning-tiles';
 import { createTutorialBanner } from './components/tutorial-banner';
 import type { TutorialBanner } from './components/tutorial-banner';
 import { browserEnv, collectDeviceInfo } from './lib/device-info';
@@ -35,6 +36,7 @@ function mountSurveyPage(): SurveySeam {
         // A config that will not load leaves the walkthrough unstarted: an empty one gates Submit forever.
         if (!ok) return;
         config = body;
+        studyConfig = body;
         for (const ready of waiting.splice(0)) ready(body);
     });
 
@@ -71,8 +73,38 @@ function mountSurveyPage(): SurveySeam {
             // The conditioning tiles are still script.js; step 6 moves them behind this event.
             onTrial: (trial) => document.dispatchEvent(new CustomEvent('jx:trial-loaded', { detail: trial })),
         }),
+        conditioning: mountConditioningTiles(document.body, {
+            lightbox,
+            galleryInput: () => inputOfType('image_gallery'),
+            maskInput: () => inputOfType('image'),
+            outputImages: outputTiles,
+            tapThresholdPx: TAP_THRESHOLD_PX,
+        }),
         tutorial: mountTutorial(document.getElementById('tutorial-banner'), onConfig),
     };
+}
+
+const TAP_THRESHOLD_PX = 10;
+let studyConfig: SurveyConfig | null = null;
+
+function inputOfType(type: string) {
+    return studyConfig?.inputs?.find((input) => input.type === type) ?? null;
+}
+
+/** Output tiles are found by the config's output names, with the legacy ID fallback per output. */
+function outputTiles(): HTMLImageElement[] {
+    const found: HTMLImageElement[] = [];
+    for (const output of (studyConfig?.outputs ?? []).filter((o) => o.type === 'image')) {
+        for (const [suffix, fallback] of [['a', 'image-a'], ['b', 'image-b']] as const) {
+            const image = (document.getElementById(`output-${output.name}-${suffix}`)
+                ?? document.getElementById(fallback)) as HTMLImageElement | null;
+            if (image) found.push(image);
+        }
+    }
+    if (found.length) return found;
+    return ['image-a', 'image-b']
+        .map((id) => document.getElementById(id))
+        .filter((image): image is HTMLImageElement => !!image);
 }
 
 /** The legacy page blocks the form with inline styles; the tiles decide when, the form decides how. */

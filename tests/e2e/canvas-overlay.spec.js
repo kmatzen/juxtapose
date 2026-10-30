@@ -5,23 +5,40 @@ const {
 } = require('./helpers/survey');
 
 const TRIALS = parseInt(process.env.E2E_ROWS || '4', 10);
+// IDENTITY_COLORS order, and the colours the fixture's mask sheet paints its blocks with.
+const EXPECTED_COLOURS = ['255,0,0', '0,255,0', '0,0,255'];
 
-test('spatial mask pixels are decoded into per-identity binary masks', async ({ page }) => {
-  await startSurvey(page, uniqueEmail('mask'));
+// The mask decoder is a pure model function with unit tests; what only a browser can prove is that
+// every identity colour in the fixture's sheet arrives as that identity's own painted region.
+test('each identity paints its own colour region on the outputs', async ({ page }) => {
+  await startSurvey(page, uniqueEmail('masks'));
   expect(await gotoTrialWithMask(page, TRIALS)).toBe(true);
-  await expect(page.locator('#mask-image')).toHaveJSProperty('complete', true);
-  // The mask is (re)processed on first hover, which is also how a participant sees it.
-  await page.locator('#identity-images .identity-image').first().hover();
 
-  // script.js builds an entry for all ten IDENTITY_COLORS; only the fixture's three have pixels.
-  await expect.poll(() => page.evaluate(
-    () => Object.values(binaryMasks).filter((m) => m.matchCount > 100).length)).toBe(3);
-  const masks = await page.evaluate(() => Object.entries(binaryMasks)
-    .filter(([, m]) => m.matchCount > 100)
-    .map(([i, m]) => ({ index: Number(i), width: m.width, matchCount: m.matchCount })));
-  for (const m of masks) {
-    expect(m.width).toBe(200);
-    expect(m.matchCount, `identity ${m.index} must find its colour region`).toBeGreaterThan(100);
+  const tiles = page.locator('#identity-images .identity-image');
+  await expect(tiles).toHaveCount(3);
+
+  for (let index = 0; index < 3; index += 1) {
+    await tiles.nth(index).hover();
+    const painted = await page.locator('canvas.mask-overlay').first().evaluate((canvas) => {
+      const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+      const counts = {};
+      let opaque = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] > 0) {
+          opaque += 1;
+          const key = `${data[i]},${data[i + 1]},${data[i + 2]}`;
+          counts[key] = (counts[key] || 0) + 1;
+        }
+      }
+      const [colour, region] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0] || [];
+      return { opaque, region, colour };
+    });
+
+    // The fixture's mask sheet is one 60x60 block per identity in identity colour.
+    expect(painted.colour, `identity ${index} paints in its own colour`).toBe(EXPECTED_COLOURS[index]);
+    expect(painted.region, `identity ${index} must find its region`).toBeGreaterThan(3000);
+    expect(painted.opaque).toBeLessThan(200 * 150 / 2);
+    await page.mouse.move(0, 0);
   }
 });
 
@@ -47,34 +64,25 @@ test('hovering an identity image paints a mask overlay over both outputs', async
   expect(painted.opaque, 'overlay must stay local to the identity region').toBeLessThan(painted.total / 2);
 });
 
-test('a single stacked gallery image slices into one square per panel', async ({ page }) => {
+// The slicing math is unit-tested; the browser proves the real sheet on the real page arrives as
+// N square tiles, in order, with the middle panel's pixels.
+test('the stacked identity sheet arrives as one square tile per panel', async ({ page }) => {
   await startSurvey(page, uniqueEmail('stacked'));
   expect(await gotoTrialWithMask(page, TRIALS)).toBe(true);
 
-  const stacked = await page.evaluate(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 90;
-    canvas.height = 270;
-    const ctx = canvas.getContext('2d');
-    ['#ff0000', '#00ff00', '#0000ff'].forEach((c, i) => {
-      ctx.fillStyle = c;
-      ctx.fillRect(0, i * 90, 90, 90);
-    });
-    return canvas.toDataURL();
-  });
-
-  await page.evaluate((url) => {
-    const container = document.getElementById('identity-images');
-    container.innerHTML = '';
-    loadStackedGallery(container, url, 'Stacked', []);
-  }, stacked);
-
   const panels = page.locator('#identity-images .identity-image');
-  await expect(panels).toHaveCount(3);
-  await expect(panels.nth(1)).toHaveJSProperty('naturalWidth', 90);
-  await expect(panels.nth(1)).toHaveJSProperty('naturalHeight', 90);
+  const count = await panels.count();
+  expect(count).toBeGreaterThan(1);
+  await expect(panels.first()).toHaveJSProperty('complete', true);
 
-  const middleIsGreen = await panels.nth(1).evaluate((img) => {
+  const geometry = await panels.evaluateAll((images) => images.map((img, index) => ({
+    index: Number(img.getAttribute('data-identity-index')),
+    square: img.naturalWidth > 0 && img.naturalWidth === img.naturalHeight,
+  })));
+  expect(geometry.map((g) => g.index)).toEqual([...Array(count).keys()]);
+  expect(geometry.every((g) => g.square)).toBe(true);
+
+  const middle = await panels.nth(1).evaluate((img) => {
     const c = document.createElement('canvas');
     c.width = c.height = 10;
     const ctx = c.getContext('2d');
@@ -82,7 +90,7 @@ test('a single stacked gallery image slices into one square per panel', async ({
     const [r, g, b] = ctx.getImageData(5, 5, 1, 1).data;
     return { r, g, b };
   });
-  expect(middleIsGreen).toEqual({ r: 0, g: 255, b: 0 });
+  expect(middle).toEqual({ r: 0, g: 255, b: 0 });
 });
 
 test('the trial with no mask is submittable and the study completes', async ({ page }) => {

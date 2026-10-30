@@ -226,6 +226,7 @@ function installSeam() {
     };
     // Built after the literal: the tile double calls back into the seam (its banner, its lightbox).
     seam.stimulus = installStimulus(seam);
+    seam.conditioning = installConditioning(seam);
     window.__JX__ = seam;
     return seam;
 }
@@ -307,6 +308,64 @@ function installStimulus(seam) {
     };
 }
 
+// Mirrors components/conditioning-tiles.ts (its vitest suite covers the behaviour), including the
+// config-driven column lookup, so the runner suites see a page that reacts to a trial as the real one does.
+function installConditioning(seam) {
+    const columnOf = (type) =>
+        ((seam.config?.inputs ?? []).find((input) => input.type === type) || {}).column;
+
+    return {
+        shown: [],
+        show(trial) {
+            this.shown.push(trial);
+            const galleryColumn = columnOf('image_gallery');
+            const maskColumn = columnOf('image');
+            const galleryUrl = String((galleryColumn && trial[galleryColumn]) || '').trim();
+            const maskUrl = String((maskColumn && trial[maskColumn]) || '').trim();
+
+            const container = document.getElementById('identity-images');
+            const section = document.getElementById('identity-section');
+            if (container) container.innerHTML = '';
+            if (section) section.style.display = galleryUrl ? 'block' : 'none';
+            document.querySelectorAll('.mask-tile').forEach((tile) => {
+                tile.style.display = maskUrl ? '' : 'none';
+            });
+
+            if (galleryUrl) {
+                const label = ((seam.config?.inputs ?? []).find((i) => i.type === 'image_gallery') || {}).label || 'Reference';
+                const urls = galleryUrl.split(',').map((u) => u.trim()).filter(Boolean);
+                if (urls.length > 1) {
+                    urls.forEach((url, index) => {
+                        const img = document.createElement('img');
+                        img.src = url;
+                        img.alt = `${label} ${index + 1}`;
+                        img.className = 'identity-image';
+                        img.setAttribute('data-identity-index', index);
+                        container.append(img);
+                    });
+                } else {
+                    const probe = new Image();
+                    probe.crossOrigin = 'anonymous';
+                    probe.src = urls[0];
+                }
+            }
+
+            const maskTile = document.getElementById('mask-image');
+            if (maskTile) {
+                if (maskUrl) {
+                    maskTile.crossOrigin = 'anonymous';
+                    maskTile.src = maskUrl;
+                } else {
+                    maskTile.removeAttribute('src');
+                }
+            }
+            document.querySelectorAll('.mask-overlay').forEach((overlay) => overlay.remove());
+        },
+        clear() {},
+        dispose() {},
+    };
+}
+
 function seam() {
     if (!window.__JX__) throw new Error('no seam: call loadSurvey() or installSeam() first');
     return window.__JX__;
@@ -315,7 +374,8 @@ function seam() {
 function loadSurvey(config = CONFIG) {
     surveyDom();
     autoLoadingImages();
-    installSeam();
+    const seam = installSeam();
+    seam.config = config;
     global.fetch = apiMock({ '/api/config': config });
     return script.checkDevMode();
 }
