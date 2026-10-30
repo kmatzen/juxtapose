@@ -228,3 +228,73 @@ def test_case_insensitive_referral_code(referral_client):
                           follow_redirects=False)
 
     assert response.status_code == 302
+
+
+class _WriteFails:
+    """Delegate to the real connection, and fail the response INSERT the way a locked database does."""
+
+    def __init__(self, real):
+        self._real = real
+        self.rolled_back = False
+
+    def execute(self, sql, params=()):
+        if 'INSERT INTO survey_responses' in sql:
+            raise __import__('sqlite3').OperationalError('database is locked')
+        return self._real.execute(sql, params)
+
+    def commit(self):
+        return self._real.commit()
+
+    def rollback(self):
+        self.rolled_back = True
+        return self._real.rollback()
+
+    def close(self):
+        return self._real.close()
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+
+def test_submit_survey_reports_500_and_rolls_back_when_the_write_fails(client, monkeypatch):
+    """A failed write must not leave the participant looking saved, and must not half-write."""
+    import uuid
+    import src.survey.app as app_module
+    from src.survey.app import get_db
+
+    unique_session = f'test-write-fails-{uuid.uuid4()}'
+    with client.application.app_context():
+        db = get_db()
+        db.execute("INSERT INTO participants (session_id, browser, os) VALUES (?, 'Chrome', 'macOS')",
+                   (unique_session,))
+        participant_id = db.execute('SELECT last_insert_rowid()').fetchone()[0]
+        insert_demographics(db, participant_id, 'writefails@example.com', occupation='Engineer')
+        db.commit()
+        db.close()
+
+    with client.session_transaction() as sess:
+        sess['session_id'] = unique_session
+
+    real_get_db = app_module.get_db
+    wrappers = []
+
+    def get_db_with_fault():
+        wrapper = _WriteFails(real_get_db())
+        wrappers.append(wrapper)
+        return wrapper
+
+    monkeypatch.setattr(app_module, 'get_db', get_db_with_fault)
+
+    response = client.post('/api/submit_survey',
+                           json={'image_pair_id': 1, 'responses': STANDARD_RESPONSES, 'time_spent': 3.2},
+                           content_type='application/json')
+
+    assert response.status_code == 500
+    assert wrappers[-1].rolled_back, 'the failed transaction is rolled back, not left open'
+
+    app_module.get_db = real_get_db
+    with client.application.app_context():
+        db = get_db()
+        rows = db.execute('SELECT COUNT(*) AS n FROM survey_responses').fetchone()['n']
+        db.close()
+    assert rows == 0
