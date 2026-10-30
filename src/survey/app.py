@@ -6,6 +6,7 @@ import logging
 from datetime import datetime, timedelta
 import json
 import random
+import hmac
 from collections import OrderedDict
 from functools import wraps
 from flask_limiter import Limiter
@@ -1229,7 +1230,7 @@ def admin_login():
         password = request.form.get('password')
         ip = get_remote_address()
 
-        if password == ADMIN_PASSWORD:
+        if hmac.compare_digest(password or '', ADMIN_PASSWORD):
             session['admin_authenticated'] = True
             session.permanent = True
             audit_log('ADMIN_LOGIN_SUCCESS', {'ip': ip})
