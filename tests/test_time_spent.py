@@ -17,8 +17,8 @@ def make_participant(client):
     return session
 
 
-def submit(client, time_spent):
-    pair = client.get('/api/get_image_pair/0').get_json()
+def submit(client, time_spent, index=0):
+    pair = client.get(f'/api/get_image_pair/{index}').get_json()
     payload = {
         'image_pair_id': pair['id'],
         'responses': {'image_quality': {'choice': 'A', 'confidence': 4}},
@@ -76,3 +76,16 @@ def test_dashboard_average_ignores_garbage(client):
     stats = client.get('/api/admin/stats').get_json()
 
     assert stats['avg_time'] is None
+
+
+def test_dashboard_average_excludes_flagged_timings(client):
+    """A timing flagged as not a judgement must not move the card the study owner reads."""
+    session = make_participant(client)
+    submit(client, 12.0)
+    submit(client, 0.02, index=1)
+    with client.session_transaction() as sess:
+        sess['admin_authenticated'] = True
+
+    stats = client.get('/api/admin/stats').get_json()
+
+    assert stats['avg_time'] == 12.0
