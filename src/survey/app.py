@@ -1373,7 +1373,7 @@ def admin_stats():
     totals = db.execute('''
         SELECT COUNT(*) AS responses,
                COUNT(DISTINCT COALESCE(NULLIF(d.email, ''), p.session_id)) AS participants,
-               AVG(s.time_spent) AS avg_time
+               AVG(CASE WHEN COALESCE(s.timing_flag, 0) = 0 THEN s.time_spent END) AS avg_time
         FROM participants p
         LEFT JOIN demographics d ON p.id = d.participant_id
         JOIN survey_responses s ON s.participant_id = p.id
