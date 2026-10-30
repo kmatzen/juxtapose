@@ -16,12 +16,12 @@ npm run test:e2e:report     # open the HTML report (traces on failure)
 `fixture/server.sh` builds a throwaway study in `$TMPDIR/juxtapose-e2e` and boots the app
 against it: `make_run.py` writes a config (4 trials, tutorial off), `trials.tsv`, and PNG
 images; `serve.py` runs the real app plus one route (`/e2e-img/...`) so images are
-same-origin. Images cannot be `data:` URIs: `script.js` sets `crossOrigin='anonymous'` for
+same-origin. Images cannot be `data:` URIs: the stimulus tiles set `crossOrigin='anonymous'` for
 canvas access and Chromium refuses `data:` URIs under CORS, so every tile fails to load.
 
 Override with `E2E_ROWS`, `E2E_RUN_DIR`, `PYTHON` (default `/tmp/jlvenv/bin/python`),
 `E2E_PORT`. Trial order is a per-session shuffle, so specs read the served pair's data
-(`currentImageData`) rather than assuming an index.
+(`.mask-tile`, `#identity-section`) rather than assuming an index.
 
 ## Coverage
 

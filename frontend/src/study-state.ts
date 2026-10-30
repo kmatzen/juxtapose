@@ -24,12 +24,65 @@ export type DemographicsField = {
     options?: { value: string; label: string }[];
 };
 
+export type OutputConfig = {
+    name: string;
+    type: string;
+    column_a?: string;
+    column_b?: string;
+};
+
+export type TutorialStepConfig = {
+    title?: string;
+    text?: string;
+    highlight?: string | null;
+    highlightParent?: boolean;
+    scrollToWithin?: string;
+};
+
 export type StudyConfig = {
     questions?: QuestionConfig[];
     inputs?: InputConfig[];
+    outputs?: OutputConfig[];
     demographics?: DemographicsField[];
+    tutorial?: { steps?: (TutorialStepConfig | 'auto_questions')[] };
     dev_mode?: boolean;
 };
+
+export type TutorialStep = {
+    title: string;
+    text: string;
+    emphasis?: string;
+    highlight?: string | null;
+    highlightParent?: boolean;
+    scrollToWithin?: string;
+};
+
+// 'auto_questions' is a placeholder the author writes once; it expands to one step per question.
+export function buildTutorialSteps(config: StudyConfig): TutorialStep[] {
+    const configured = config.tutorial?.steps;
+    if (!configured?.length) {
+        return [{ title: 'Tutorial', text: 'No tutorial steps configured.', highlight: null }];
+    }
+
+    const steps: TutorialStep[] = [];
+    for (const step of configured) {
+        if (step === 'auto_questions') {
+            for (const q of config.questions ?? []) {
+                const label = q.label ?? q.name;
+                steps.push({
+                    title: q.section_label ?? label,
+                    text: label,
+                    emphasis: label,
+                    highlight: '.questions-container',
+                    scrollToWithin: `#${q.name}-evaluation`,
+                });
+            }
+        } else {
+            steps.push({ ...step, title: step.title ?? '', text: step.text ?? '' });
+        }
+    }
+    return steps;
+}
 
 export type Trial = {
     id: number;
@@ -213,4 +266,58 @@ export function normalizeDemographics(
     }
 
     return data;
+}
+
+/** Region colours the spatial mask encodes identity membership with, in identity order. */
+export const IDENTITY_COLORS: readonly (readonly number[])[] = [
+    [255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0], [255, 0, 255],
+    [0, 255, 255], [255, 128, 0], [128, 0, 255], [0, 128, 255], [128, 128, 128],
+];
+
+export type BinaryMask = { data: Uint8Array; width: number; height: number; matchCount: number };
+export type MaskSet = Record<number, BinaryMask>;
+
+// The mask is authored with these exact colours, but antialiasing at region edges lands a pixel a
+// few steps off, so a match is within 10 per channel rather than exact.
+const COLOR_TOLERANCE = 10;
+
+/** Split one spatial mask into a binary mask per identity colour. */
+export function extractIdentityMasks(rgba: Uint8ClampedArray, width: number, height: number): MaskSet {
+    const masks: MaskSet = {};
+    IDENTITY_COLORS.forEach((color, index) => {
+        const data = new Uint8Array(width * height);
+        let matchCount = 0;
+        for (let i = 0; i < data.length; i += 1) {
+            const p = i * 4;
+            const match = Math.abs(rgba[p] - color[0]) < COLOR_TOLERANCE
+                && Math.abs(rgba[p + 1] - color[1]) < COLOR_TOLERANCE
+                && Math.abs(rgba[p + 2] - color[2]) < COLOR_TOLERANCE;
+            data[i] = match ? 255 : 0;
+            if (match) matchCount += 1;
+        }
+        masks[index] = { data, width, height, matchCount };
+    });
+    return masks;
+}
+
+/** Paint a mask as a semi-transparent identity-coloured overlay (RGBA, one pixel per mask cell). */
+export function buildOverlayRgba(mask: BinaryMask, color: readonly number[]): Uint8ClampedArray {
+    const out = new Uint8ClampedArray(mask.width * mask.height * 4);
+    for (let i = 0; i < mask.data.length; i += 1) {
+        const p = i * 4;
+        if (mask.data[i] > 0) {
+            out[p] = color[0];
+            out[p + 1] = color[1];
+            out[p + 2] = color[2];
+            out[p + 3] = 100;
+        } else {
+            out[p + 3] = 0;
+        }
+    }
+    return out;
+}
+
+/** A comma list is N images; a lone URL is one vertically stacked sheet of square segments. */
+export function countStackedSegments(width: number, height: number): number {
+    return Math.round(height / width);
 }

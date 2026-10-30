@@ -104,9 +104,16 @@ async function completeSurvey(page, trials) {
   await expect(page.getByRole('heading', { name: 'Thank You!' })).toBeVisible({ timeout: 20000 });
 }
 
-// The tiles are not cleared between trials, so the served pair's data is the truth here.
+// The conditioning component hides the mask tile and the identity block when a trial's columns are
+// empty, so what is on screen is the truth here — and that is the behaviour under test.
 function currentTrialIsMaskFree(page) {
-  return page.evaluate(() => !currentImageData?.mask_url && !currentImageData?.identity_urls);
+  return page.evaluate(() => {
+    const shown = (sel) => {
+      const el = document.querySelector(sel);
+      return !!el && getComputedStyle(el).display !== 'none';
+    };
+    return !shown('.mask-tile') && !shown('#identity-section');
+  });
 }
 
 // Trial order is a per-session shuffle, so walk the study until a trial with a mask shows up.

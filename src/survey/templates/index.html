@@ -50,14 +50,10 @@
                 <p id="tutorial-text"></p>
             </div>
             <div class="tutorial-buttons">
-                <button class="btn-tutorial btn-tutorial-primary" onclick="nextTutorialStep()">Next</button>
+                <button class="btn-tutorial btn-tutorial-primary" type="button">Next</button>
             </div>
         </div>
     </div>
-    <script>
-        // Initialize tutorial mode
-        window.TUTORIAL_MODE = true;
-    </script>
     {% endif %}
 
     <div class="container">
@@ -344,24 +340,6 @@
         </section>
     </div>
 
-    <!-- Retake Warning Modal -->
-    <div id="retake-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Survey Already Completed</h2>
-            </div>
-            <div class="modal-body">
-                <p>It looks like you have already taken this survey with this email address.</p>
-                <p><strong>If you continue, your previous responses will be overwritten.</strong></p>
-                <p>Do you want to continue and retake the survey?</p>
-            </div>
-            <div class="modal-footer">
-                <button id="retake-cancel" class="btn-secondary">Cancel</button>
-                <button id="retake-confirm" class="btn-primary">Continue and Retake</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Image Lightbox -->
     <div id="image-lightbox" class="lightbox">
         <button class="lightbox-close">&times;</button>
@@ -379,7 +357,6 @@
 
 {% set app_bundle = bundle('survey') %}
 {% if app_bundle %}    <script type="module" src="{{ app_bundle }}"></script>{% else %}    <p class="assets-missing">Frontend assets are not built: run <code>npm ci &amp;&amp; npm run build</code>.</p>{% endif %}
-    <script src="{{ asset('script.js') }}"></script>
 </body>
 </html>
 

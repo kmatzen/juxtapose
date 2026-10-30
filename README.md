@@ -197,14 +197,13 @@ SQLite with JSON columns for demographics and responses. Migration from older sc
 ```bash
 pip install ".[dev]" && npm ci
 python -m pytest tests/ -q     # 113 backend tests
-npm test                       # 71 jsdom tests driving the real script.js
-npm run test:unit              # 32 unit tests on frontend/src modules
-npm run test:e2e               # 19 real-browser tests (builds, boots its own server)
+npm run test:unit              # 192 component and model tests (vitest + jsdom)
+npm run test:e2e               # 22 real-browser tests (builds, boots its own server)
 ```
 
 The survey's rules (question gating, answer assembly, payload shape, progress) live in
-`frontend/src/study-state.ts` with no DOM, so they are unit-tested directly; `script.js` calls
-into it and keeps only DOM work.
+`frontend/src/study-state.ts` with no DOM, so they are unit-tested directly; the components call
+into it and own the DOM work.
 
 ## License
 
