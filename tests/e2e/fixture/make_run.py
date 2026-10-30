@@ -75,6 +75,17 @@ def solid(colour):
     return lambda x, y: (*colour, 255) if len(colour) == 3 else colour
 
 
+def check_the_app_accepts(path):
+    """The run dir is printed as the harness's success signal, so a config the app refuses must stop here."""
+    sys.path.insert(0, str(REPO))
+    from src.survey.config import load_config
+    try:
+        load_config(str(path))
+    except Exception as error:
+        print(f'make_run: {path} is not a config the app accepts: {error}', file=sys.stderr)
+        raise SystemExit(1)
+
+
 def main():
     out = Path(sys.argv[1]).resolve()
     rows = int(sys.argv[2]) if len(sys.argv) > 2 else 4
@@ -90,6 +101,7 @@ def main():
     config['tutorial']['enabled'] = False
     config['data']['file'] = 'trials.tsv'
     (out / 'survey_config.yaml').write_text(yaml.safe_dump(config, sort_keys=False, width=100))
+    check_the_app_accepts(out / 'survey_config.yaml')
 
     columns = config['data']['columns']
     palette = [(30, 90, 200), (200, 90, 30), (30, 160, 90), (150, 40, 160)]
