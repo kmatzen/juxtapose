@@ -19,6 +19,22 @@ survey app, 2026-11. Each in-scope finding is one PR, merged with CI green on th
 | 12 | Dev run wrote `survey.db` into the source tree | Fixed - [#65](https://github.com/kmatzen/juxtapose/pull/65) (`$TMPDIR/juxtapose-dev/`) |
 | — | No Dockerfile/Procfile; `app.run` is the entrypoint | Out of scope by decision. README documents `gunicorn src.survey.app:app`; the repo ships no image build, so deployment stays the operator's. |
 
+## Known limit: the audit log is appended to inside the request
+
+Second audit, finding 10 (2026-11-05). Every audited action opens `AUDIT_LOG_FILE`, appends one JSON
+line, and closes it - a synchronous write on the request path, and on a deployment whose `DATA_DIR`
+is a network volume, a network round trip inside the request.
+
+At the volume this study runs at it is invisible: the audited actions are rare (admin login, session
+admission, delete-by-email), not per trial, and a line is a few hundred bytes. It becomes a real cost
+when an audited action moves onto the participant's hot path, or when audited actions reach thousands
+per minute. The fix at that point is a queue and one writer thread - `queue.Queue` plus a daemon
+thread that flushes on shutdown, in one process, so no lines are lost and no per-worker file splitting
+is needed - not a second log per worker.
+
+Not built now, deliberately: a queue ahead of a measured latency problem buys a thread, a shutdown
+path, and a new way to lose audit lines, all before the cost exists.
+
 ## What the gates now refuse at boot
 
 See [README](../README.md#environment-variables) for the contract. The mode is declared, not
