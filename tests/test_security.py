@@ -111,6 +111,7 @@ def test_production_refuses_default_admin_password(tmp_path):
     env = dict(os.environ)
     env.update({
         'APP_ENV': 'production',
+        'RATELIMIT_STORAGE_URI': 'redis://limiter.test:6379/0',
 
         'DATA_DIR': str(tmp_path),
         'SECRET_KEY': 'a-real-secret-for-this-test',
@@ -132,6 +133,7 @@ def test_production_boots_with_real_admin_password(tmp_path):
     env = dict(os.environ)
     env.update({
         'APP_ENV': 'production',
+        'RATELIMIT_STORAGE_URI': 'redis://limiter.test:6379/0',
 
         'DATA_DIR': str(tmp_path),
         'SECRET_KEY': 'a-real-secret-for-this-test',

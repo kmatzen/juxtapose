@@ -156,6 +156,7 @@ Set `enabled: false` to skip the tutorial.
 | `DEV_MODE` | `false` | Nothing in production: `APP_ENV=production` + `DEV_MODE=true` refuses to boot (it auto-fills forms, shortens the study and bypasses referral codes) |
 | `DATA_DIR` | (none) | Where the database and `audit.log` live. It no longer decides the mode - `APP_ENV` does |
 | `REFERRAL_CODES` | (none) | Comma-separated access codes; empty = no gate |
+| `RATELIMIT_STORAGE_URI` | `memory://` | Rate-limit counters. **Must be a `redis://` URL when `APP_ENV=production`**: with the in-process store every gunicorn worker counts its own traffic, so the limits in the code are a multiple of reality |
 | `TILE_LAYOUT` | `MAB` | Tile order: `MAB` (Mask, A, B) or `AMB` |
 | `PORT` | `5000` | Server port |
 
@@ -182,6 +183,10 @@ gunicorn src.survey.app:app --bind 0.0.0.0:8000
 
 `static_dist/` is read at boot, so a deploy replaces the code and the build together, then
 restarts. When `DATA_DIR` is set, the app enables production mode: requires `SECRET_KEY` and a non-default `ADMIN_PASSWORD`, enforces HTTPS cookies, and stores the database and audit log in that directory.
+
+Rate limits are enforced per participant session, and the numbers are only real caps when the
+counters are shared: point `RATELIMIT_STORAGE_URI` at redis so all workers count against one tally
+and a restart does not reset it. The production boot refuses to start otherwise.
 
 `audit.log` entries are stamped in **UTC** from 2026-11-05, so an entry lines up with the database row
 it explains (`CURRENT_TIMESTAMP` is UTC). Entries written before that date carry server-local time:
