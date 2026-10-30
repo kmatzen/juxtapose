@@ -4,6 +4,18 @@ export type AutofillEnv = {
     random: () => number;
 };
 
+/** mulberry32: the sequence depends only on the seed, so a dev-mode autofill pick cannot move when the draw count shifts. */
+export function seededRandom(seed: number): () => number {
+    let x = (seed >>> 0) || 0x9e3779b9;
+    return () => {
+        x = (x + 0x6d2b79f5) >>> 0;
+        let t = x;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
 const DEV_EMAIL = 'test@example.com';
 const DEV_TEXT = 'test';
 
