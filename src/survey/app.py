@@ -1153,40 +1153,39 @@ ADMIN_PAGE_SIZE = 200
 ADMIN_MAX_PAGE_SIZE = 1000
 
 
+def _json_object(raw):
+    """One JSON column as an object. Unparseable, or parsed to a non-object, reads as {}: the
+    dashboard takes every row in one page, so one corrupt cell must not cost the analyst the view."""
+    if not raw:
+        return {}
+    try:
+        value = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
 def _flatten_result(row):
     """Expand one joined row's JSON columns into the flat fields the dashboard and CSV share."""
     r = dict(row)
 
-    if r.get('demographics_data'):
-        try:
-            r.update(json.loads(r['demographics_data']))
-        except (json.JSONDecodeError, TypeError):
-            pass
+    r.update(_json_object(r.get('demographics_data')))
     r.pop('demographics_data', None)
 
-    stim = {}
-    if r.get('stimulus_data'):
-        try:
-            stim = json.loads(r['stimulus_data'])
-        except (json.JSONDecodeError, TypeError):
-            pass
+    stim = _json_object(r.get('stimulus_data'))
     methods = stim.get('methods', {})
     r['method_a'] = methods.get('a', stim.get('method_a', ''))
     r['method_b'] = methods.get('b', stim.get('method_b', ''))
 
-    for inp_name, inp_val in stim.get('inputs', {}).items():
+    inputs = stim.get('inputs')
+    for inp_name, inp_val in (inputs.items() if isinstance(inputs, dict) else []):
         r[f'input_{inp_name}'] = inp_val
     for key in ('prompt', 'image_a_url', 'image_b_url', 'identity_urls', 'mask_url'):
         if key in stim:
             r[key] = stim[key]
     r.pop('stimulus_data', None)
 
-    resp = {}
-    if r.get('responses'):
-        try:
-            resp = json.loads(r['responses'])
-        except (json.JSONDecodeError, TypeError):
-            pass
+    resp = _json_object(r.get('responses'))
 
     for q_name, q_data in resp.items():
         if isinstance(q_data, dict):
