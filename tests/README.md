@@ -4,14 +4,14 @@ This directory contains automated tests for the survey application, covering bot
 
 ## Test Summary
 
-**Total: 202 tests passing -**
-- Backend (Python): 107 tests
-- Frontend (JavaScript, jsdom): 80 tests
-- Browser (Playwright/Chromium): 15 tests
+**Total: 327 tests passing -**
+- Backend (Python): 113 tests
+- Frontend (Vitest, jsdom): 192 tests
+- Browser (Playwright/Chromium): 22 tests
 
-Frontend suites `require()` the real `src/survey/static/script.js` (the file ends
-with a browser-inert `module.exports` guard). Never re-implement app logic inside a
-test: an inline copy passes while the shipped script rots.
+Frontend suites import the shipped `frontend/src` modules directly — the component under test is
+the component the page runs. Never re-implement app logic inside a test: an inline copy passes
+while the shipped code rots.
 
 The Playwright tier drives the running app in Chromium and owns what jsdom cannot do:
 canvas mask decoding, image decoding, phone-width layout, whole-study journeys
@@ -50,14 +50,11 @@ uv run pytest -v
 # Frontend unit tests (Vitest, imports frontend/src modules directly)
 npm run test:unit
 
-# Frontend jsdom tests (drive the real src/survey/static/script.js)
-npm test
-
 # Browser tests (boots its own app + fixture study)
 npm run test:e2e
 
 # Everything
-uv run pytest -v && npm run test:unit && npm test && npm run test:e2e
+uv run pytest -v && npm run test:unit && npm run test:e2e
 ```
 
 ### Backend Tests (Python)
@@ -96,42 +93,26 @@ pytest -x
 
 ### Frontend Tests (JavaScript)
 
-Two runners, split by what they need:
+One runner for everything under `frontend/src`, in a DOM:
 
 | Tier | Runner | Files | Needs a build? |
 |------|--------|-------|----------------|
-| Pure modules | Vitest | `frontend/test/*.test.ts` | no, imports `.ts` directly |
-| Real `script.js` in jsdom | Jest | `tests/frontend/*.test.js` | `pretest` builds `frontend/.cjs/study-state.cjs` |
-
-`script.js` reads the study-state core from `window.JX` in the browser and from the CJS build
-under jsdom, so the rules are exercised in both worlds without being copied.
+| Model, services, components | Vitest | `frontend/test/**/*.test.ts` | no, imports `.ts` directly |
+| Real browser behaviour | Playwright | `tests/e2e/*.spec.js` | yes, `pretest:e2e` builds it |
 
 **Run the unit tests:**
 ```bash
 npm run test:unit
 ```
 
-**Run the jsdom tests:**
+**Run one file, or watch a pattern:**
 ```bash
-npm test
+npx vitest run --config frontend/vitest.config.mts test/components/trial-runner.test.ts
+npx vitest --config frontend/vitest.config.mts test/components
 ```
 
-**Run tests in watch mode:**
-```bash
-npm run test:watch
-```
-
-**Run with coverage:**
-```bash
-npm run test:coverage
-```
-
-Then open `coverage/lcov-report/index.html` for detailed frontend coverage.
-
-**Run specific test file:**
-```bash
-npm test -- frontend/validation.test.js
-```
+jsdom has no canvas and no image decode, so anything that reads pixels or waits on a tile belongs
+in the Playwright tier, not a jsdom mock of it.
 
 ## Test Structure
 
@@ -179,19 +160,18 @@ tests/
 - - Multiple participants with same email
 - - Empty result handling
 
-### Frontend (`frontend/*.test.js`)
-Every suite loads the real `script.js` through `helpers/survey-env.js`, which builds
-the page the way `index.html` does and stubs fetch, `Image`, scrolling and
-`IntersectionObserver`.
+### Frontend components (`frontend/test/`)
+Each suite mounts the real component into the page fixture (`test/helpers/dom.ts`) and drives it
+through its props, with `fakeApi` for the network and injected seams for canvas and image decode.
 
-- - Which page the participant lands on, and the image lightbox
-- - Pair loading: prompt, images, counters, the lock while images are in flight, every failure path
-- - Question navigation, per-section completion, auto-advance, scroll tracking
-- - Submit gating, including sections hidden by `depends_on`
-- - The payload posted for `ab_preference`, `likert`, `free_text` and `multiple_choice`
-- - The retake warning: the destructive delete only runs after confirmation
-- - Tutorial walkthrough and the submit lock it holds
-- - CSRF token lookup; admin table escaping
+- - `trial-runner` — which page the participant lands on, pair loading, counters, the payload for
+  `ab_preference` / `likert` / `free_text` / `multiple_choice`, per-pair timing, every failure path,
+  the walkthrough's submit path, dev auto-fill
+- - `stimulus-view` — preload, the lock while images are in flight, CORS, commit, lightbox binding
+- - `conditioning-tiles` — comma-list and stacked galleries, mask tiles, hover/tap overlays, cleanup
+- - `question-flow` — visibility per pair, submit gating, navigation, auto-advance, layout
+- - `retake-modal`, `tutorial-banner`, `demographics-form`, `lightbox`, `error-banner`, `device-panel`
+- - `study-state` — the rules with no DOM: responses, submission, progress, masks, tutorial steps
 
 ## Key Test Cases
 
@@ -216,12 +196,13 @@ the page the way `index.html` does and stubs fetch, `Image`, scrolling and
 
 **Why Important**: Ensures new users understand the survey interface.
 
-### 4. Form Validation
-**File**: `frontend/validation.test.js`
+### 4. The Submit gate
+**File**: `frontend/test/components/question-flow.test.ts`
 
-**Tests**: Complete form validation logic
+**Tests**: Which radio groups gate Submit, including sections a pair cannot answer.
 
-**Why Important**: Prevents incomplete survey submissions.
+**Why Important**: Prevents incomplete submissions, and stops a hidden question from locking a
+participant out of a study they have answered.
 
 ## Coverage Goals
 
@@ -229,9 +210,8 @@ Target: **80%+ coverage** for critical paths
 
 Current coverage:
 - - Backend: 78% (860 statements, 192 missed)
-- - Frontend jsdom: 68% of statements in `script.js`; `npm run test:coverage` fails below the thresholds in `jest.config.js`
-- - Frontend unit: the study-state rules and the admin column specs, run by `npm run test:unit`
-- - Not covered by jsdom: canvas mask-overlay rendering (the Playwright tier covers it), dev-mode auto-fill helpers
+- - Frontend: components, services and model rules, run by `npm run test:unit`
+- - Not covered by jsdom: canvas pixel readback and image decode, which the Playwright tier covers
 
 ## Adding New Tests
 
@@ -257,26 +237,29 @@ def test_my_feature(client, sample_demographics):
     assert response.status_code == 200
 ```
 
-### Frontend Tests (JavaScript)
+### Frontend Tests (TypeScript)
 
-1. Create a new file: `tests/frontend/yourfeature.test.js`
-2. `require('./helpers/survey-env')` for the page fixture, API mock and answer helpers
-3. Call the real `script.<function>()`; assert on the DOM it left behind
+1. Create `frontend/test/components/yourfeature.test.ts` — every component suite carries the
+   `@vitest-environment jsdom` pragma.
+2. `surveyFixture()` for the page, `fakeApi(routes)` for the network, `answer()` for radios.
+3. Mount the real component, drive it through its props, assert on the DOM it left behind, dispose it.
 
-Example:
-```javascript
-const { loadSurvey, script, surveyDom } = require('./helpers/survey-env');
+```typescript
+// @vitest-environment jsdom
+import { mountTrialRunner } from '../../src/components/trial-runner';
+import { fakeApi } from '../helpers/api';
+import { surveyFixture } from '../helpers/dom';
 
-describe('My Feature', () => {
-    beforeEach(async () => {
-        surveyDom();
-        await loadSurvey();
+test('a pair that is not owed ends the session', async () => {
+    surveyFixture();
+    const runner = mountTrialRunner(document.body, {
+        api: createSurveyApi(fakeApi({ '/api/get_image_pair': { ok: false, status: 404 } }).fetch),
+        // ...the components the runner drives, as props
     });
 
-    test('the app does the thing', () => {
-        script.setupSubmitValidation();
-        expect(document.getElementById('submit-btn').disabled).toBe(true);
-    });
+    await runner.loadPair(0);
+
+    expect(navigate).toHaveBeenCalledWith('/');
 });
 ```
 
@@ -288,14 +271,7 @@ describe('My Feature', () => {
 - Coverage target: `src/survey/`
 - Test database: Temporary SQLite
 
-### Frontend (Jest)
-- Configuration: `jest.config.js`
-- Test environment: `jsdom` (browser simulation)
-- Test discovery: `tests/frontend/**/*.test.js`
-- Coverage target: `src/survey/static/**/*.js`
-- `pretest` builds the CJS core (`frontend/.cjs/study-state.cjs`) that `script.js` requires here
-
-### Frontend unit (Vitest)
+### Frontend (Vitest)
 - Configuration: `frontend/vitest.config.mts`
 - Test environment: `jsdom`
 - Test discovery: `frontend/test/**/*.test.ts`
@@ -315,7 +291,7 @@ Example GitHub Actions:
   run: uv run pytest -v
   
 - name: Run frontend tests
-  run: npm test
+  run: npm run test:unit
 ```
 
 ## Troubleshooting

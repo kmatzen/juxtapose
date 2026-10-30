@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build a self-contained browser-test run dir: config, trials.tsv, PNG images.
 
-Images are served same-origin by fixture/serve.py because script.js sets
+Images are served same-origin by fixture/serve.py because the tiles set
 crossOrigin='anonymous' for canvas access, and Chromium refuses data: URIs under CORS.
 Usage: make_run.py <out_dir> [rows]
 """
@@ -52,7 +52,7 @@ def gradient(c0, c1):
 
 
 def mask_pixel(regions):
-    """Pure IDENTITY_COLORS rectangles on black: script.js matches <10 per channel."""
+    """Pure IDENTITY_COLORS rectangles on black: the mask scan matches <10 per channel."""
     def p(x, y):
         for x0, y0, x1, y1, colour in regions:
             if x0 <= x < x1 and y0 <= y < y1:
@@ -81,7 +81,7 @@ def main():
 
     columns = config['data']['columns']
     palette = [(30, 90, 200), (200, 90, 30), (30, 160, 90), (150, 40, 160)]
-    # Mirrors IDENTITY_COLORS in script.js so mask pixel extraction finds all three.
+    # Mirrors IDENTITY_COLORS in frontend/src/study-state.ts so the mask scan finds all three.
     identity_colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
     mask_regions = [(10, 10, 70, 70, identity_colors[0]),
                     (80, 10, 140, 70, identity_colors[1]),

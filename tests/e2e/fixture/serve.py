@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run the real app with one extra route that serves the fixture images same-origin.
 
-Keeping this in the fixture means the app source stays untouched while script.js can
+Keeping this in the fixture means the app source stays untouched while the tiles can
 still set crossOrigin='anonymous' and read mask pixels back out of a canvas.
 Usage: serve.py  (env: E2E_RUN_DIR, PORT)
 """
