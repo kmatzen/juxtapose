@@ -13,7 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _database(**env):
-    child = {k: v for k, v in os.environ.items() if k not in ('DATA_DIR', 'APP_ENV')}
+    stripped = ('DATA_DIR', 'APP_ENV', 'SURVEY_DISABLE_SESSION_GATE')
+    child = {k: v for k, v in os.environ.items() if k not in stripped}
     child['PYTHONPATH'] = str(ROOT)
     child['APP_ENV'] = 'dev'
     child.update({k: str(v) for k, v in env.items()})

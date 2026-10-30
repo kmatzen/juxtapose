@@ -334,13 +334,22 @@ def audit_log(action, details, user_ip=None):
         # Never let audit logging break the app
         logger.error("Audit logging error: %s", e)
 
+# The stale-session gate is a security behaviour, so its opt-out is named, not borrowed from a
+# general test knob: hanging it off Flask's TESTING flag meant every suite, by setting TESTING,
+# stopped exercising the one check that protects a participant mid-study across a deploy.
+SESSION_GATE_DISABLED = os.environ.get('SURVEY_DISABLE_SESSION_GATE', 'false').lower() == 'true'
+if IS_PRODUCTION and SESSION_GATE_DISABLED:
+    raise ValueError("SURVEY_DISABLE_SESSION_GATE must not be set in production: it is how a session "
+                     "built for an older schema gets served a config it was not built for")
+
+
 # Session validation: Check for stale sessions
 @app.before_request
 def validate_session():
     """Validate session version and clear if stale"""
     if request.path.startswith('/static/'):
         return
-    if app.config.get('TESTING'):
+    if SESSION_GATE_DISABLED:
         return
     if 'session_id' in session:
         session_version = session.get('version')
