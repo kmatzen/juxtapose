@@ -1327,7 +1327,8 @@ def admin_login():
         password = request.form.get('password')
         ip = get_remote_address()
 
-        if hmac.compare_digest(password or '', ADMIN_PASSWORD):
+        # Bytes, not str: compare_digest raises TypeError on non-ASCII strings, which 500'd every login with an accented password (audit 6 F4).
+        if hmac.compare_digest((password or '').encode('utf-8'), ADMIN_PASSWORD.encode('utf-8')):
             session['admin_authenticated'] = True
             session.permanent = True
             audit_log('ADMIN_LOGIN_SUCCESS', {'ip': ip})
