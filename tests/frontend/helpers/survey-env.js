@@ -49,7 +49,7 @@ function surveyDom() {
                     <p id="tutorial-text"></p>
                 </div>
                 <div class="tutorial-buttons">
-                    <button class="btn-tutorial btn-tutorial-primary" onclick="nextTutorialStep()">Next</button>
+                    <button class="btn-tutorial btn-tutorial-primary" type="button">Next</button>
                 </div>
             </div>
         </div>
@@ -211,6 +211,18 @@ function installSeam() {
             },
             dispose() {},
         },
+        // Null on the real page means "no walkthrough rendered"; tests install one to gate Submit.
+        tutorial: null,
+        setTutorial(complete = false) {
+            seam.tutorial = {
+                isComplete: () => complete,
+                start() {},
+                next() {},
+                dispose() {},
+            };
+            return seam.tutorial;
+        },
+        dispose() {},
     };
     window.__JX__ = seam;
     return seam;

@@ -72,3 +72,13 @@ export function compose(disposables: Disposable[]): Disposable {
         dispose: () => disposables.forEach((d) => d.dispose()),
     };
 }
+
+/** Escape text destined for an innerHTML assignment. */
+export function escapeHtml(value: string): string {
+    return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+}

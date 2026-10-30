@@ -186,7 +186,7 @@ describe('survey submission payload', () => {
     });
 
     test('a tutorial submit completes the tutorial and never posts a response', async () => {
-        window.TUTORIAL_MODE = true;
+        seam().setTutorial();
         global.fetch = apiMock({ '/api/complete_tutorial': { success: true } });
         script.setupEventListeners();
 
@@ -196,7 +196,6 @@ describe('survey submission payload', () => {
         expect(postCount('/api/submit_survey')).toBe(0);
         expect(postCount('/api/complete_tutorial')).toBe(1);
         expect(location.href).toBe('/');
-        window.TUTORIAL_MODE = false;
     });
 });
 

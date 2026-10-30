@@ -2,6 +2,7 @@ import type { ErrorBanner } from './components/error-banner';
 import type * as StudyState from './study-state';
 import type { Lightbox } from './components/lightbox';
 import type { RetakeModal } from './components/retake-modal';
+import type { TutorialBanner } from './components/tutorial-banner';
 
 // Migration seam: what `script.js` still needs from code that already lives in components.
 // Step 8 of docs/frontend-architecture.md deletes this file along with script.js.
@@ -11,6 +12,8 @@ export type SurveySeam = {
     banner: ErrorBanner;
     lightbox: Lightbox;
     retake: RetakeModal;
+    /** Null when the page has no walkthrough: the submit gate must not fire for its absence. */
+    tutorial: TutorialBanner | null;
 };
 
 declare global {

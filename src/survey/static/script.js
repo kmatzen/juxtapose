@@ -504,7 +504,7 @@ async function handleSurveySubmit(event) {
     event.preventDefault();
 
     // If in tutorial mode, mark tutorial complete and redirect to real survey
-    if (window.TUTORIAL_MODE) {
+    if (window.__JX__ && window.__JX__.tutorial) {
         // Mark tutorial as complete in session
         try {
             await fetch('/api/complete_tutorial', {
@@ -1279,10 +1279,12 @@ function setupSubmitValidation() {
 
         // Enable/disable submit button
         // In tutorial mode, keep disabled until tutorial is complete
-        if (window.TUTORIAL_MODE && !window.tutorialCompleted) {
+        if (tutorialBlocksSubmit()) {
             submitBtn.disabled = true;
+            submitBtn.title = 'Complete the tutorial first';
         } else {
             submitBtn.disabled = !allAnswered;
+            submitBtn.title = '';
         }
         
         return allAnswered;
@@ -1290,6 +1292,7 @@ function setupSubmitValidation() {
     
     // Make validateForm globally accessible for tutorial mode
     window.triggerFormValidation = validateForm;
+    document.addEventListener('jx:tutorial-complete', () => validateForm());
     
     // Listen for changes on all radio inputs
     surveyForm.addEventListener('change', (e) => {
@@ -1340,6 +1343,13 @@ function setupAutoAdvance() {
 // HELPER FUNCTIONS
 // ==================================================================
 
+// The walkthrough lives in the component tree; it is what gates Submit, and it finishes
+// asynchronously, so completion arrives as a DOM event the form re-validates against.
+function tutorialBlocksSubmit() {
+    const tutorial = window.__JX__ && window.__JX__.tutorial;
+    return !!tutorial && !tutorial.isComplete();
+}
+
 function getCSRFToken() {
     // Try to get CSRF token from meta tag (if it exists)
     const metaTag = document.querySelector('meta[name="csrf-token"]');
@@ -1355,196 +1365,6 @@ function getCSRFToken() {
         }
     }
     return '';
-}
-
-// ==================================================================
-// TUTORIAL MODE
-// ==================================================================
-
-if (window.TUTORIAL_MODE) {
-    // Initialize tutorial state
-    window.tutorialCompleted = false;
-
-    let currentTutorialStep = 0;
-
-    // Build tutorial steps from config (with auto_questions expansion)
-    function buildTutorialSteps() {
-        if (!surveyConfig || !surveyConfig.tutorial || !surveyConfig.tutorial.steps) {
-            return [{title: "Tutorial", text: "No tutorial steps configured.", highlight: null}];
-        }
-
-        const steps = [];
-        for (const step of surveyConfig.tutorial.steps) {
-            if (step === 'auto_questions') {
-                // Expand into one step per visible question
-                const questions = surveyConfig.questions || [];
-                questions.forEach((q, i) => {
-                    steps.push({
-                        title: q.section_label || q.label || q.name,
-                        text: '<strong>' + q.label + '</strong>',
-                        highlight: '.questions-container',
-                        scrollToWithin: '#' + q.name + '-evaluation',
-                    });
-                });
-            } else {
-                steps.push(step);
-            }
-        }
-        return steps;
-    }
-
-    let tutorialSteps = [];
-
-    function showTutorialStep(step) {
-        const banner = document.getElementById('tutorial-banner');
-        const title = document.getElementById('tutorial-title');
-        const text = document.getElementById('tutorial-text');
-        
-        // Remove previous highlights
-        document.querySelectorAll('.tutorial-highlight').forEach(el => {
-            el.classList.remove('tutorial-highlight');
-        });
-        
-        // Set content
-        title.textContent = tutorialSteps[step].title;
-        text.innerHTML = tutorialSteps[step].text; // Use innerHTML to support HTML formatting
-        
-        // Update progress circle (SVG pie chart)
-        const progressCircle = document.getElementById('tutorial-progress-circle');
-        const checkmark = document.getElementById('tutorial-checkmark');
-        if (progressCircle) {
-            const progressPercent = ((step + 1) / tutorialSteps.length) * 100;
-            // SVG circle has circumference of 100, so we can use percentage directly
-            progressCircle.setAttribute('stroke-dasharray', `${progressPercent}, 100`);
-            
-            // Show checkmark when complete
-            if (checkmark) {
-                if (progressPercent >= 100) {
-                    checkmark.classList.add('show');
-                } else {
-                    checkmark.classList.remove('show');
-                }
-            }
-        }
-        
-        // Highlight element(s) if specified
-        if (tutorialSteps[step].highlight) {
-            const elements = document.querySelectorAll(tutorialSteps[step].highlight);
-            const highlightParent = tutorialSteps[step].highlightParent;
-            const scrollToWithin = tutorialSteps[step].scrollToWithin;
-            
-            if (elements.length > 0) {
-                elements.forEach(element => {
-                    const targetElement = highlightParent ? element.closest('.tile-box') : element;
-                    if (targetElement) {
-                        targetElement.classList.add('tutorial-highlight');
-                    }
-                });
-                
-                // Determine which element to scroll to
-                let scrollTarget;
-                if (scrollToWithin) {
-                    // If scrollToWithin is specified, scroll to that element instead
-                    const scrollToElement = document.querySelector(scrollToWithin);
-                    scrollTarget = scrollToElement || elements[0];
-                } else {
-                    // Otherwise scroll to the highlighted element
-                    scrollTarget = highlightParent ? elements[0].closest('.tile-box') : elements[0];
-                }
-                
-                if (scrollTarget) {
-                    // Check if element is inside a scrollable container (like .questions-container)
-                    const scrollContainer = scrollTarget.closest('.questions-container');
-                    
-                    if (scrollContainer) {
-                        // Scroll within the container to reveal the target
-                        // Use same calculation as navigateQuestion() for consistency
-                        const containerRect = scrollContainer.getBoundingClientRect();
-                        const targetRect = scrollTarget.getBoundingClientRect();
-                        const scrollOffset = targetRect.top - containerRect.top + scrollContainer.scrollTop;
-                        
-                        scrollContainer.scrollTo({
-                            top: scrollOffset,
-                            behavior: 'smooth'
-                        });
-                    } else {
-                        // Scroll main window to element
-                        const elementRect = scrollTarget.getBoundingClientRect();
-                        const absoluteElementTop = elementRect.top + window.pageYOffset;
-                        const bannerHeight = banner.offsetHeight;
-                        const offset = 100; // Extra space above the element
-                        window.scrollTo({
-                            top: absoluteElementTop - bannerHeight - offset,
-                            behavior: 'smooth'
-                        });
-                    }
-                }
-            }
-        }
-        
-        // Update button text
-        const nextBtn = document.querySelector('.btn-tutorial-primary');
-        if (step === tutorialSteps.length - 1) {
-            nextBtn.textContent = 'Got it!';
-        } else {
-            nextBtn.textContent = 'Next';
-        }
-        
-        banner.style.display = 'block';
-    }
-
-    window.nextTutorialStep = function() {
-        currentTutorialStep++;
-        if (currentTutorialStep >= tutorialSteps.length) {
-            // Hide the banner and let user fill out the form
-            const banner = document.getElementById('tutorial-banner');
-            banner.style.display = 'none';
-            
-            // Remove any remaining highlights
-            document.querySelectorAll('.tutorial-highlight').forEach(el => {
-                el.classList.remove('tutorial-highlight');
-            });
-            
-            // Mark tutorial as completed in session
-            completeTutorial();
-        } else {
-            showTutorialStep(currentTutorialStep);
-        }
-    };
-
-    function completeTutorial() {
-        // Just enable the form - tutorial will be marked complete when user submits
-        window.tutorialCompleted = true;
-        
-        // Trigger form validation to enable button if form is filled
-        if (window.triggerFormValidation) {
-            window.triggerFormValidation();
-        } else {
-            console.error('triggerFormValidation not available');
-        }
-    }
-    
-    // Start tutorial after survey loads
-    window.addEventListener('load', () => {
-        // Build steps from config (config is loaded by now via checkDevMode)
-        tutorialSteps = buildTutorialSteps();
-
-        // Disable submit button until tutorial is complete
-        const submitBtn = document.getElementById('submit-btn');
-        if (submitBtn) {
-            submitBtn.disabled = true;
-            submitBtn.title = 'Complete the tutorial first';
-
-            submitBtn.addEventListener('click', (e) => {
-                if (submitBtn.disabled) {
-                    e.preventDefault();
-                }
-            });
-        }
-
-        // Show tutorial immediately
-        showTutorialStep(0);
-    });
 }
 
 // The browser loads this as a plain script; tests require() it so coverage sees the real code.
