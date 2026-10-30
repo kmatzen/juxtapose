@@ -17,7 +17,6 @@ beforeEach(async () => {
     jest.resetModules();
     script = require('../../src/survey/static/script.js');
     await loadSurvey();
-    script.setupSubmitValidation();
 });
 
 const allAnswered = () => {

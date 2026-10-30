@@ -59,7 +59,9 @@ describe('survey submission payload', () => {
 
     test('leaves out a question whose section is hidden', async () => {
         await answeredSurvey();
-        script.updateQuestionVisibility({ ...PAIR, mask_url: '' });
+        // The component's contract with script.js is a hidden section; the visibility rule itself
+        // is study-state.isSectionVisible, covered on the vitest side.
+        document.getElementById('mask-evaluation').style.display = 'none';
 
         submit('survey-form');
         await flush();

@@ -2,6 +2,7 @@ import { mountDemographicsForm } from './components/demographics-form';
 import { mountErrorBanner } from './components/error-banner';
 import { mountLightbox } from './components/lightbox';
 import { mountRetakeModal } from './components/retake-modal';
+import { mountQuestionFlow, observeSectionsIn } from './components/question-flow';
 import { mountStimulusView } from './components/stimulus-view';
 import { mountConditioningTiles } from './components/conditioning-tiles';
 import { createTutorialBanner } from './components/tutorial-banner';
@@ -60,6 +61,20 @@ function mountSurveyPage(): SurveySeam {
     }
 
     const lightbox = mountLightbox(need(document.body, '#image-lightbox'));
+    const tutorial = mountTutorial(document.getElementById('tutorial-banner'), onConfig);
+
+    // Pages that carry no question block (thank you, admin) mount no flow.
+    const surveySection = document.getElementById('survey-section');
+    const questions = surveySection && mountQuestionFlow(surveySection, {
+        form: need(document, '#survey-form') as HTMLFormElement,
+        submitButton: need(document, '#submit-btn') as HTMLButtonElement,
+        blocksSubmit: () => !!tutorial && !tutorial.isComplete(),
+        questions: () => studyConfig?.questions ?? [],
+        inputs: () => studyConfig?.inputs ?? [],
+        observeSections: (sections, onVisible) =>
+            observeSectionsIn(surveySection.querySelector('.questions-container'), sections, onVisible),
+    });
+
     return {
         core: studyState,
         banner,
@@ -80,7 +95,8 @@ function mountSurveyPage(): SurveySeam {
             outputImages: outputTiles,
             tapThresholdPx: TAP_THRESHOLD_PX,
         }),
-        tutorial: mountTutorial(document.getElementById('tutorial-banner'), onConfig),
+        questions,
+        tutorial,
     };
 }
 

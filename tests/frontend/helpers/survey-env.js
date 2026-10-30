@@ -220,6 +220,8 @@ function installSeam() {
                 next() {},
                 dispose() {},
             };
+            // On the real page the entry gates Submit through a closure over the banner.
+            seam.questions.blockSubmit(!complete);
             return seam.tutorial;
         },
         dispose() {},
@@ -227,6 +229,7 @@ function installSeam() {
     // Built after the literal: the tile double calls back into the seam (its banner, its lightbox).
     seam.stimulus = installStimulus(seam);
     seam.conditioning = installConditioning(seam);
+    seam.questions = installQuestions(seam);
     window.__JX__ = seam;
     return seam;
 }
@@ -243,6 +246,53 @@ function paintTile(image, url, method, openLightbox) {
 // Mirrors components/stimulus-view.ts, whose own vitest suite covers its behaviour: the runner tests
 // in this folder need a page that loads tiles the way the real one does, decode timing included,
 // which is why this rides the patched Image rather than resolving immediately.
+// Mirrors study-state.isSectionVisible, unit-tested on the vitest side; jest cannot load TS.
+function sectionVisible(question, data, inputs) {
+    if (!question.depends_on) return true;
+    const input = inputs.find((i) => i.name === question.depends_on);
+    if (!input) return true;
+    return String((data && data[input.column]) || '').trim() !== '';
+}
+
+// Mirrors components/question-flow.ts: which sections a trial can answer, and the Submit gate over
+// the visible radio groups. Its own vitest suite covers the real component.
+function installQuestions(seam) {
+    const submit = document.getElementById('submit-btn');
+    const blocked = { current: false };
+
+    function validate() {
+        const groups = {};
+        for (const radio of document.querySelectorAll('#survey-form input[type="radio"]')) {
+            const section = radio.closest('.evaluation-section');
+            if (section && section.style.display === 'none') continue;
+            groups[radio.name] = (groups[radio.name] || false) || radio.checked;
+        }
+        const answered = Object.values(groups);
+        submit.disabled = blocked.current || (answered.length > 0 && !answered.every(Boolean));
+        submit.title = blocked.current ? 'Complete the tutorial first' : '';
+    }
+
+    document.getElementById('survey-form').addEventListener('change', validate);
+
+    return {
+        showTrial(data) {
+            for (const question of seam.config?.questions || []) {
+                const el = document.getElementById(`${question.name}-evaluation`);
+                if (el) el.style.display = sectionVisible(question, data, seam.config.inputs || []) ? 'block' : 'none';
+            }
+            validate();
+        },
+        layout() {},
+        validate,
+        navigate() {},
+        index: () => 0,
+        blockSubmit(value) {
+            blocked.current = value;
+            validate();
+        },
+    };
+}
+
 function installStimulus(seam) {
     const preload = (url) =>
         new Promise((resolve) => {

@@ -5,6 +5,7 @@ import type { RetakeModal } from './components/retake-modal';
 import type { StimulusView } from './components/stimulus-view';
 import type { ConditioningTiles } from './components/conditioning-tiles';
 import type { TutorialBanner } from './components/tutorial-banner';
+import type { QuestionFlow } from './components/question-flow';
 
 // Migration seam: what `script.js` still needs from code that already lives in components.
 // Step 8 of docs/frontend-architecture.md deletes this file along with script.js.
@@ -18,6 +19,8 @@ export type SurveySeam = {
     conditioning: ConditioningTiles;
     /** Null when the page has no walkthrough: the submit gate must not fire for its absence. */
     tutorial: TutorialBanner | null;
+    /** Null on pages that carry no question block (thank you, admin). */
+    questions: QuestionFlow | null;
 };
 
 declare global {
