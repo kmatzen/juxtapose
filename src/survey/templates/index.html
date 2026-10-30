@@ -299,7 +299,8 @@
                             {% elif q.type == 'free_text' %}
                             <div class="form-group">
                                 <label>{{ q.label }}</label>
-                                <textarea name="{{ q.name }}_text" rows="3" class="form-control"></textarea>
+                                <textarea name="{{ q.name }}_text" rows="3" class="form-control"
+                                          {% if q.required %}required{% endif %}></textarea>
                             </div>
 
                             {% elif q.type == 'multiple_choice' %}

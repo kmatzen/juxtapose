@@ -2,6 +2,7 @@
 Pytest configuration and fixtures
 """
 import pytest
+import re
 import tempfile
 import os
 import json
@@ -19,12 +20,13 @@ REDIS_STORE = 'redis://limiter.test:6379/0'
 from src.survey import app as app_module
 
 
-@pytest.fixture
-def app(tmp_path, monkeypatch):
-    """Create application for testing, with a database per test."""
-    os.environ['DEV_MODE'] = 'false'
-    os.environ['REFERRAL_CODES'] = ''
+def _boot_app(tmp_path, monkeypatch, csrf_enabled):
+    """Reload the app on this test's database, saying plainly whether CSRF is on.
 
+    Every form in the app posts a CSRF token, and the bulk suite turns the gate off to keep its
+    posts short. That left the gate with no coverage at all, which is how a form missing its token
+    shipped, so `csrf_app` below keeps it on and reads the token off the rendered page.
+    """
     import importlib
     importlib.reload(app_module)
     flask_app = app_module.app
@@ -36,13 +38,50 @@ def app(tmp_path, monkeypatch):
     flask_app.config.update({
         'TESTING': True,
         'SECRET_KEY': 'test_secret_key',
-        'WTF_CSRF_ENABLED': False,
+        'WTF_CSRF_ENABLED': csrf_enabled,
     })
 
     with flask_app.app_context():
         app_module.init_db()
 
-    yield flask_app
+    return flask_app
+
+
+@pytest.fixture
+def app(tmp_path, monkeypatch):
+    """Create application for testing, with a database per test."""
+    os.environ['DEV_MODE'] = 'false'
+    os.environ['REFERRAL_CODES'] = ''
+
+    yield _boot_app(tmp_path, monkeypatch, csrf_enabled=False)
+
+
+@pytest.fixture
+def csrf_app(tmp_path, monkeypatch):
+    """CSRF left ON: the gate is a security behaviour, so at least one fixture must exercise it."""
+    os.environ['DEV_MODE'] = 'false'
+    os.environ['REFERRAL_CODES'] = ''
+
+    yield _boot_app(tmp_path, monkeypatch, csrf_enabled=True)
+
+
+@pytest.fixture
+def csrf_client(csrf_app):
+    return csrf_app.test_client()
+
+
+# The two shapes the app hands a token out in: a hidden form field, and the meta tag the TS reads.
+_CSRF_FIELD = re.compile(r'name="csrf_token" value="([^"]+)"')
+_CSRF_META = re.compile(r'name="csrf-token" content="([^"]+)"')
+
+
+def csrf_token(response, field=True):
+    """Pull the CSRF token out of a rendered page, the way the browser gets it."""
+    pattern = _CSRF_FIELD if field else _CSRF_META
+    found = pattern.search(response.get_data(as_text=True))
+    if not found:
+        raise AssertionError('the rendered page carries no CSRF token to post back')
+    return found.group(1)
 
 
 @pytest.fixture
@@ -60,23 +99,10 @@ def runner(app):
 @pytest.fixture
 def referral_client(tmp_path, monkeypatch):
     """REFERRAL_CODES is read at import, so a gating test must re-import the app with it set."""
-    def make(codes):
-        import importlib
-        from src.survey import app as app_module
+    def make(codes, csrf_enabled=False):
         monkeypatch.setenv('REFERRAL_CODES', codes)
         monkeypatch.setenv('DEV_MODE', 'false')
-        importlib.reload(app_module)
-        # The reload resets the module globals conftest isolated, so re-isolate them.
-        monkeypatch.setattr(app_module, 'DATABASE', str(tmp_path / 'survey.db'))
-        monkeypatch.setattr(app_module, 'AUDIT_LOG_FILE', str(tmp_path / 'audit.log'))
-        app_module.app.config.update({
-            'TESTING': True,
-            'SECRET_KEY': 'test_secret_key',
-            'WTF_CSRF_ENABLED': False,
-        })
-        with app_module.app.app_context():
-            app_module.init_db()
-        return app_module.app.test_client()
+        return _boot_app(tmp_path, monkeypatch, csrf_enabled=csrf_enabled).test_client()
     return make
 
 

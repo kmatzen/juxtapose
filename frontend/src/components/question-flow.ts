@@ -84,7 +84,8 @@ export function mountQuestionFlow(host: HTMLElement, props: QuestionFlowProps): 
     }
 
     function validate(): void {
-        const allAnswered = isFormComplete(radios(props.form));
+        // With no visible radio group there is nothing for this rule to gate, so it must not lock Submit.
+        const allAnswered = isFormComplete(radios(props.form), true);
         if (props.blocksSubmit()) {
             props.submitButton.disabled = true;
             props.submitButton.title = 'Complete the tutorial first';

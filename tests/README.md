@@ -4,10 +4,10 @@ This directory contains automated tests for the survey application, covering bot
 
 ## Test Summary
 
-**Total: 329 tests passing -**
-- Backend (Python): 113 tests
-- Frontend (Vitest, jsdom): 192 tests
-- Browser (Playwright/Chromium): 24 tests
+**Total: 474 tests passing -**
+- Backend (Python): 254 tests
+- Frontend (Vitest, jsdom): 195 tests
+- Browser (Playwright/Chromium): 25 tests
 
 Frontend suites import the shipped `frontend/src` modules directly — the component under test is
 the component the page runs. Never re-implement app logic inside a test: an inline copy passes
@@ -78,7 +78,7 @@ pytest tests/test_routes.py
 
 **Run specific test:**
 ```bash
-pytest tests/test_data_logic.py::test_get_completed_pair_ids_with_prompt_question_disabled
+pytest tests/test_data_logic.py::test_get_completed_pair_ids_incomplete_responses
 ```
 
 **Run with verbose output:**
@@ -120,7 +120,7 @@ in the Playwright tier, not a jsdom mock of it.
 tests/
 ├── __init__.py
 ├── conftest.py                     # Pytest fixtures and configuration
-├── test_*.py                       # 113 backend tests, one file per area
+├── test_*.py                       # 254 backend tests, one file per area
 ├── frontend/
 │   ├── setup.js                    # window flags, IntersectionObserver, console silencing
 │   ├── helpers/survey-env.js       # DOM fixture mirroring index.html + fetch/Image stubs

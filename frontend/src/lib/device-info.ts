@@ -1,5 +1,4 @@
 import { detectBrowser, detectOs } from '../study-state';
-import { byId } from './dom';
 
 export type DeviceInfo = {
     browser: string;
@@ -51,21 +50,4 @@ export function collectDeviceInfo(env: DeviceEnv): DeviceInfo {
         viewport_width: env.viewportWidth,
         viewport_height: env.viewportHeight,
     };
-}
-
-const fmt = (info: DeviceInfo) => ({
-    'user-browser': `${info.browser} ${info.browser_version}`,
-    'user-os': info.os,
-    'user-screen': `${info.screen_width} × ${info.screen_height}px`,
-    'user-pixel-ratio': `${info.pixel_ratio}x`,
-    'user-color': String(info.color_depth),
-});
-
-// The device notice exists on the demographics page only, so a missing span is the normal case.
-export function renderDeviceInfo(root: ParentNode, info: DeviceInfo): void {
-    const values = fmt(info);
-    for (const [id, value] of Object.entries(values)) {
-        const node = byId(root, id);
-        if (node) node.textContent = value;
-    }
 }

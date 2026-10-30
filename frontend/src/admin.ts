@@ -249,8 +249,10 @@ async function loadStats(): Promise<void> {
 
 async function loadRows(offset = 0): Promise<void> {
     const tbody = by<HTMLElement>('results-body');
+    // The 30s poll reloads offset 0: a fixed PAGE_SIZE there throws away every page "Load more" added.
+    const limit = offset === 0 ? Math.max(PAGE_SIZE, state.rows.length) : PAGE_SIZE;
     try {
-        const page = await getJson<ResultsPage>(`/api/admin/results?limit=${PAGE_SIZE}&offset=${offset}`);
+        const page = await getJson<ResultsPage>(`/api/admin/results?limit=${limit}&offset=${offset}`);
         state.rows = offset > 0 ? state.rows.concat(page.rows || []) : page.rows || [];
         state.total = page.total ?? state.rows.length;
     } catch (error) {
