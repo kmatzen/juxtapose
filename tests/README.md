@@ -4,10 +4,13 @@ This directory contains automated tests for the survey application, covering bot
 
 ## Test Summary
 
-**Total: 474 tests passing -**
-- Backend (Python): 263 tests
-- Frontend (Vitest, jsdom): 195 tests
-- Browser (Playwright/Chromium): 27 tests
+Three tiers, counted by running them, not by a number pasted into this file:
+
+```bash
+uv run pytest tests -q                      # backend
+npm run test:unit                           # frontend model, services and components
+npm run test:e2e                            # real browser, boots its own app
+```
 
 Frontend suites import the shipped `frontend/src` modules directly — the component under test is
 the component the page runs. Never re-implement app logic inside a test: an inline copy passes
@@ -116,34 +119,41 @@ in the Playwright tier, not a jsdom mock of it.
 
 ## Test Structure
 
+One file per area, and the area is named in the file name.
+
 ```
 tests/
-├── __init__.py
-├── conftest.py                     # Pytest fixtures and configuration
-├── test_*.py                       # 263 backend tests, one file per area
-├── frontend/
-│   ├── setup.js                    # window flags, IntersectionObserver, console silencing
-│   ├── helpers/survey-env.js       # DOM fixture mirroring index.html + fetch/Image stubs
-│   ├── gallery.test.js             # 2  – image_gallery comma list vs stacked sheet
-│   ├── hidden-section-validation.test.js  # 4  – hidden optional sections
-│   ├── image-loading.test.js       # 11 – loadImagePair, in-flight lock, failure paths
-│   ├── page-boot.test.js           # 6  – demographics gate, image lightbox
-│   ├── progressive-questions.test.js      # 14 – navigation, completion, auto-advance, scroll
-│   ├── submissions.test.js         # 16 – what the browser posts, retake confirmation
-│   ├── tutorial.test.js            # 4  – tutorial walkthrough and submit gate
-│   └── validation.test.js          # 10 – submit gating, CSRF lookup
-├── e2e/
-│   ├── README.md                   # fixture, coverage, the two regressions it killed
-│   ├── fixture/{make_run.py,serve.py,server.sh}
-│   ├── helpers/survey.js           # journey helpers against the live app
-│   ├── survey-flow.spec.js         # 2  – whole study, resume after a reload
-│   ├── canvas-overlay.spec.js      # 5  – mask decoding, hover overlay, slicing, optional columns
-│   ├── retake-admin.spec.js        # 3  – gallery, retake cancel/confirm
-│   ├── session-lifecycle.spec.js    # 2  – Start Over with CSRF on, the trials a returner is owed
-│   ├── admin-dashboard.spec.js     # 3  – escaping, stats/paging, CSV shape
-│   └── mobile-survey.spec.js       # 2  – phone-width layout
-└── README.md                       # This file
+├── conftest.py                       # _boot_app: boots the app on a study the test wrote, CSRF helpers
+├── fixtures/export_snapshot.csv      # the export's column contract, golden
+├── e2e/                              # real-browser tier; its fixture and notes: e2e/README.md
+├── boot, env and gates
+│   test_app_env.py test_scale_gate.py test_config_setup.py test_config_not_on_request_path.py
+│   test_no_debugger.py test_dev_database_path.py test_proxy_ip.py test_assets.py test_security.py
+├── routes, sessions and the referral gate
+│   test_routes.py test_api_endpoints.py test_results_path.py test_csrf_forms.py
+│   test_referral_gate.py test_referral_trace.py test_rate_limit.py
+├── what a session is shown, and what counts as answered
+│   test_trial_store.py test_trial_input_lookup.py test_pair_flip.py test_stimulus_integrity.py
+│   test_progress_by_participant.py test_resume.py test_resume_budget.py test_visibility_rule.py
+│   test_data_logic.py
+├── answers: shape, ranges and timing
+│   test_submit_integrity.py test_answer_shapes.py test_stats_answer_shape.py test_required_free_text.py
+│   test_question_options_gate.py test_timing_flag.py test_time_spent.py
+├── participants, retakes and privacy
+│   test_retake.py test_retake_ownership.py test_demographics_uniqueness.py test_audit_log_pii.py
+├── admin: what the study owner sees
+│   test_admin.py test_admin_participants.py test_admin_statistics.py test_admin_pagination.py
+│   test_admin_password_compare.py test_admin_query_agreement.py test_export_stream.py
+│   test_export_answer_types.py test_flatten_result.py
+├── the database under load
+│   test_concurrent_submit.py test_db_indexes.py test_audit_five_cleanups.py
+└── the tooling the tests depend on
+    test_e2e_fixture_writer.py test_docs_contract.py
 ```
+
+`test_docs_contract.py` is in the tree because it is a test with teeth: it fails when a doc names a
+file that is not there, an env var the app reads is missing from the README, or the security mode is
+documented from two places.
 
 ## What's Tested
 
@@ -173,161 +183,13 @@ through its props, with `fakeApi` for the network and injected seams for canvas 
 - - `retake-modal`, `tutorial-banner`, `demographics-form`, `lightbox`, `error-banner`, `device-panel`
 - - `study-state` — the rules with no DOM: responses, submission, progress, masks, tutorial steps
 
-## Key Test Cases
+## Reading order for the rules that have already burned someone
 
-### 1. Survey Completion Bug Fix
-**File**: `test_data_logic.py::test_completed_pairs_are_counted_once_per_trial`
-
-**Why Important**: Fixed a bug where responses weren't counted as complete if prompt fields were NULL. Added `DISTINCT` to prevent duplicate counting.
-
-### 2. Reset Session Functionality
-**File**: `test_routes.py::test_reset_session_clears_data`
-
-**Tests**: That "Start Over" properly clears session data
-
-**Why Important**: Ensures users can restart the survey cleanly in dev mode.
-
-### 3. Tutorial Flow
-**File**: `frontend/tutorial.test.js`
-
-**Tests**: Interactive tutorial walkthrough and form control
-
-**Why Important**: Ensures new users understand the survey interface.
-
-### 4. The Submit gate
-**File**: `frontend/test/components/question-flow.test.ts`
-
-**Tests**: Which radio groups gate Submit, including sections a pair cannot answer.
-
-**Why Important**: Prevents incomplete submissions, and stops a hidden question from locking a
-participant out of a study they have answered.
-
-## Coverage Goals
-
-Target: **80%+ coverage** for critical paths
-
-Current coverage:
-- - Backend: 78% (860 statements, 192 missed)
-- - Frontend: components, services and model rules, run by `npm run test:unit`
-- - Not covered by jsdom: canvas pixel readback and image decode, which the Playwright tier covers
-
-## Adding New Tests
-
-### Backend Tests (Python)
-
-1. Create new test file: `tests/test_yourfeature.py`
-2. Import fixtures from `conftest.py`
-3. Follow naming convention: `test_*` functions
-4. Use `client` fixture for route tests
-5. Use `app` fixture for application context
-
-Example:
-```python
-def test_my_feature(client, sample_demographics):
-    # Arrange
-    with client.session_transaction() as sess:
-        sess['session_id'] = 'test-123'
-    
-    # Act
-    response = client.get('/my-route')
-    
-    # Assert
-    assert response.status_code == 200
-```
-
-### Frontend Tests (TypeScript)
-
-1. Create `frontend/test/components/yourfeature.test.ts` — every component suite carries the
-   `@vitest-environment jsdom` pragma.
-2. `surveyFixture()` for the page, `fakeApi(routes)` for the network, `answer()` for radios.
-3. Mount the real component, drive it through its props, assert on the DOM it left behind, dispose it.
-
-```typescript
-// @vitest-environment jsdom
-import { mountTrialRunner } from '../../src/components/trial-runner';
-import { fakeApi } from '../helpers/api';
-import { surveyFixture } from '../helpers/dom';
-
-test('a pair that is not owed ends the session', async () => {
-    surveyFixture();
-    const runner = mountTrialRunner(document.body, {
-        api: createSurveyApi(fakeApi({ '/api/get_image_pair': { ok: false, status: 404 } }).fetch),
-        // ...the components the runner drives, as props
-    });
-
-    await runner.loadPair(0);
-
-    expect(navigate).toHaveBeenCalledWith('/');
-});
-```
-
-## Test Configuration
-
-### Backend (pytest)
-- Configuration file: `pytest.ini`
-- Test discovery: `tests/` directory
-- Coverage target: `src/survey/`
-- Test database: Temporary SQLite
-
-### Frontend (Vitest)
-- Configuration: `frontend/vitest.config.mts`
-- Test environment: `jsdom`
-- Test discovery: `frontend/test/**/*.test.ts`
-- Runs against TypeScript sources directly; no build step
-
-## CI/CD Integration
-
-These tests can be run automatically on:
-- Git pre-commit hooks
-- GitHub Actions workflows
-- Before deployment
-- Pull request validation
-
-Example GitHub Actions:
-```yaml
-- name: Run backend tests
-  run: uv run pytest -v
-  
-- name: Run frontend tests
-  run: npm run test:unit
-```
-
-## Troubleshooting
-
-**Import errors (Python)**: Make sure you're running from project root
-
-**Database errors (Python)**: Tests use temporary SQLite databases that are cleaned up automatically
-
-**Fixture not found (Python)**: Check `conftest.py` for available fixtures
-
-**Module not found (JavaScript)**: Run `npm install` to install dependencies
-
-**Tests fail with CORS errors (JavaScript)**: These are mocked in jsdom environment
-
-**Registry errors (npm)**: Configure npm to use public registry:
-```bash
-npm config set registry https://registry.npmjs.org/
-```
-
-## Coverage Reports
-
-### Backend Coverage
-```bash
-pytest --cov=src/survey --cov-report=html
-open htmlcov/index.html
-```
-
-### Frontend Coverage
-```bash
-npm run test:coverage
-open coverage-frontend/index.html
-```
-
-## Continuous Improvement
-
-Future test additions:
-- [ ] API integration tests
-- [ ] Database migration tests
-- [ ] Performance/load tests
-- [ ] Accessibility tests
-- [ ] Cross-browser compatibility tests
+- **Progress is a session's own rows** - `test_progress_by_participant.py`; the resume promise that
+  a person's cap spans their address is `test_resume_budget.py`.
+- **A `depends_on` question is exempt only where its input is blank** - `test_visibility_rule.py`.
+- **An off-scale answer must never reach an average** - `test_answer_shapes.py`; the aggregate still
+  has to survive rows stored before that boundary, `test_stats_answer_shape.py`.
+- **A retake delete needs the session to own the email** - `test_retake_ownership.py`.
+- **One query serves the admin list and the CSV export** - `test_admin_query_agreement.py`.
+- **The docs match the tree** - `test_docs_contract.py`.
