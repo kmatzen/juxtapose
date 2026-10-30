@@ -381,3 +381,56 @@ def test_admin_results_json_format(client):
 
     data = json.loads(response.data)['rows']
     assert isinstance(data, list)
+
+
+def _seed_response(confidence, pair_index=0):
+    """One participant, one judgement, straight into the database."""
+    import uuid
+
+    from src.survey.app import IMAGE_PAIRS, get_db
+
+    session = f'stats-{uuid.uuid4()}'
+    db = get_db()
+    try:
+        db.execute('INSERT INTO participants (session_id) VALUES (?)', (session,))
+        pid = db.execute('SELECT id FROM participants WHERE session_id = ?', (session,)).fetchone()['id']
+        insert_response(
+            db, pid, IMAGE_PAIRS.ids[pair_index],
+            {'image_quality': {'choice': 'A', 'confidence': confidence}},
+            stimulus={'method_a': 'M-A', 'method_b': 'M-B', 'methods': {'a': 'M-A', 'b': 'M-B'}},
+            time_spent=5.0)
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_a_poll_with_no_new_answer_does_not_re_parse_every_answer(client, monkeypatch):
+    """The dashboard polls /api/admin/stats every 30s per open tab, and the preference and confidence
+    aggregates need every answer row parsed - which grows with the study, not with the poll."""
+    from src.survey import app as app_module
+
+    _seed_response(confidence=4)
+
+    calls = {'n': 0}
+    real = app_module._stats_rows
+
+    def counting(db):
+        calls['n'] += 1
+        return real(db)
+
+    monkeypatch.setattr(app_module, '_stats_rows', counting)
+    with client.session_transaction() as sess:
+        sess['admin_authenticated'] = True
+
+    first = client.get('/api/admin/stats').get_json()
+    assert calls['n'] == 1
+
+    second = client.get('/api/admin/stats').get_json()
+    assert calls['n'] == 1, 'a poll with nothing new re-read and re-parsed every answer'
+    assert second == first
+
+    _seed_response(confidence=2, pair_index=1)
+    third = client.get('/api/admin/stats').get_json()
+    assert calls['n'] == 2, 'a new answer must force a recompute'
+    assert third['avg_confidence'] == 3.0
+    assert third['responses'] == 2

@@ -1382,6 +1382,14 @@ def admin_results():
     })
 
 
+_STATS_CACHE = {}
+
+
+def _stats_rows(db):
+    """Every answer row, the raw material of the preference and confidence aggregates."""
+    return db.execute('SELECT stimulus_data, responses FROM survey_responses').fetchall()
+
+
 @app.route('/api/admin/stats')
 @require_admin
 def admin_stats():
@@ -1395,20 +1403,30 @@ def admin_stats():
         LEFT JOIN demographics d ON p.id = d.participant_id
         JOIN survey_responses s ON s.participant_id = p.id
     ''').fetchone()
-    raw = db.execute('SELECT stimulus_data, responses FROM survey_responses').fetchall()
+    # The aggregate needs every answer row parsed, and the dashboard polls on a timer. Nothing in
+    # it changes without a new answer, so the answer count plus the newest timestamp is the version,
+    # and a poll with nothing new is two indexed reads. One entry, keyed on the database path: the
+    # path changes between studies and between test runs, which is the invalidation we want.
+    newest = db.execute('SELECT MAX(created_at) AS newest FROM survey_responses').fetchone()['newest']
+    cache_key = (DATABASE, totals['responses'], newest)
+    cached = _STATS_CACHE.get(cache_key)
+    if cached is None:
+        preferences = {}
+        confidences = []
+        for row in _stats_rows(db):
+            flat = _flatten_result(row)
+            for key, value in flat.items():
+                if key.endswith('_preferred_method'):
+                    if value:
+                        prefs = preferences.setdefault(key[:-len('_preferred_method')], {})
+                        prefs[value] = prefs.get(value, 0) + 1
+                elif key.endswith('_confidence') and value is not None:
+                    confidences.append(value)
+        cached = (preferences, confidences)
+        _STATS_CACHE.clear()
+        _STATS_CACHE[cache_key] = cached
     db.close()
-
-    preferences = {}
-    confidences = []
-    for row in raw:
-        flat = _flatten_result(row)
-        for key, value in flat.items():
-            if key.endswith('_preferred_method'):
-                if value:
-                    prefs = preferences.setdefault(key[:-len('_preferred_method')], {})
-                    prefs[value] = prefs.get(value, 0) + 1
-            elif key.endswith('_confidence') and value is not None:
-                confidences.append(value)
+    preferences, confidences = cached
 
     return jsonify({
         'responses': totals['responses'],
