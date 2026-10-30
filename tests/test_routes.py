@@ -87,3 +87,15 @@ def test_admin_login_requires_password(client):
     assert response.status_code == 401
     assert b'Invalid credentials' in response.data
 
+
+
+def test_tutorial_sends_a_participant_without_demographics_to_the_intake_page(client):
+    """The walkthrough gates Submit, so it must not be enterable before the intake form exists."""
+    with client.session_transaction() as sess:
+        sess['session_id'] = 'tutorial-no-demographics'
+        sess['referral_validated'] = True
+
+    response = client.get('/tutorial', follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers['Location'].rstrip('/') == ''

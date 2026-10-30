@@ -83,3 +83,12 @@ def test_the_admin_page_links_its_bundle_and_warns_when_there_is_none(client, ap
     built = client.get('/admin').get_data(as_text=True)
     assert '<script type="module" src="/dist/assets/admin-abc123.js"></script>' in built
     assert 'assets-missing' not in built
+
+
+def test_a_corrupt_manifest_leaves_the_source_static_pipeline_working(client, app, tmp_path, monkeypatch):
+    """A half-copied build must not take every page down: no entries, so /static keeps serving."""
+    (tmp_path / '.vite').mkdir()
+    (tmp_path / '.vite' / 'manifest.json').write_text('{ "survey.ts": truncated')
+    monkeypatch.setattr(app_module, 'STATIC_DIST', str(tmp_path))
+
+    assert app_module._manifest_entries() == {}

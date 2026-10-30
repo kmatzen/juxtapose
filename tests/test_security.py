@@ -142,3 +142,36 @@ def test_production_boots_with_real_admin_password(tmp_path):
 
     assert result.returncode == 0, result.stderr
     assert 'booted' in result.stdout
+
+
+def test_a_session_from_an_older_app_version_is_cleared(client, app, monkeypatch):
+    """SESSION_VERSION invalidation is what stops a deploy honouring a stale mid-study session.
+
+    validate_session returns early when TESTING is set, so every other test runs with the hook off.
+    """
+    from src.survey import app as app_module
+
+    monkeypatch.setitem(app.config, 'TESTING', False)
+    with client.session_transaction() as sess:
+        sess['session_id'] = 'stale-version'
+        sess['version'] = app_module.SESSION_VERSION - 1
+
+    client.get('/api/config')
+
+    with client.session_transaction() as sess:
+        assert 'session_id' not in sess
+
+
+def test_a_current_session_survives_the_version_check(client, app, monkeypatch):
+    """The hook clears stale sessions, not every session: a participant mid-study keeps their place."""
+    from src.survey import app as app_module
+
+    monkeypatch.setitem(app.config, 'TESTING', False)
+    with client.session_transaction() as sess:
+        sess['session_id'] = 'current-version'
+        sess['version'] = app_module.SESSION_VERSION
+
+    client.get('/api/config')
+
+    with client.session_transaction() as sess:
+        assert sess.get('session_id') == 'current-version'
