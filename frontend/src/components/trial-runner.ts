@@ -1,5 +1,5 @@
 import type { Disposable } from '../lib/dom';
-import { autofillDemographics, autofillSurvey } from '../lib/dev-autofill';
+import { autofillDemographics, autofillSurvey, seededRandom } from '../lib/dev-autofill';
 import type { SurveyApi, SurveyConfig } from '../lib/session-api';
 import { buildResponses, buildSubmission, progressFrom } from '../study-state';
 import type { Trial } from '../study-state';
@@ -39,7 +39,6 @@ const SUBMIT_NETWORK = 'Network error. Please check your connection and try agai
 /** The page lifecycle: who is in front (intake or survey), which pair is on screen, what Submit means. Components render; this decides what happens next. */
 export function mountTrialRunner(host: HTMLElement, props: TrialRunnerProps): TrialRunner {
     const form = host.querySelector<HTMLFormElement>('#survey-form');
-    const random = props.random ?? Math.random;
     const now = props.now ?? (() => Date.now());
     const timers: ReturnType<typeof setTimeout>[] = [];
 
@@ -75,7 +74,7 @@ export function mountTrialRunner(host: HTMLElement, props: TrialRunnerProps): Tr
         const config = props.config();
         if (!config) return;
         // Programmatic checks fire no change event, so the Submit gate is re-run by hand.
-        autofillSurvey(host, config, { random });
+        autofillSurvey(host, config, { random: props.random ?? seededRandom(trial?.id ?? current) });
         props.questions?.validate();
     }
 
