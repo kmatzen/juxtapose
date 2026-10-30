@@ -671,11 +671,11 @@ def _get_completed_trial_ids_for_email(email):
 @app.route('/health')
 def health():
     """Simple health check endpoint for monitoring"""
+    # /health is unauthenticated: it must not name where the study's answers live.
     return jsonify({
         'status': 'healthy',
         'pairs_loaded': IMAGE_PAIRS.count,
         'dev_mode': DEV_MODE,
-        'database': DATABASE
     }), 200
 
 
@@ -1318,7 +1318,7 @@ _ADMIN_RESULTS_SELECT = '''
             p.screen_width, p.screen_height, p.pixel_ratio, p.color_depth,
             d.email, d.data as demographics_data,
             s.image_pair_id, s.stimulus_data, s.responses,
-            s.was_randomized, s.time_spent, s.created_at as response_created
+            s.was_randomized, s.time_spent, s.timing_flag, s.created_at as response_created
         FROM participants p
         LEFT JOIN demographics d ON p.id = d.participant_id
         LEFT JOIN survey_responses s ON p.id = s.participant_id
@@ -1339,6 +1339,13 @@ def _json_object(raw):
     except (json.JSONDecodeError, TypeError):
         return {}
     return value if isinstance(value, dict) else {}
+
+
+def _csv_safe(value):
+    """Excel runs a cell starting with = + - @, and participant answers are the cell's author here."""
+    if isinstance(value, str) and value[:1] in ('=', '+', '-', '@'):
+        return f"'{value}"
+    return value
 
 
 def _flatten_result(row):
@@ -1365,15 +1372,20 @@ def _flatten_result(row):
 
     for q_name, q_data in resp.items():
         if isinstance(q_data, dict):
-            choice = q_data.get('choice', '')
-            r[f'{q_name}_choice'] = choice
-            r[f'{q_name}_confidence'] = q_data.get('confidence')
-            if choice == 'A':
-                r[f'{q_name}_preferred_method'] = r.get('method_a', '')
-            elif choice == 'B':
-                r[f'{q_name}_preferred_method'] = r.get('method_b', '')
-            elif choice == 'equal':
-                r[f'{q_name}_preferred_method'] = 'equal'
+            # Only the A/B answer has `choice`; likert/multiple_choice carry `value`, free text carries `text`.
+            choice = q_data.get('choice')
+            if choice is not None:
+                r[f'{q_name}_choice'] = choice
+                r[f'{q_name}_confidence'] = q_data.get('confidence')
+                if choice == 'A':
+                    r[f'{q_name}_preferred_method'] = r.get('method_a', '')
+                elif choice == 'B':
+                    r[f'{q_name}_preferred_method'] = r.get('method_b', '')
+                elif choice == 'equal':
+                    r[f'{q_name}_preferred_method'] = 'equal'
+            for key in ('value', 'text'):
+                if key in q_data:
+                    r[f'{q_name}_{key}'] = q_data[key]
         else:
             r[q_name] = q_data
     r.pop('responses', None)
@@ -1496,7 +1508,7 @@ def admin_export():
         writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction='ignore')
         writer.writeheader()
         for r in flat:
-            writer.writerow(r)
+            writer.writerow({key: _csv_safe(value) for key, value in r.items()})
 
     response = app.response_class(
         response=output.getvalue(),

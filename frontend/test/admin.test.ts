@@ -25,14 +25,24 @@ beforeEach(() => {
 });
 
 describe('column specs', () => {
-  it('gives one column per recorded value of an ab_preference question', () => {
+  it('gives one column per recorded value of every question type', () => {
     const headers = responseColumns(QUESTIONS).map(c => c.header);
     expect(headers).toEqual([
       'Date', 'Email', 'Pair#', 'Method A', 'Method B',
       'Choice (Image Quality)', 'Preferred (Image Quality)', 'Conf (Image Quality)',
       'Choice (Mask Adherence)', 'Preferred (Mask Adherence)', 'Conf (Mask Adherence)',
-      'Time (s)',
+      'Answer (comment)',
+      'Time (s)', 'Timing',
     ]);
+  });
+
+  it('shows the answer of a non-A/B question and the timing flag', () => {
+    const columns = responseColumns(QUESTIONS);
+    const cell = (header: string) =>
+      columns.find(c => c.header === header)!.cell({ comment_text: 'lighting is flat', timing_flag: 1 });
+
+    expect(cell('Answer (comment)')).toBe('lighting is flat');
+    expect(cell('Timing')).toBe('not a judgement');
   });
 
   it('keeps header and cells in lockstep because both come from the spec', () => {
