@@ -8,6 +8,22 @@ const PASSWORD = process.env.ADMIN_PASSWORD || 'e2e-admin-password';
 
 // Committed screenshots are reviewable artifacts, so they must not drift between runs. These
 // servers get a one-row study (nothing to shuffle), a throwaway DATA_DIR and fixed emails.
+// The runner picks which image a participant sees as A and which as B per trial, through an
+// injectable random that defaults to Math.random. Frozen clock alone still shuffles the committed
+// screenshots, so the shot pages get a fixed sequence: same study, same pixels, every run.
+async function pinRandom(context, seed = 0x9e3779b9) {
+  await context.addInitScript((start) => {
+    let x = start >>> 0;
+    Math.random = () => {
+      x = (x + 0x6d2b79f5) >>> 0;
+      let t = x;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }, seed);
+}
+
 async function startShotServer(port) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'juxtapose-shot-'));
   const child = spawn('bash', ['tests/e2e/fixture/server.sh'], {
@@ -110,4 +126,4 @@ async function shot(page, name, opts = {}) {
   });
 }
 
-module.exports = { startShotServer, settleForShot, shot, PASSWORD };
+module.exports = { pinRandom, startShotServer, settleForShot, shot, PASSWORD };

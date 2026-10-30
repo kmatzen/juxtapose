@@ -1,6 +1,6 @@
 const { test, expect, devices } = require('@playwright/test');
 const { fillDemographics } = require('./helpers/survey');
-const { startShotServer, shot } = require('./helpers/screens');
+const { startShotServer, pinRandom, shot } = require('./helpers/screens');
 
 const PORT = 5072;
 const EMAIL = 'shot-mobile@example.com';
@@ -9,6 +9,7 @@ test('the committed phone screenshots come from the same deterministic study', a
   test.setTimeout(240000);
   const server = await startShotServer(PORT);
   const context = await browser.newContext({ ...devices['Pixel 7'], baseURL: server.base });
+  await pinRandom(context);
   const page = await context.newPage();
 
   try {
