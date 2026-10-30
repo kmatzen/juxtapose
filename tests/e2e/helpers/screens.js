@@ -70,18 +70,40 @@ async function startShotServer(port, { rows = '1', pairsPerUser, seed = SHOT_SEE
 
 // The trial is dimmed while its images preload, and the survey form stays dimmed behind the
 // retake modal. So: everything the participant can actually see must be loaded and undimmed.
+const shotIsSettled = () => {
+  const shown = (el) => !!el && el.offsetParent !== null;
+  const images = Array.from(document.querySelectorAll('img'))
+    .filter((i) => i.getAttribute('src') && shown(i));
+  const loaded = images.every((i) => i.complete && i.naturalWidth > 0);
+  const form = document.getElementById('survey-form');
+  const formReady = !shown(form)
+    || (form.style.opacity === '1' && form.style.pointerEvents !== 'none');
+  const loading = Array.from(document.querySelectorAll('.loading-indicator')).filter(shown);
+  return loaded && formReady && loading.length === 0;
+};
+
+// The page looks rendered when any of the three conditions is the one that never lands, so a timeout has to name it.
+const shotIsNotSettledBecause = () => {
+  const shown = (el) => !!el && el.offsetParent !== null;
+  const pending = Array.from(document.querySelectorAll('img'))
+    .filter((i) => i.getAttribute('src') && shown(i) && !(i.complete && i.naturalWidth > 0))
+    .map((i) => `${(i.getAttribute('src') || '').slice(-30)}(complete:${i.complete},w:${i.naturalWidth})`);
+  const form = document.getElementById('survey-form');
+  const formState = shown(form)
+    ? `form opacity='${form.style.opacity}' pointer-events='${form.style.pointerEvents}'`
+    : 'form not shown';
+  const loading = Array.from(document.querySelectorAll('.loading-indicator')).filter(shown).length;
+  return `${pending.length} image(s) pending [${pending.join(' ')}]; ${formState}; `
+    + `${loading} loading indicator(s)`;
+};
+
 async function settleForShot(page) {
-  await page.waitForFunction(() => {
-    const shown = (el) => !!el && el.offsetParent !== null;
-    const images = Array.from(document.querySelectorAll('img'))
-      .filter((i) => i.getAttribute('src') && shown(i));
-    const loaded = images.every((i) => i.complete && i.naturalWidth > 0);
-    const form = document.getElementById('survey-form');
-    const formReady = !shown(form)
-      || (form.style.opacity === '1' && form.style.pointerEvents !== 'none');
-    const loading = Array.from(document.querySelectorAll('.loading-indicator')).filter(shown);
-    return loaded && formReady && loading.length === 0;
-  }, null, { timeout: 20000 });
+  try {
+    await page.waitForFunction(shotIsSettled, null, { timeout: 20000 });
+  } catch (error) {
+    throw new Error(`${String(error.message).split('\n')[0]} - waiting on `
+      + `${await page.evaluate(shotIsNotSettledBecause)}`);
+  }
   // screenshot({animations:'disabled'}) only fast-forwards transitions running when it looks; one restarted around the snapshot survives.
   await page.evaluate(() => {
     document.querySelectorAll('*').forEach((el) => {
@@ -125,6 +147,20 @@ async function waitForStableLayout(page) {
   }), null, { timeout: 30000 });
 }
 
+async function goToFirstQuestion(page) {
+  // Scrolling to the top does not walk the progressive flow back, so on a short viewport (where it advances during settle) the first question must be driven to, not waited for.
+  for (let guard = 0; guard < 8; guard++) {
+    const advanced = await page.evaluate(() => {
+      const section = document.getElementById('survey-section');
+      const prev = document.getElementById('prev-question-btn');
+      return !!(section && section.offsetParent !== null && prev && !prev.disabled);
+    });
+    if (!advanced) return;
+    await page.locator('#prev-question-btn').click({ timeout: 3000 });
+  }
+  throw new Error('the question flow would not walk back to its first question');
+}
+
 async function shot(page, name, { keepHover = false, ...opts } = {}) {
   await settleForShot(page);
   await page.evaluate(() => {
@@ -132,6 +168,7 @@ async function shot(page, name, { keepHover = false, ...opts } = {}) {
     const container = document.querySelector('.questions-container');
     if (container) container.scrollTop = 0;
   });
+  await goToFirstQuestion(page);
   await waitForStableLayout(page);
   // Shots depict the first question: the flow enables #prev-question-btn as it advances, and that arrow is painted.
   await page.waitForFunction(() => {
