@@ -114,7 +114,8 @@ AUDIT_LOG_FILE = os.path.join(DATA_DIR, 'audit.log') if DATA_DIR else 'audit.log
 # Referral codes - Set valid codes via environment variable (comma-separated) or in code
 # If empty, no referral code is required
 REFERRAL_CODES_ENV = os.environ.get('REFERRAL_CODES', '')
-REFERRAL_CODES = set(code.strip() for code in REFERRAL_CODES_ENV.split(',') if code.strip()) if REFERRAL_CODES_ENV else set()
+# The form uppercases what it sends, so a stored code is normalised the same way: a lowercase entry could never admit anyone.
+REFERRAL_CODES = set(code.strip().upper() for code in REFERRAL_CODES_ENV.split(',') if code.strip()) if REFERRAL_CODES_ENV else set()
 
 # In dev mode, bypass referral code requirement
 REQUIRE_REFERRAL = bool(REFERRAL_CODES) and not DEV_MODE
@@ -329,6 +330,14 @@ def validate_session():
         if session_version != SESSION_VERSION:
             logger.info("Clearing stale session (version %s != %s)", session_version, SESSION_VERSION)
             session.clear()
+
+# The gate redirects the pages, and the API is the study: on HEAD a session that never entered a code stored an answer through it (F2).
+@app.before_request
+def require_referral_for_study_api():
+    if REQUIRE_REFERRAL and not session.get('referral_validated') \
+            and request.path.startswith('/api/'):
+        abort(403)
+
 
 # Security: HTTP Security Headers
 @app.after_request
@@ -780,6 +789,8 @@ def index():
 
 
 @app.route('/referral', methods=['GET', 'POST'])
+# The code is a shared bearer token: per-session limits are free, so guessing must ride the IP cap the login page uses (F8).
+@limiter.limit("20 per hour", key_func=get_remote_address)
 def referral():
     """Referral code entry page"""
     if not REQUIRE_REFERRAL:
@@ -796,6 +807,7 @@ def referral():
             audit_log('REFERRAL_ACCEPTED', {'referral_code_hash': _pii_hash(code)})
             return redirect(url_for('index'))
         else:
+            audit_log('REFERRAL_REJECTED', {'reason': 'Invalid referral code'})
             return render_template('referral.html', config=CONFIG,
                                    error='Invalid referral code. Please check and try again.')
 
@@ -988,6 +1000,8 @@ def submit_demographics():
     db = get_db()
 
     try:
+        # Read before any write: this session's own address is the only proof a confirm may delete for it (audit 6 F1).
+        session_email = _get_session_email(db)
         # Extract email using config-defined email field
         email = data.get(EMAIL_FIELD) if EMAIL_FIELD else None
         if isinstance(email, str):
@@ -1011,7 +1025,13 @@ def submit_demographics():
             is_retaking = answered > 0
 
             if is_retaking and data.get('confirm_retake'):
-                # Irreversible: only the retake modal's Confirm may destroy finished answers.
+                # The email is a claim in the body, not an identity: unowned, one POST from a free session wiped any participant (audit 6 F1).
+                if session_email is None or session_email != email:
+                    audit_log('RETAKE_DELETE_REFUSED',
+                              {'reason': 'session does not own this email', 'email': email})
+                    return jsonify({'error':
+                                    'This session has not submitted demographics for this address'}), 403
+
                 deleted_responses = db.execute('''
                     DELETE FROM survey_responses
                     WHERE participant_id IN (
