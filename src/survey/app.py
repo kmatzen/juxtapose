@@ -71,6 +71,9 @@ if IS_PRODUCTION and DEV_MODE:
 # Session versioning - increment this when session structure changes
 SESSION_VERSION = 3  # Incremented for config-driven schema change
 
+# Under 1.0s a participant cannot have viewed three tiles and set two scales; the flag is what analysis filters on, the raw value is kept (study owner, 2026-11-04).
+TIMING_FLOOR_S = 1.0
+
 # Layout Configuration: Order of tiles in the three-tile grid
 # Options: 'AMB' (A, Mask, B) or 'MAB' (Mask, A, B)
 TILE_LAYOUT = os.environ.get('TILE_LAYOUT', 'MAB').upper()
@@ -359,6 +362,7 @@ def init_db():
             responses TEXT,
             was_randomized INTEGER DEFAULT 0,
             time_spent REAL,
+            timing_flag INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (participant_id) REFERENCES participants (id)
         )
@@ -367,6 +371,10 @@ def init_db():
     # IF NOT EXISTS, so a study database predating this gets indexed on its next boot.
     db.execute('CREATE INDEX IF NOT EXISTS idx_demographics_email ON demographics (email)')
     db.execute('CREATE INDEX IF NOT EXISTS idx_responses_participant ON survey_responses (participant_id)')
+
+    columns = {row['name'] for row in db.execute('PRAGMA table_info(survey_responses)')}
+    if 'timing_flag' not in columns:
+        db.execute('ALTER TABLE survey_responses ADD COLUMN timing_flag INTEGER DEFAULT 0')
 
     db.commit()
     db.close()
@@ -1080,6 +1088,7 @@ def submit_survey():
             time_spent = float(data.get('time_spent'))
         except (TypeError, ValueError):
             time_spent = None
+        timing_flag = 1 if time_spent is not None and time_spent < TIMING_FLOOR_S else 0
 
         existing = db.execute(
             'SELECT id FROM survey_responses WHERE participant_id = ? AND image_pair_id = ?',
@@ -1090,16 +1099,16 @@ def submit_survey():
             db.execute('''
                 UPDATE survey_responses
                 SET stimulus_data = ?, responses = ?, was_randomized = ?,
-                    time_spent = ?, created_at = CURRENT_TIMESTAMP
+                    time_spent = ?, timing_flag = ?, created_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            ''', (stimulus_json, responses_json, was_randomized, time_spent, existing['id']))
+            ''', (stimulus_json, responses_json, was_randomized, time_spent, timing_flag, existing['id']))
         else:
             db.execute('''
                 INSERT INTO survey_responses
-                (participant_id, image_pair_id, stimulus_data, responses, was_randomized, time_spent)
-                VALUES (?, ?, ?, ?, ?, ?)
+                (participant_id, image_pair_id, stimulus_data, responses, was_randomized, time_spent, timing_flag)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (participant['id'], trial_id, stimulus_json, responses_json,
-                  was_randomized, time_spent))
+                  was_randomized, time_spent, timing_flag))
 
         user_pairs_count = session.get('user_pairs_count', _trial_count())
         db.commit()
@@ -1312,7 +1321,7 @@ def admin_export():
             p.screen_width, p.screen_height, p.pixel_ratio, p.color_depth,
             d.email, d.data as demographics_data,
             s.image_pair_id, s.stimulus_data, s.responses,
-            s.was_randomized, s.time_spent, s.created_at as response_created
+            s.was_randomized, s.time_spent, s.timing_flag, s.created_at as response_created
         FROM participants p
         LEFT JOIN demographics d ON p.id = d.participant_id
         LEFT JOIN survey_responses s ON p.id = s.participant_id
