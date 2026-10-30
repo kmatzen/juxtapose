@@ -65,6 +65,8 @@ limiter = Limiter(
 
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')  # Change this in production
 DEV_MODE = os.environ.get('DEV_MODE', 'false').lower() == 'true'  # Set DEV_MODE=true for testing
+if IS_PRODUCTION and DEV_MODE:
+    raise ValueError("DEV_MODE must be false in production: it bypasses referral codes, shortens the study and turns on answer autofill")
 
 # Session versioning - increment this when session structure changes
 SESSION_VERSION = 3  # Incremented for config-driven schema change
