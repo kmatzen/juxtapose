@@ -45,3 +45,26 @@ def test_a_rejected_email_is_not_stored_as_plain_text(client, app, tmp_path):
     _delete(client, 'not-an-email@')
     text = (tmp_path / 'audit.log').read_text()
     assert 'not-an-email@' not in text
+
+
+def test_audit_entries_are_stamped_in_utc(client, app, tmp_path):
+    """The database stamps rows with CURRENT_TIMESTAMP, which is UTC. An entry stamped in server-local
+    time cannot be lined up with the row it explains, and the gap is the server's UTC offset."""
+    from datetime import datetime, timedelta, timezone
+
+    from src.survey import app as app_module
+
+    _delete(client, EMAIL)
+
+    entry = _entries(tmp_path / 'audit.log')[-1]
+    stamped = datetime.fromisoformat(entry['timestamp'])
+    assert stamped.tzinfo is not None, 'a naive stamp is server-local and cannot be joined to the DB'
+    assert stamped.utcoffset() == timedelta(0), entry['timestamp']
+
+    db = app_module.get_db()
+    try:
+        db_now = datetime.fromisoformat(db.execute('SELECT CURRENT_TIMESTAMP AS t').fetchone()['t'])
+    finally:
+        db.close()
+    drift = abs((stamped.astimezone(timezone.utc).replace(tzinfo=None) - db_now).total_seconds())
+    assert drift <= 2, f'log and database clocks differ by {drift}s'
