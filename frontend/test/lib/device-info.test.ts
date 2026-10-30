@@ -1,7 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import { collectDeviceInfo, renderDeviceInfo, type DeviceEnv } from '../../src/lib/device-info';
-import { surveyFixture } from '../helpers/dom';
+import { collectDeviceInfo, type DeviceEnv } from '../../src/lib/device-info';
 
 const CHROME_MAC =
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
@@ -45,21 +44,4 @@ describe('collectDeviceInfo', () => {
     });
 });
 
-describe('renderDeviceInfo', () => {
-    beforeEach(() => surveyFixture());
-
-    it('fills the data-collection notice', () => {
-        renderDeviceInfo(document, collectDeviceInfo(env()));
-        const text = (id: string) => document.getElementById(id)?.textContent;
-        expect(text('user-browser')).toBe('Chrome 126.0');
-        expect(text('user-os')).toBe('macOS');
-        expect(text('user-screen')).toBe('2560 × 1440px');
-        expect(text('user-pixel-ratio')).toBe('2x');
-        expect(text('user-color')).toBe('24');
-    });
-
-    it('leaves the survey page alone, where the notice is not rendered', () => {
-        document.body.innerHTML = '<div id="survey-form"></div>';
-        expect(() => renderDeviceInfo(document, collectDeviceInfo(env()))).not.toThrow();
-    });
-});
+// The device notice itself is mountDevicePanel's job, and device-panel.test.ts covers the five spans.

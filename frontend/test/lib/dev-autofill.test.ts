@@ -108,6 +108,16 @@ describe('dev auto-fill: survey', () => {
         expect(checked('image_confidence', '5')).toBe(true);
     });
 
+    test('a scale on an A/B question does not move the confidence range', () => {
+        surveyFixture();
+
+        autofillSurvey(document.body, config({
+            questions: [{ name: 'image', label: 'i', type: 'ab_preference', confidence: true, scale: 50 }],
+        }), { random: fixed(0.9) });
+
+        expect(checked('image_confidence', '5')).toBe(true);
+    });
+
     test('likert, free text and multiple choice are answered in their own shapes', () => {
         surveyFixture();
         const notes = section('notes-evaluation');

@@ -8,7 +8,6 @@ import {
   isSectionVisible,
   normalizeDemographics,
   progressFrom,
-  visibleQuestionNames,
   type InputConfig,
   type QuestionConfig,
   type Trial,
@@ -42,6 +41,10 @@ const QUESTIONS: QuestionConfig[] = [
   { name: 'tags', type: 'multiple_choice' },
 ];
 
+// The components ask the question-flow for this; the module exports the predicate, not the list.
+const visibleNames = (trial: Trial | null) =>
+  QUESTIONS.filter(q => isSectionVisible(q, trial, INPUTS)).map(q => q.name);
+
 describe('question gating', () => {
   it('gates a dependent question on its input column having a value', () => {
     const mask = QUESTIONS[1];
@@ -53,7 +56,7 @@ describe('question gating', () => {
 
   it("shows a mask-free trial's questions that do not depend on the mask", () => {
     const trial = { ...TRIAL, mask_url: '' };
-    expect(visibleQuestionNames(QUESTIONS, trial, INPUTS)).toEqual(['image', 'identity', 'comment', 'tags']);
+    expect(visibleNames(trial)).toEqual(['image', 'identity', 'comment', 'tags']);
   });
 
   it('shows a dependent question when the dependency names no input', () => {
@@ -76,7 +79,7 @@ describe('answer assembly', () => {
       tags_value: 'sharp',
       identity_value: '3',
     };
-    expect(buildResponses(QUESTIONS, fields, visibleQuestionNames(QUESTIONS, TRIAL, INPUTS))).toEqual({
+    expect(buildResponses(QUESTIONS, fields, visibleNames(TRIAL))).toEqual({
       image: { choice: 'A', confidence: 4 },
       mask: { choice: 'B', confidence: null },
       identity: { value: 3 },
