@@ -15,7 +15,14 @@ jobs:
           python-version: '3.11'
       - run: pip install -e ".[dev]"
       # pytest.ini forces --cov; the CI gate is pass/fail, coverage is a local command.
-      - run: python -m pytest tests -q --no-cov
+      # TEMPORARY DEBUG (#75): the token used to review this PR has no actions:read, so the failure is
+      # published as a check-run annotation, which the API does expose. Revert before merge.
+      - run: |
+          python -m pytest tests -q --no-cov 2>&1 | tee /tmp/pytest.log || {
+            echo "::error::failing lines: $(grep -E '^(FAILED|ERROR)' /tmp/pytest.log | head -8 | tr '\n' ';')"
+            echo "::error::tail: $(tail -45 /tmp/pytest.log | tr '\n' ';' | tr '"' "'")"
+            exit 1
+          }
 
   frontend:
     runs-on: ubuntu-latest
