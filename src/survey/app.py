@@ -506,6 +506,23 @@ def init_db():
     db.execute('CREATE INDEX IF NOT EXISTS idx_demographics_email ON demographics (email)')
     db.execute('CREATE INDEX IF NOT EXISTS idx_responses_participant ON survey_responses (participant_id)')
 
+    # The stats cache's version: an updated answer changes neither the answer count nor the newest timestamp.
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS stats_version (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            n INTEGER NOT NULL
+        )
+    ''')
+    db.execute('INSERT OR IGNORE INTO stats_version (id, n) VALUES (1, 0)')
+    for event in ('INSERT', 'UPDATE', 'DELETE'):
+        db.execute(f'''
+            CREATE TRIGGER IF NOT EXISTS survey_responses_{event.lower()}_bumps_stats
+            AFTER {event} ON survey_responses
+            BEGIN
+                UPDATE stats_version SET n = n + 1 WHERE id = 1;
+            END
+        ''')
+
     columns = {row['name'] for row in db.execute('PRAGMA table_info(survey_responses)')}
     if 'timing_flag' not in columns:
         db.execute('ALTER TABLE survey_responses ADD COLUMN timing_flag INTEGER DEFAULT 0')
@@ -1460,12 +1477,9 @@ def admin_stats():
         LEFT JOIN demographics d ON p.id = d.participant_id
         JOIN survey_responses s ON s.participant_id = p.id
     ''').fetchone()
-    # The aggregate needs every answer row parsed, and the dashboard polls on a timer. Nothing in
-    # it changes without a new answer, so the answer count plus the newest timestamp is the version,
-    # and a poll with nothing new is two indexed reads. One entry, keyed on the database path: the
-    # path changes between studies and between test runs, which is the invalidation we want.
-    newest = db.execute('SELECT MAX(created_at) AS newest FROM survey_responses').fetchone()['newest']
-    cache_key = (DATABASE, totals['responses'], newest)
+    # The dashboard polls this on a timer and the aggregate parses every answer row, so the cached study is versioned by that counter.
+    version = db.execute('SELECT n FROM stats_version WHERE id = 1').fetchone()['n']
+    cache_key = (DATABASE, version)
     cached = _STATS_CACHE.get(cache_key)
     if cached is None:
         preferences = {}
