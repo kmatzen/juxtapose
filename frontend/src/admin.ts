@@ -48,6 +48,7 @@ export type Column = {
 
 const PAGE_SIZE = 200;
 const PLACEHOLDER = '-';
+const CONFIG_FAILURE = 'Failed to load the study setup. Retrying on the next refresh.';
 
 const text = (value: unknown): string =>
     value === null || value === undefined || value === '' ? PLACEHOLDER : String(value);
@@ -296,7 +297,21 @@ async function loadParticipants(offset = 0): Promise<void> {
     renderTable();
 }
 
+async function loadConfig(): Promise<boolean> {
+    try {
+        state.config = await getJson<SurveyConfig>('/api/config');
+        return true;
+    } catch (error) {
+        console.error('Error loading study setup:', error);
+        const tbody = by<HTMLElement>('results-body');
+        if (tbody) renderMessage(tbody, CONFIG_FAILURE, columnsForView());
+        return false;
+    }
+}
+
 async function refresh(): Promise<void> {
+    // Every view is built from the config's columns, so a read that has not landed is retried by the poll.
+    if (!state.config && !(await loadConfig())) return;
     await Promise.all([loadStats(), loadRows(0), loadParticipants(0)]);
 }
 
@@ -350,9 +365,9 @@ async function deleteByEmail(): Promise<void> {
 }
 
 export async function init(): Promise<void> {
-    state.config = await getJson<SurveyConfig>('/api/config');
+    // Installed first: a first read that fails must not end the page's life.
+    setInterval(() => { void refresh(); }, 30000);
     await refresh();
-    setInterval(refresh, 30000);
 }
 
 export function wire(page: Document): void {
