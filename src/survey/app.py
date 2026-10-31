@@ -1425,6 +1425,10 @@ def submit_survey():
             answer = responses.get(question['name'])
             if answer is None:
                 continue
+            if not _question_shown(question, stimulus_data['inputs']):
+                # An answer to a question that was never shown is a judgement no participant made.
+                return jsonify({'error': f"{question['name']} was not shown for this pair: "
+                                         'the trial carries no value for the input it depends on'}), 400
             problem = _invalid_answer(question, answer)
             if problem:
                 return jsonify({'error': problem}), 400

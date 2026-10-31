@@ -62,8 +62,17 @@ def _served(client, index):
     return client.get(f'/api/get_image_pair/{index}').get_json()
 
 
+def _served_with(client, wants_mask):
+    """The session's pair order is the study's shuffle, so pick the trial by what it carries."""
+    for index in (0, 1):
+        served = _served(client, index)
+        if bool((served.get('mask_url') or '').strip()) == wants_mask:
+            return served
+    raise AssertionError(f'no served trial with wants_mask={wants_mask}')
+
+
 def test_an_answer_for_a_question_the_trial_never_showed_is_refused_by_name(client):
-    served = _served(client, 0)
+    served = _served_with(client, wants_mask=False)
     assert served['mask_url'] is None, 'this trial carries no mask, so the page shows no such question'
     response = _post_answer(client, served, mask_quality=5)
     assert response.status_code == 400, response.get_json()
@@ -88,7 +97,7 @@ def test_a_question_that_is_always_shown_is_unaffected(client):
 
 
 def test_the_refused_answer_leaves_nothing_in_the_export(client):
-    served = _served(client, 0)
+    served = _served_with(client, wants_mask=False)
     assert _post_answer(client, served, mask_quality=5).status_code == 400
     _post_answer(client, served)
     with client.session_transaction() as sess:
