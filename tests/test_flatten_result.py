@@ -37,6 +37,24 @@ def test_well_formed_row_still_flattens():
     assert flat['image_quality_preferred_method'] == 'gen5'
 
 
+def test_a_row_written_before_the_nested_methods_schema_still_exports_its_methods():
+    """Measured on a85aef6, with the `stim.get('method_a')` fallback deleted as the eighth audit
+    proposed: the dashboard showed method_a and method_b empty, `quality_preferred_method` empty, the
+    CSV exported both cells empty, and the preference table collapsed to `{}`
+    (/tmp/jx-audit/audit8c_probe4.py). submit_survey copied the browser's flat keys into
+    stimulus_data from e71b7ca (2026-04-11) until 572c4e6 (2026-10-29) and no migration rewrites
+    those blobs, so the fallback is the only reader of every row in that window.
+    """
+    flat = _flatten_result({
+        'id': 1,
+        'stimulus_data': json.dumps({'method_a': 'gen5', 'method_b': 'gen6', 'prompt': 'a red cube'}),
+        'responses': json.dumps({'image_quality': {'choice': 'A', 'confidence': 4}}),
+    })
+
+    assert (flat['method_a'], flat['method_b']) == ('gen5', 'gen6')
+    assert flat['image_quality_preferred_method'] == 'gen5'
+
+
 def test_non_object_inputs_cell_degrades():
     flat = _flatten_result({'id': 1, 'stimulus_data': json.dumps({'inputs': ['a', 'b']})})
 
