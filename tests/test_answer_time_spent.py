@@ -45,14 +45,15 @@ def client(tmp_path, monkeypatch):
 
 
 def _answer(client, email, time_spent):
-    """Post one trial answer with `time_spent` written into the body verbatim, as JSON spells it."""
-    client.get('/')
-    posted = client.post('/api/submit_demographics', json={'email': email, 'consent': 'yes'})
+    """Post one trial answer, as a participant of their own, with `time_spent` written verbatim."""
+    participant = client.application.test_client()   # one session owns one participant
+    participant.get('/')
+    posted = participant.post('/api/submit_demographics', json={'email': email, 'consent': 'yes'})
     assert posted.status_code == 200, posted.get_json()
-    served = client.get('/api/get_image_pair/0').get_json()
+    served = participant.get('/api/get_image_pair/0').get_json()
     body = '{"image_pair_id": %d, "responses": {"quality": {"choice": "A", "confidence": 4}},' \
            ' "time_spent": %s}' % (served['id'], time_spent)
-    return client.post('/api/submit_survey', data=body, content_type='application/json')
+    return participant.post('/api/submit_survey', data=body, content_type='application/json')
 
 
 def _stored(client):
@@ -79,12 +80,12 @@ def test_the_column_stays_averagable(client):
     with client.application.app_context():
         db = app_module.get_db()
         try:
-            row = db.execute('SELECT AVG(time_spent) AS avg, MIN(time_spent) AS min,'
-                             ' MAX(time_spent) AS max FROM survey_responses').fetchone()
+            row = db.execute('SELECT AVG(time_spent) AS avg_time, MIN(time_spent) AS min_time,'
+                             ' MAX(time_spent) AS max_time FROM survey_responses').fetchone()
         finally:
             db.close()
-    assert row['avg'] == pytest.approx(22.0), row
-    assert (row['min'], row['max']) == (12.0, 32.0), row
+    assert row['avg_time'] == pytest.approx(22.0), row
+    assert (row['min_time'], row['max_time']) == (12.0, 32.0), row
 
 
 def test_the_export_carries_no_infinity(client):
@@ -96,6 +97,17 @@ def test_the_export_carries_no_infinity(client):
     column = lines[0].split(',').index('time_spent')
     cells = [line.split(',')[column] for line in lines[1:]]
     assert cells == [''], cells
+
+
+def test_the_dashboard_average_ignores_a_non_finite_time(client):
+    """The dashboard's own average is the number an analyst reads off the screen."""
+    assert _answer(client, 'stat1@example.com', 'Infinity').status_code == 200
+    assert _answer(client, 'stat2@example.com', '12').status_code == 200
+    client.get('/')
+    with client.session_transaction() as sess:
+        sess['admin_authenticated'] = True
+    stats = client.get('/api/admin/stats').get_json()
+    assert stats['avg_time'] == pytest.approx(12.0), stats
 
 
 def test_a_real_time_is_kept(client):
