@@ -18,6 +18,7 @@ const QUESTIONS: QuestionConfig[] = [
 ];
 
 const el = (tag: string) => document.createElement(tag);
+const PLACEHOLDER_TEXT = '-';
 
 beforeEach(() => {
   document.body.innerHTML = '<table><thead id="table-header"></thead><tbody id="results-body"></tbody></table>';
@@ -63,6 +64,18 @@ describe('column specs', () => {
     expect(cell('Choice (Image Quality)')).toBe('A');
     expect(cell('Preferred (Image Quality)')).toBe('method_a');
     expect(cell('Conf (Image Quality)')).toBe('4');
+  });
+
+  /* Measured on 2b973d5: the roster columns are Email, Referral, Browser, OS, Screen, the configured
+   * fields, Trials — no Consent, though /api/admin/participants spreads the demographics JSON (so
+   * `consent` is in the row) and the CSV header has the column. The dashboard is the one surface
+   * where an analyst cannot see that a participant agreed to the study. */
+  it('shows the consent the participant gave beside who they are', () => {
+    const consent = demographicsColumns({}).find(c => c.header === 'Consent');
+
+    expect(consent).toBeDefined();
+    expect(consent?.cell({ consent: 'yes' })).toBe('yes');
+    expect(consent?.cell({})).toBe(PLACEHOLDER_TEXT);
   });
 
   it('adds the configured demographics fields and skips the email field', () => {
