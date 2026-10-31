@@ -78,12 +78,21 @@ function mountSurveyPage(): void {
     const tutorial = mountTutorial(document.getElementById('tutorial-banner'), onConfig);
     mountDevicePanel(document.body, () => browserEnv()).render();
 
+    // The question block asks the tiles whether this pair can be answered, so the tiles mount first.
+    const stimulus = mountStimulusView(document.body, {
+        lightbox,
+        banner,
+        onBlockingChange: blockForm,
+        onSettled: (ok) => runner?.tilesSettled(ok),
+    });
+
     // Pages that carry no question block (thank you, admin) mount no flow.
     const surveySection = document.getElementById('survey-section');
     const questions = surveySection && mountQuestionFlow(surveySection, {
         form: need(document, '#survey-form') as HTMLFormElement,
         submitButton: need(document, '#submit-btn') as HTMLButtonElement,
-        blocksSubmit: () => !!tutorial && !tutorial.isComplete(),
+        blocksSubmit: () => (!!tutorial && !tutorial.isComplete()) || stimulus.failed(),
+        blockReason: () => stimulus.failed() ? STIMULUS_FAILURE : 'Complete the tutorial first',
         questions: () => studyConfig?.questions ?? [],
         inputs: () => studyConfig?.inputs ?? [],
         observeSections: (sections, onVisible) =>
@@ -96,14 +105,6 @@ function mountSurveyPage(): void {
         maskInput: () => inputOfType('image'),
         outputImages: outputTiles,
         tapThresholdPx: TAP_THRESHOLD_PX,
-    });
-
-    const stimulus = mountStimulusView(document.body, {
-        lightbox,
-        banner,
-        onBlockingChange: blockForm,
-        onSettled: (ok) => runner?.tilesSettled(ok),
-        onTrial: () => {},
     });
 
     // The runner is the last thing mounted and the first thing started: it needs every component.
@@ -128,6 +129,7 @@ function mountSurveyPage(): void {
 
 const TAP_THRESHOLD_PX = 10;
 const CONFIG_FAILURE = 'Failed to load the study setup. Please refresh the page.';
+const STIMULUS_FAILURE = 'The images did not load. Refresh the page to answer this pair.';
 const CONFIG_RETRY_MS = 2000;
 let studyConfig: SurveyConfig | null = null;
 

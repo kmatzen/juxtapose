@@ -36,7 +36,7 @@ function harness(over: { routes?: Routes } & Partial<TrialRunnerProps> = {}): Ha
     const surveyApi = createSurveyApi(spy.fetch, () => 'tok');
 
     const banner = { show: vi.fn(), hide: vi.fn(), dispose: vi.fn() };
-    const stimulus = { show: vi.fn(async () => {}), dispose: vi.fn() };
+    const stimulus = { show: vi.fn(async () => {}), failed: () => false, dispose: vi.fn() };
     const conditioning = { show: vi.fn(), clear: vi.fn(), dispose: vi.fn() };
     const questions = {
         showTrial: vi.fn(),

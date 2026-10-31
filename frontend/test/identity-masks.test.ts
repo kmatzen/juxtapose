@@ -5,6 +5,7 @@ import {
     buildOverlayRgba,
     countStackedSegments,
     extractIdentityMasks,
+    stackedSliceBands,
 } from '../src/study-state';
 
 function rgbaOf(pixels: [number, number, number][]): Uint8ClampedArray {
@@ -71,5 +72,40 @@ describe('countStackedSegments', () => {
 
     test('a ragged bottom row does not make a partial segment', () => {
         expect(countStackedSegments(200, 550)).toBe(3);
+    });
+});
+
+/** Audit 6 F11: the slicer cut one square per segment, so a sheet of non-square panels sliced across the panels. */
+describe('stackedSliceBands', () => {
+    test('a sheet of square panels is unchanged', () => {
+        expect(stackedSliceBands(200, 800)).toEqual([
+            { y: 0, height: 200 },
+            { y: 200, height: 200 },
+            { y: 400, height: 200 },
+            { y: 600, height: 200 },
+        ]);
+    });
+
+    test('a 512x768 sheet cuts at its own height over segments', () => {
+        expect(stackedSliceBands(512, 768)).toEqual([
+            { y: 0, height: 384 },
+            { y: 384, height: 384 },
+        ]);
+    });
+
+    test('the bands tile the sheet exactly, ragged height included', () => {
+        const bands = stackedSliceBands(200, 550);
+
+        expect(bands).toHaveLength(3);
+        expect(bands[0].y).toBe(0);
+        expect(bands[2].y + bands[2].height).toBe(550);
+        bands.reduce((y, band) => {
+            expect(band.y).toBe(y);
+            return band.y + band.height;
+        }, 0);
+    });
+
+    test('a sheet shorter than one panel is one band, not zero', () => {
+        expect(stackedSliceBands(400, 120)).toEqual([{ y: 0, height: 120 }]);
     });
 });

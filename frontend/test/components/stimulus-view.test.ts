@@ -20,32 +20,33 @@ const TRIAL = {
 const ok: LoadedImage = { ok: true };
 const failed: LoadedImage = { ok: false };
 
-type Harness = {
+export type Harness = {
     props: StimulusViewProps;
     blocked: boolean[];
     settled: boolean[];
     opened: string[];
-    trials: Trial[];
     shown: string[];
     view: ReturnType<typeof mountStimulusView>;
     a: HTMLImageElement;
     b: HTMLImageElement;
 };
 
-function harness(preload: (url: string) => Promise<LoadedImage> = async () => ok): Harness {
+function harness(
+    preload: (url: string) => Promise<LoadedImage> = async () => ok,
+    over: Partial<StimulusViewProps> = {},
+): Harness {
     surveyFixture();
     const blocked: boolean[] = [];
     const settled: boolean[] = [];
     const opened: string[] = [];
-    const trials: Trial[] = [];
     const shown: string[] = [];
     const props: StimulusViewProps = {
         lightbox: { open: (src) => opened.push(src), close: vi.fn(), dispose: vi.fn() },
         banner: { show: (message) => shown.push(message), hide: vi.fn(), dispose: vi.fn() },
         onBlockingChange: (value) => blocked.push(value),
         onSettled: (value) => settled.push(value),
-        onTrial: (trial) => trials.push(trial),
         preload,
+        ...over,
     };
     const view = mountStimulusView(document.body, props);
     return {
@@ -53,7 +54,6 @@ function harness(preload: (url: string) => Promise<LoadedImage> = async () => ok
         blocked,
         settled,
         opened,
-        trials,
         shown,
         view,
         a: document.getElementById('image-a') as HTMLImageElement,
@@ -103,17 +103,12 @@ describe('StimulusView', () => {
         expect(document.getElementById('prompt-text')!.textContent).toBe('Which is the better cat?');
     });
 
-    test('the trial is handed to the conditioning components', async () => {
-        await h.view.show(TRIAL);
-        expect(h.trials).toEqual([TRIAL]);
-    });
-
     test('a tile that fails to load names itself and unblocks the form', async () => {
         await h.view.show(TRIAL);
         h = harness((url) => Promise.resolve(url.endsWith('a.png') ? failed : ok));
         await h.view.show(TRIAL);
 
-        expect(h.shown).toEqual(['Failed to load images: Image A ']);
+        expect(h.shown).toEqual(['Failed to load images: Image A. Refresh the page to try this pair again.']);
         expect(h.a.getAttribute('src')).toBe('');
         expect(h.a.style.opacity).toBe('1');
         expect(indicators()).toHaveLength(0);
@@ -125,7 +120,51 @@ describe('StimulusView', () => {
         h = harness(async () => failed);
         await h.view.show(TRIAL);
 
-        expect(h.shown[0]).toBe('Failed to load images: Image A Image B');
+        expect(h.shown[0]).toBe('Failed to load images: Image A Image B. Refresh the page to try this pair again.');
+    });
+
+    test('a load that never lands settles as a failure and frees the form', async () => {
+        vi.useFakeTimers();
+        h = harness(() => new Promise<LoadedImage>(() => {}), { loadTimeoutMs: 1000 });
+        const shown = h.view.show(TRIAL);
+
+        expect(h.blocked).toEqual([true]);
+        await vi.advanceTimersByTimeAsync(1000);
+        await shown;
+
+        expect(h.blocked).toEqual([true, false]);
+        expect(h.settled).toEqual([false]);
+        expect(h.shown[0]).toContain('Refresh the page');
+        expect(indicators()).toHaveLength(0);
+        vi.useRealTimers();
+    });
+
+    test('a trial the participant could not see is marked failed, a rendered pair is not', async () => {
+        expect(h.view.failed()).toBe(false);
+
+        h = harness(async () => failed);
+        await h.view.show(TRIAL);
+        expect(h.view.failed()).toBe(true);
+
+        h = harness(async () => ok);
+        await h.view.show(TRIAL);
+        expect(h.view.failed()).toBe(false);
+    });
+
+    test('a stalled load that is superseded does not fail the pair being judged', async () => {
+        vi.useFakeTimers();
+        h = harness((url) => (url.includes('slow')
+            ? new Promise<LoadedImage>(() => {})
+            : Promise.resolve(ok)), { loadTimeoutMs: 1000 });
+
+        const stalled = h.view.show({ ...TRIAL, image_a_url: 'https://img/slow.png' });
+        await h.view.show(TRIAL);
+        await vi.advanceTimersByTimeAsync(1000);
+        await stalled;
+
+        expect(h.view.failed()).toBe(false);
+        expect(h.settled).toEqual([true]);
+        vi.useRealTimers();
     });
 
     test('a committed tile opens the lightbox, a loading one does not', async () => {

@@ -80,6 +80,17 @@ def _validate(config):
             raise ValueError(
                 f"Question '{question.get('name')}' has scale {scale!r}: it must be a whole number "
                 "of at least 2")
+        # A choice widget with no choices renders nothing to answer: a required one is a study that never ends, so this is checked at boot.
+        if question['type'] == 'multiple_choice' and not question.get('options'):
+            raise ValueError(
+                f"Question '{question.get('name')}' is a multiple_choice with no options: "
+                "it renders nothing to answer")
+
+    for field in config.get('demographics', []):
+        if field.get('type') in ('select', 'radio', 'checkbox') and not field.get('options'):
+            raise ValueError(
+                f"Demographics field '{field.get('name')}' is a {field['type']} with no options: "
+                "it renders nothing to answer")
 
     method_cols = [config['methods'].get('a'), config['methods'].get('b')]
     for col in method_cols:

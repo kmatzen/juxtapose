@@ -6,6 +6,10 @@ import type { LoadedImage } from '../lib/image-loader';
 import type { Lightbox } from './lightbox';
 import type { Trial } from '../study-state';
 
+const FAILED_TILE: LoadedImage = { ok: false };
+const LOAD_TIMEOUT_MS = 15000;
+const REFRESH_HINT = 'Refresh the page to try this pair again.';
+
 export type StimulusViewProps = {
     lightbox: Lightbox;
     banner: ErrorBanner;
@@ -13,14 +17,17 @@ export type StimulusViewProps = {
     onBlockingChange: (blocked: boolean) => void;
     /** Fires once per load on both paths, so the form never stays blocked after a failure. */
     onSettled: (ok: boolean) => void;
-    onTrial: (trial: Trial) => void;
     /** Injectable for tests; the browser preloads through a detached <img>. */
     preload?: (url: string) => Promise<LoadedImage>;
+    /** A stalled request fires neither load nor error, so without a deadline the form stays blocked on a spinner. */
+    loadTimeoutMs?: number;
 };
 
 export type StimulusView = Disposable & {
     /** Preload both tiles, then commit or report. Never rejects. */
     show(trial: Trial): Promise<void>;
+    /** The pair on screen is not answerable while this is true: the participant has not seen it. */
+    failed(): boolean;
 };
 
 /** The A/B tiles: the stimulus the participant is judging, and the only thing that may block input. */
@@ -29,8 +36,23 @@ export function mountStimulusView(root: HTMLElement, props: StimulusViewProps): 
     const imageB = need<HTMLImageElement>(root, '#image-b');
     const prompt = document.getElementById('prompt-text');
     const preload = props.preload ?? preloadImage;
+    const timeoutMs = props.loadTimeoutMs ?? LOAD_TIMEOUT_MS;
 
     let generation = 0;
+    let failedLoad = false;
+    let stallTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function stalled(): Promise<'stalled'> {
+        return new Promise((resolve) => {
+            stallTimer = setTimeout(() => resolve('stalled'), timeoutMs);
+        });
+    }
+
+    function clearStall(): void {
+        if (stallTimer === null) return;
+        clearTimeout(stallTimer);
+        stallTimer = null;
+    }
 
     function setBlocking(blocked: boolean): void {
         props.onBlockingChange(blocked);
@@ -60,7 +82,7 @@ export function mountStimulusView(root: HTMLElement, props: StimulusViewProps): 
 
     async function show(trial: Trial): Promise<void> {
         const mine = ++generation;
-        props.onTrial(trial);
+        failedLoad = false;
         if (prompt) prompt.textContent = trial.prompt;
 
         clearIndicators();
@@ -75,15 +97,21 @@ export function mountStimulusView(root: HTMLElement, props: StimulusViewProps): 
         }
         setBlocking(true);
 
-        const [a, b] = await Promise.all([preload(trial.image_a_url), preload(trial.image_b_url)]);
+        // The component that blocks the form owns the deadline that unblocks it.
+        const outcome = await Promise.race([
+            Promise.all([preload(trial.image_a_url), preload(trial.image_b_url)]),
+            stalled(),
+        ]);
+        clearStall();
         // A superseded load must not paint over the pair the participant is now looking at.
         if (mine !== generation) return;
 
         clearIndicators();
+        const [a, b]: [LoadedImage, LoadedImage] = outcome === 'stalled' ? [FAILED_TILE, FAILED_TILE] : outcome;
         if (!a.ok || !b.ok) {
-            props.banner.show(
-                `Failed to load images: ${!a.ok ? 'Image A' : ''} ${!b.ok ? 'Image B' : ''}`,
-            );
+            const names = [!a.ok && 'Image A', !b.ok && 'Image B'].filter(Boolean).join(' ');
+            failedLoad = true;
+            props.banner.show(`Failed to load images: ${names}. ${REFRESH_HINT}`);
             imageA.style.opacity = '1';
             imageB.style.opacity = '1';
             setBlocking(false);
@@ -99,8 +127,10 @@ export function mountStimulusView(root: HTMLElement, props: StimulusViewProps): 
 
     return {
         show,
+        failed: () => failedLoad,
         dispose() {
             generation += 1;
+            clearStall();
             imageA.onclick = null;
             imageB.onclick = null;
             clearIndicators();

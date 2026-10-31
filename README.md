@@ -162,6 +162,9 @@ Set `enabled: false` to skip the tutorial.
 | `DEV_MODE` | `false` | Nothing in production: `APP_ENV=production` + `DEV_MODE=true` refuses to boot (it auto-fills forms, shortens the study and bypasses referral codes) |
 | `DATA_DIR` | (none) | Where the database and `audit.log` live. It no longer decides the mode - `APP_ENV` does |
 | `REFERRAL_CODES` | (none) | Comma-separated access codes; empty = no gate |
+| `SURVEY_CONFIG` | `survey_config.yaml` | The study definition. A config the app cannot boot on is refused at start, naming the key |
+| `IMAGE_PAIRS_FILE` | the config's `data.file` | The trial rows, one per line, tab-separated |
+| `TUTORIAL_PAIRS_FILE` | the config's tutorial data | The walkthrough's example trials, when the study has a tutorial |
 | `SURVEY_DISABLE_SESSION_GATE` | `false` | Turns off the stale-session check. For the test suite only (hand-built sessions carry no version stamp); **`APP_ENV=production` refuses to boot with it set** |
 | `RATELIMIT_STORAGE_URI` | `memory://` | Rate-limit counters. **Must be a `redis://` URL when `APP_ENV=production`**: with the in-process store every gunicorn worker counts its own traffic, so the limits in the code are a multiple of reality |
 | `TILE_LAYOUT` | `MAB` | Tile order: `MAB` (Mask, A, B) or `AMB` |
@@ -189,7 +192,7 @@ gunicorn src.survey.app:app --bind 0.0.0.0:8000
 ```
 
 `static_dist/` is read at boot, so a deploy replaces the code and the build together, then
-restarts. When `DATA_DIR` is set, the app enables production mode: requires `SECRET_KEY` and a non-default `ADMIN_PASSWORD`, enforces HTTPS cookies, and stores the database and audit log in that directory.
+restarts. The security mode comes from `APP_ENV` alone; `DATA_DIR` only says where the database and `audit.log` live. Production requires `SECRET_KEY` and a non-default `ADMIN_PASSWORD`, and enforces HTTPS cookies.
 
 Rate limits are enforced per participant session, and the numbers are only real caps when the
 counters are shared: point `RATELIMIT_STORAGE_URI` at redis so all workers count against one tally
@@ -222,9 +225,9 @@ SQLite with JSON columns for demographics and responses. Migration from older sc
 
 ```bash
 pip install ".[dev]" && npm ci
-python -m pytest tests/ -q     # 223 backend tests
-npm run test:unit              # 192 component and model tests (vitest + jsdom)
-npm run test:e2e               # 24 real-browser tests (builds, boots its own server)
+python -m pytest tests/ -q
+npm run test:unit
+npm run test:e2e
 ```
 
 The survey's rules (question gating, answer assembly, payload shape, progress) live in

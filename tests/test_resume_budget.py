@@ -66,7 +66,7 @@ def serve(client, index=0):
 def answer(client, pair):
     answers = {q['name']: {'choice': 'A', 'confidence': 4}
                for q in CONFIG['questions']
-               if (q.get('required') or q['type'] == 'ab_preference') and not q.get('depends_on')}
+               if q.get('required') or q['type'] == 'ab_preference'}
     response = client.post('/api/submit_survey',
                            json={'image_pair_id': pair['id'], 'responses': answers},
                            content_type='application/json')

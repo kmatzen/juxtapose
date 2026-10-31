@@ -177,6 +177,44 @@ describe('ConditioningTiles', () => {
         expect(painted[0].style.display).toBe('block');
     });
 
+    test('a hover that lands before a tile loads paints when that tile arrives', async () => {
+        h = harness();
+        const [, b] = h.outputs;
+        Object.defineProperty(b, 'complete', { value: false, configurable: true });
+        h.tiles.show(trial());
+        await settle();
+        (document.getElementById('mask-image') as HTMLImageElement).dispatchEvent(new Event('load'));
+
+        identityTiles(h.root)[0].dispatchEvent(new Event('mouseenter'));
+        await settle();
+        expect(overlays(h.root)).toHaveLength(1);
+
+        b.dispatchEvent(new Event('load'));
+        await settle();
+
+        expect(overlays(h.root)).toHaveLength(2);
+        expect(overlays(h.root).every((overlay) => overlay.style.display === 'block')).toBe(true);
+    });
+
+    test('a tile that arrives after the participant stopped hovering paints nothing', async () => {
+        h = harness();
+        const [, b] = h.outputs;
+        Object.defineProperty(b, 'complete', { value: false, configurable: true });
+        h.tiles.show(trial());
+        await settle();
+        (document.getElementById('mask-image') as HTMLImageElement).dispatchEvent(new Event('load'));
+
+        const identity = identityTiles(h.root)[0];
+        identity.dispatchEvent(new Event('mouseenter'));
+        identity.dispatchEvent(new Event('mouseleave'));
+
+        b.dispatchEvent(new Event('load'));
+        await settle();
+
+        const visible = overlays(h.root).filter((overlay) => overlay.style.display === 'block');
+        expect(visible).toHaveLength(0);
+    });
+
     test('leaving hides the overlay again', async () => {
         h.tiles.show(trial());
         await settle();

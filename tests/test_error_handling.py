@@ -88,8 +88,8 @@ def test_submit_survey_invalid_confidence_values(client):
                               },
                           },
                           content_type='application/json')
-    # The server stores the scale value it is given; an out-of-range answer is data, not a server error.
-    assert response.status_code == 200
+    # F7 (sixth audit): an off-scale answer is not data the analyst can average - the page cannot post it.
+    assert response.status_code == 400, response.get_json()
 
 
 def test_get_image_pair_completed_all_pairs(client):
@@ -160,8 +160,8 @@ def test_tutorial_route_no_demographics(client):
 
 
 def test_concurrent_session_handling(client):
-    """Test handling of multiple sessions for same email"""
-    from src.survey.app import get_db, _get_completed_trial_ids_for_email
+    """Two sessions sharing an address keep their own progress (audit 6 F3)."""
+    from src.survey.app import get_db, _get_completed_trial_ids
     import uuid
 
     email = 'concurrent@example.com'
@@ -188,10 +188,11 @@ def test_concurrent_session_handling(client):
         db.close()
 
     with client.application.app_context():
-        completed = _get_completed_trial_ids_for_email(email)
-        assert len(completed) == 2
-        assert 1 in completed
-        assert 2 in completed
+        completed_1 = _get_completed_trial_ids(pid1)
+        completed_2 = _get_completed_trial_ids(pid2)
+
+    assert completed_1 == [1], 'one account was credited with the other\'s answer'
+    assert completed_2 == [2], 'one account was credited with the other\'s answer'
 
 
 def test_database_connection_cleanup(client):

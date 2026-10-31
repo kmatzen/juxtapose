@@ -3,7 +3,7 @@ Tests for data logic and critical functions
 """
 import pytest
 import json
-from src.survey.app import _get_completed_trial_ids_for_email
+from src.survey.app import _get_completed_trial_ids
 from tests.conftest import insert_demographics, insert_response
 import os
 
@@ -38,9 +38,9 @@ def _make_responses():
 
 
 def test_get_completed_pair_ids_empty(client):
-    """Test getting completed pairs for new user returns empty list"""
+    """A participant with no answers has no completed trials"""
     with client.application.app_context():
-        result = _get_completed_trial_ids_for_email('nonexistent@example.com')
+        result = _get_completed_trial_ids(999999)
         assert result == []
 
 
@@ -63,7 +63,7 @@ def test_get_completed_pair_ids_with_responses(client):
         db.commit()
         db.close()
 
-        result = _get_completed_trial_ids_for_email(unique_email)
+        result = _get_completed_trial_ids(participant_id)
         assert len(result) == 3
         assert set(result) == {1, 2, 3}
 
@@ -93,12 +93,12 @@ def test_get_completed_pair_ids_incomplete_responses(client):
         db.commit()
         db.close()
 
-        result = _get_completed_trial_ids_for_email(unique_email)
+        result = _get_completed_trial_ids(participant_id)
         assert 2 in result
 
 
-def test_multiple_participants_same_email(client):
-    """Test that completed pairs are tracked across multiple sessions for same email"""
+def test_participants_sharing_an_email_keep_separate_progress(client):
+    """Audit 6 F3: progress is one participant's own rows, so a shared address cannot merge two accounts."""
     from src.survey.app import get_db
     import uuid
 
@@ -124,7 +124,5 @@ def test_multiple_participants_same_email(client):
         db.commit()
         db.close()
 
-        result = _get_completed_trial_ids_for_email(unique_email)
-        assert 3 in result
-        assert 5 in result
-        assert len(result) == 2
+        assert _get_completed_trial_ids(participant_id_1) == [3]
+        assert _get_completed_trial_ids(participant_id_2) == [5]

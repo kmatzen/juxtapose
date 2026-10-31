@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { byId, el, need, on, qa, toggleClass } from '../../src/lib/dom';
+import { el, need, on, qa, toggleClass } from '../../src/lib/dom';
 
 describe('el', () => {
     it('omits absent attributes so they do not render as the string undefined', () => {
@@ -31,7 +31,6 @@ describe('queries', () => {
         const root = document.getElementById('a') as HTMLElement;
         expect(qa(root, '.x')).toHaveLength(1);
         expect(qa(document.body, '#a .x')).toHaveLength(1);
-        expect(byId(document.body, 'a')?.id).toBe('a');
     });
 
     it('needs throws at the mount, naming the selector', () => {
