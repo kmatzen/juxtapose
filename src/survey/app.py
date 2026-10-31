@@ -734,10 +734,36 @@ def health():
 
 
 INTAKE_CELL_MAX = 2000
+DEVICE_TEXT_MAX = 100
+DEVICE_NUMBER_KEYS = ('screen_width', 'screen_height', 'pixel_ratio', 'color_depth',
+                      'viewport_width', 'viewport_height')
+DEVICE_TEXT_KEYS = ('browser', 'browser_version', 'os')
+
+
+def _device_info_error(device):
+    """These nine values land in typed columns, so one sqlite cannot bind refuses the whole intake."""
+    if not isinstance(device, dict):
+        return "device_info must be an object of the browser's own settings"
+    for key in DEVICE_NUMBER_KEYS:
+        value = device.get(key)
+        if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))):
+            return f"device_info.{key} must be a number"
+    for key in DEVICE_TEXT_KEYS:
+        value = device.get(key)
+        if value is not None and not isinstance(value, str):
+            return f"device_info.{key} must be text"
+        if isinstance(value, str) and len(value) > DEVICE_TEXT_MAX:
+            return f"device_info.{key} must be at most {DEVICE_TEXT_MAX} characters"
+    return None
 
 
 def _intake_error(data):
     """The intake's own rules, from the config: an html `required` attribute binds the browser, not the app."""
+    if 'device_info' in data:
+        # Before the field loop: a nested value here reaches sqlite and the route answers 500.
+        device_error = _device_info_error(data['device_info'])
+        if device_error:
+            return device_error
     if CONFIG['survey'].get('consent_text') and not str(data.get('consent') or '').strip():
         return "Field 'consent' is required: this study asks for agreement before the intake"
     for field in CONFIG.get('demographics', []):
