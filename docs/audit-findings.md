@@ -360,6 +360,89 @@ progress test (the sixth audit's F3) runs on a study whose email field is option
 it was always about, since the shipped study requires the address. The export byte fixture gained the
 `consent` column with a real tick in it.
 
+## Eighth audit, 2026-10-30
+
+The eighth full-repo pass, run against `156fe69` (the merged seventh audit). It reported 12 findings;
+all 12 are closed here, each with a red commit that measures it and a green commit that closes it.
+Measured on the final SHA of `wt/ponytail-audit-8-fixes` (`cc86999`): pytest 391, vitest 224 (25 files),
+tsc clean, the Chromium tier 27 with 0 failures and 0 skips. Every probe in `/tmp/jx-audit` was re-run
+against this tree (`audit8c_probe5.py` is the cured-state mirror of `audit8c_probe1.py`, which
+measured the base).
+
+The theme: the seventh audit made the app refuse what a participant *sends* that it did not ask for,
+and left it silent about what a config *declares* and what a dashboard *renders* - a `type` spelled
+wrong, a count in quotes, a device object with a nested value, an answer to a question nobody saw, a
+page the server will not send, and a consent record the roster never shows.
+
+| # | Finding | Disposition |
+|---|---|---|
+| 1 | The config loader checked column references and name uniqueness but never that a `type` is one the front end can render. Measured on `156fe69`: a question `type: likert5`, a required intake field `type: dropdown` and an input `type: galery` all boot - the question renders 0 widgets so a required trial can never be completed, the intake field renders nothing so the participant is 400'd at the door and 403'd at the first pair, and the gallery input serves a trial with no reference tiles | Fixed - `QUESTION_TYPES` / `DEMOGRAPHICS_TYPES` / `INPUT_TYPES` and `_known_type()` in `config.py`, called from the three places that already walk those blocks, each naming the entry and what renders. Red `de7f27c` (4 failed / 2 passed), green `d146e2a`. Measured now: `Question 'rating' has type 'likert5': the question template renders ab_preference\|likert\|free_text\|multiple_choice`; the dropdown and gallery cases refuse the same way. `tests/test_config_type_gates.py` |
+| 2 | `survey.pairs_per_user` and `dev_pairs` were used as numbers without being checked as numbers. Measured: `pairs_per_user: "2"` in the YAML boots, then 500s `GET /` and `/api/get_image_pair/0` on the `min()` comparison, and `0` / `-1` boot and serve the thank-you page - a study that collects nothing, reporting itself healthy | Fixed - both keys must be `int` ≥ 1 (a `bool` is refused), naming the key, the value and why, beside the existing `scale` gate. Red `8a615b5` (8 failed / 2 passed), green `fbfd4b9`. `tests/test_config_numeric_fields.py` |
+| 3 | `device_info` was the one part of the intake with no shape rule: it is spread into typed columns. Measured: a nested value (`screen_width: {"x": 1}`) 500s and leaves no participant row and no intake row - the participant is created and the study is closed to them; a 5,000-character `browser` and `screen_width: "wide"` are accepted, stored, and printed by the roster. Browser, OS and screen are study covariates | Fixed - `DEVICE_NUMBER_KEYS` / `DEVICE_TEXT_KEYS` / `DEVICE_TEXT_MAX` and `_device_info_error()`, run first in `_intake_error` so a nested value gets a 400 that names the key. Red `7c93bb7` (12 failed / 2 passed), green `cb51ebd`. Measured now: nested → `400 device_info.screen_width must be a number` with 0 participant rows created, 5,000 chars → `400 ... must be at most 100 characters`, `'wide'` → 400, and the device the page really posts → 200. `tests/test_intake_device_info.py` |
+| 4 | JSON spells `Infinity`, and the timing column had no rule against it: `Infinity` / `-Infinity` were stored, written to the CSV as the literal `inf`, and `SELECT AVG(time_spent)` over one `+inf` and one `-inf` row reads **NULL** - the CSV is what the README calls the record. NaN already landed as NULL, so the column was half-guarded | Fixed - non-finite lands as NULL like NaN. Red `d7d8acd` (4 failed / 3 passed - NaN and non-numbers were already NULL), green `840773e`. Measured now: all three spellings → 200, stored `[None, None, None]`, CSV cells `['', '', '']`, `AVG/MIN/MAX` `(None, None, None)` - no `inf` in the column, so a hand-written report aggregates the rest. `tests/test_answer_time_spent.py` |
+| 5 | A free-text answer had no length rule and its `<textarea>` no `maxlength`. Measured: 2,001 and 55,000 characters both accepted; one such answer makes the one-row dashboard page 55,677 bytes and the CSV 55,544 - and the dashboard is polled every 30 seconds | Fixed - over `INTAKE_CELL_MAX` (2,000, the intake's own rule) is a 400 naming the question, and both textareas carry `maxlength` through the `inject_template_limits` context processor. Red `d4f40ff` (4 failed / 1 passed), green `3f4f074`. Measured now: 55,000 → `400 comment text must be at most 2000 characters`, 200 chars → 200, 2 of 2 textareas capped, one-row page 870 bytes. `tests/test_answer_length.py` |
+| 6 | An answer to a question the participant was never shown was stored and exported. Measured: on a trial whose `mask` input is blank, posting `mask_quality` returns 200 and the CSV column `mask_quality_value` reads 5, so the dashboard averages a judgement nobody made | Fixed - `_question_shown(question, stimulus_data['inputs'])` gates the answer loop, using the served trial's own record rather than what the browser claims. Red `94c8a7b` (3 failed / 1 passed), green `128b57b`. Measured now: `400 mask_quality was not shown for this pair: the trial carries no value for the input it depends on`, and the answer is not stored. `tests/test_answer_visibility.py` |
+| 7 | The admin dashboard's first read was its only read. Measured in jsdom: with `/api/config` answering 502 the page made **one fetch in two minutes**, the table stayed empty, and the 30-second poll was never installed, because the rejected `init()` dies before `setInterval` - open a dashboard during a deploy and it is blank, with no reason on it, until someone reloads | Fixed - the interval is installed before the first refresh, the config read is retried by the poll, and a failed read puts the reason on the table. Red `f606e78` (1 failed), green `4caf78d`. Measured now: more than one `/api/config` read in two minutes and the table says the study setup failed to load. `frontend/test/admin-boot.test.ts` |
+| 8 | The mask tile was resolved by `type: image`, not by name, so with two image inputs the first one wins. Measured: a config with `context` (image) ahead of `mask` (image) renders the context picture in the mask tile - the participant overlays the mask scan on the wrong picture, and the overlay looks right because it paints what the tile shows | Fixed - `MASK_INPUT_NAME` / `maskInput()` in `study-state.ts` pick by name with the type as fallback, `survey.ts` reads it from the model, and boot refuses an `image` input that is not named `mask`, naming it. Red `e10e665` (`mask-input.test.ts` does not load on the base - no `maskInput()` in the model - and the component case shows the stolen tile; config gate 1 failed / 6 passed), green `d1923ec`. Measured now: `Input 'context' has type 'image': the mask tile is filled by the input named 'mask'`. `frontend/test/mask-input.test.ts`, `tests/test_config_type_gates.py` |
+| 9 | The dashboard poll shed its last page above 1,000 rows. `admin.ts` asks for `limit = max(PAGE_SIZE, state.rows.length)` so a poll keeps what "Load more" added, but the server clamps `limit` to `ADMIN_MAX_PAGE_SIZE = 1000` and `loadRows` assigns `state.rows = page.rows` at offset 0. Measured on a 3,600-answer study: `limit=1200` → 1,000 rows, so a table paged to 1,200 rows fell to **1,000 on the first 30-second tick** - 200 rows vanish, and the count line reads "Showing 1000 of 3600", 28% of the study presented as all of it | Fixed on both polls (`/api/admin/results` and `/api/admin/participants` are clamped by the same constant). The poll limit is clamped to what the server will answer, and a short page is merged - `mergePollPage` keeps the tail the server could not send. A full page behaves exactly as before. Red `1e47f6f`, green `3259f70`. Measured now: 1,200 rows survive two polls, 1,200 `<tr>` rendered, and no request asks for a page larger than the cap. `frontend/test/admin.test.ts` |
+| 10 | The submit path wrote the trial counters and popped them off again. `_add_flat_fields()` ends every call with `stim['total_pairs'] = stim.get('total_trials', 0)`, so `submit_survey` spends three lines popping `total_trials` and `total_pairs` off the dict built one line earlier - the counters describe the trial being *served*, and the function could not be told the difference | Fixed - `include_counters`, defaulted on, `False` at the submit call, pop loop deleted. Red `992de21` (1 failed: `TypeError: unexpected keyword argument 'include_counters'` / 2 passed), green `a85aef6`. Measured now: served trial `total_trials=3 total_pairs=3`, stored blob carries neither, `counter_key` gone from `app.py`, production -1 line. `tests/test_stimulus_flat_fields.py` |
+| 11 | The audit called `methods.get('a', stim.get('method_a', ''))` in `_flatten_result` a dead pre-`methods` fallback, worth one line | **The audit's line-level claim is measured and wrong; the durable defect (an undocumented compat path with no test) is cured.** Applied, it is not dead: `submit_survey` built `stimulus_data` by copying the browser's flat keys from `e71b7ca` (2026-04-11) until `572c4e6` (2026-10-29), and `init_db` has no migration that rewrites those blobs. Measured on one such row: with the fallback, `method_a='Method-A'`, `quality_preferred_method='Method-A'`, CSV `Method-A`/`Method-B`, `preferences={"quality": {"Method-A": 1}}`; with it deleted, **all of them empty** and `preferences={}` - six months of participants lose their method columns in the dashboard, the CSV, and the preference stats. Red `f61ff46` applies the deletion and shows the cost (1 failed / 30 passed); green `2b973d5` restores the fallback, names the window in a comment, and keeps the guard. `tests/test_flatten_result.py` |
+| 12 | The roster had a column for the screen and none for the consent. `demographicsColumns` lists Email, Referral, Browser, OS, Screen, the configured fields, Trials - while `/api/admin/participants` already spreads the demographics JSON (so `consent` is in the row) and the CSV header has carried `consent` since the seventh audit's finding 4. The dashboard is the one surface an analyst reads while a study is running, and it cannot answer "did everyone in this export agree?" | Fixed - one `Consent` column after Referral, showing `-` for a study that never asked. Red `fb6a6e1` (1 failed / 12 passed), green `cc86999`. Measured now: roster row `consent='yes'`, column present, vitest 224. `frontend/test/admin.test.ts` |
+
+### Nothing in this round was vacuous
+
+Every test this round added was re-run against `156fe69` exported to `/tmp` and shown to fail there
+(`/tmp/jx-audit/red_on_base.sh`): `test_config_type_gates` 5 failed / 2 passed, `test_config_numeric_fields`
+8/2, `test_intake_device_info` 12/2, `test_answer_time_spent` 4/4, `test_answer_length` 4/1,
+`test_answer_visibility` 3/1, `test_stimulus_flat_fields` 1/2, `admin-boot` 1 failed, `mask-input` 4
+failed, `admin.test.ts` 3 failed / 10 passed. One stated exception: `test_flatten_result.py` **passes**
+on the base by design - finding 11's test pins behaviour the base has and the audit proposed removing,
+so its red is the deletion commit `f61ff46`, not the base.
+
+### Deferred from the eighth audit
+
+The standing deferrals are unchanged and re-confirmed, not re-litigated: the size of `app.py` (now
+1,914 lines, +47 from this audit, same trigger - the next feature that needs its own blueprint), the
+session-cookie table (fifth audit 18), admin session-id rotation (first audit), `PRAGMA foreign_keys`
+(second audit), CSP, and the Dockerfile/deployment. The seventh audit's measured-scale note on the
+dashboard aggregates stands, and this round's finding 9 makes it more visible, not less: a 1,000-row
+page is now a stated contract between the two files instead of an accident.
+
+Two Nice-to-have items are deliberately not cured. **A migration for the pre-`methods` blobs** (the
+real shape of finding 11): backfilling `methods` from the flat keys into ~six months of
+`stimulus_data` would let the fallback go, and it also rewrites stored answers, which is a data
+migration with its own review - the fallback plus a named window is the cheaper safe state. **The
+committed dashboard screenshot is rewritten once a day by the Chromium tier**: `shot()` regenerates
+`docs/screenshots/05-admin-dashboard.png`, whose Date cell shows the *server's* date, so
+`npx playwright test` leaves a modified PNG behind. Measured on the base tree, where it churns
+identically (run 1 ≠ committed, run 2 = run 1), so this is not new and not this round's: the fix is to
+pin the server clock in the shot fixture. The regenerated PNG was reverted rather than committed, so
+this PR carries no date-only binary diff.
+
+### Residual risk left open
+
+- **Finding 9 keeps a stale tail.** Rows past the 1,000-row cap survive the poll as the rows already in
+  the table, so on a live study the tail is a snapshot, not a refresh, and a row that moves across the
+  boundary can appear twice. Both are better than the 200 rows that used to vanish; the honest fix is
+  keyset paging, which is a server change with its own tests.
+- **Finding 11 is guarded, not repaired.** The fallback is load-bearing because no migration exists.
+  If someone adds the `methods`-shaped writer's assumptions to the export path, the window named in the
+  comment is the thing to check.
+- **The caps are shared constants.** `INTAKE_CELL_MAX` (2,000) is now the ceiling for intake cells *and*
+  free-text answers, and `DEVICE_TEXT_MAX` (100) for every device text field. A study that wants 5,000
+  characters of comment raises a constant that also raises the intake - correct, but one knob, two
+  surfaces.
+- **The type allow-lists are lists.** Adding a renderer means adding the type in `config.py` and the
+  template; the gate turns a silent blank page into a boot refusal that names both, which is the point,
+  but it is a two-place rule.
+
+### What this audit cost the suite
+
+pytest 339 → 391 (+52), vitest 217 → 224 across 23 → 25 files, production `src/` + `frontend/src/`
++129 / -12. No test was weakened to get there, and no test was relaxed: the only test file edited for
+a non-fixture reason is `tests/test_flatten_result.py`, which gained a case. `frontend/test/admin.test.ts`
+gained two cases and one header-list expectation updated for the new Consent column.
+
 ## Known limit: the audit log is appended to inside the request
 
 Second audit, finding 10 (2026-11-05). Every audited action opens `AUDIT_LOG_FILE`, appends one JSON

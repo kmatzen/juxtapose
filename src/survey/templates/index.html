@@ -118,6 +118,7 @@
                     {% elif field.type == 'textarea' %}
                     <label for="{{ field.name }}">{{ field.label }}</label>
                     <textarea id="{{ field.name }}" name="{{ field.name }}" rows="3"
+                              maxlength="{{ INTAKE_CELL_MAX }}"
                               {% if field.get('required') %}required{% endif %}></textarea>
 
                     {% elif field.type == 'select' %}
@@ -300,6 +301,7 @@
                             <div class="form-group">
                                 <label>{{ q.label }}</label>
                                 <textarea name="{{ q.name }}_text" rows="3" class="form-control"
+                                          maxlength="{{ INTAKE_CELL_MAX }}"
                                           {% if q.required %}required{% endif %}></textarea>
                             </div>
 
