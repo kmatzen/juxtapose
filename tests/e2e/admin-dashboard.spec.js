@@ -21,7 +21,7 @@ test('participant-submitted answers reach the dashboard as text, not markup', as
       body: JSON.stringify({
         image_pair_id: pair.id,
         stimulus_data: pair,
-        responses: { image_quality: { choice: payload, confidence: 3 } },
+        responses: { image_quality: { choice: 'A', confidence: 3 }, notes: { text: payload } },
         was_randomized: pair.was_randomized,
         time_spent: 5,
       }),

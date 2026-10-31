@@ -14,7 +14,7 @@ import tempfile
 from functools import lru_cache, wraps
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_wtf.csrf import CSRFProtect, generate_csrf
+from flask_wtf.csrf import CSRFProtect
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from src.survey.config import load_config, get_email_field
@@ -114,7 +114,8 @@ AUDIT_LOG_FILE = os.path.join(DATA_DIR, 'audit.log') if DATA_DIR else 'audit.log
 # Referral codes - Set valid codes via environment variable (comma-separated) or in code
 # If empty, no referral code is required
 REFERRAL_CODES_ENV = os.environ.get('REFERRAL_CODES', '')
-REFERRAL_CODES = set(code.strip() for code in REFERRAL_CODES_ENV.split(',') if code.strip()) if REFERRAL_CODES_ENV else set()
+# The form uppercases what it sends, so a stored code is normalised the same way: a lowercase entry could never admit anyone.
+REFERRAL_CODES = set(code.strip().upper() for code in REFERRAL_CODES_ENV.split(',') if code.strip()) if REFERRAL_CODES_ENV else set()
 
 # In dev mode, bypass referral code requirement
 REQUIRE_REFERRAL = bool(REFERRAL_CODES) and not DEV_MODE
@@ -329,6 +330,14 @@ def validate_session():
         if session_version != SESSION_VERSION:
             logger.info("Clearing stale session (version %s != %s)", session_version, SESSION_VERSION)
             session.clear()
+
+# The gate redirects the pages, and the API is the study: on HEAD a session that never entered a code stored an answer through it (F2).
+@app.before_request
+def require_referral_for_study_api():
+    if REQUIRE_REFERRAL and not session.get('referral_validated') \
+            and request.path.startswith('/api/'):
+        abort(403)
+
 
 # Security: HTTP Security Headers
 @app.after_request
@@ -585,8 +594,8 @@ def _build_stimulus_data(trial, randomized):
 def _get_session_email(db=None):
     """Email of the participant this session submitted demographics for, None before that.
 
-    Passes through a caller's open connection: the pair route wants this email and what it has
-    answered, which is one round trip, not two.
+    For the two questions about a person rather than a session: retake detection, and the
+    pairs_per_user cap. Takes a connection from a caller that has one.
     """
     if 'session_id' not in session:
         return None
@@ -607,74 +616,100 @@ def _get_session_email(db=None):
             db.close()
 
 
-def _get_completed_trial_ids_for_email(email, db=None):
-    """Get list of trial IDs fully completed by this email address.
+def _get_session_participant_id(db=None):
+    """Row id of the participant this session owns, None before its intake is stored.
 
-    Takes a connection from a caller that has one, so reading the answered set alongside the
-    email that owns it costs one round trip.
+    Every progress question the app answers is about one session's own rows, and the participant
+    row is what a session owns; the email is a claim in a form, and a study may collect none.
     """
-    if not email:
+    if 'session_id' not in session:
+        return None
+    own_connection = db is None
+    if own_connection:
+        db = get_db()
+    try:
+        row = db.execute('SELECT id FROM participants WHERE session_id = ?',
+                         (session['session_id'],)).fetchone()
+        return row['id'] if row else None
+    finally:
+        if own_connection:
+            db.close()
+
+
+def _question_shown(question, inputs):
+    """The page's own visibility rule: a depends_on question shows when that input has a value.
+
+    The stored stimulus input is the only record of what the participant was shown, so the server
+    asks it rather than exempting every depends_on question from the completeness rule.
+    """
+    name = question.get('depends_on')
+    if not name or name not in inputs:
+        return True
+    return str(inputs[name] or '').strip() != ''
+
+
+def _completed_trial_ids(rows):
+    """The trials in `rows` - (image_pair_id, responses, stimulus_data) - whose shown questions are answered."""
+    completed = []
+    required_questions = [q for q in CONFIG['questions'] if q.get('required') or q['type'] == 'ab_preference']
+
+    for row in rows:
+        try:
+            resp = json.loads(row['responses'])
+            inputs = json.loads(row['stimulus_data'] or '{}').get('inputs') or {}
+        except (json.JSONDecodeError, TypeError):
+            continue
+
+        all_answered = True
+        for q in required_questions:
+            q_resp = resp.get(q['name'])
+            if not q_resp:
+                if not _question_shown(q, inputs):
+                    continue
+                all_answered = False
+                break
+            if q['type'] == 'ab_preference':
+                if not q_resp.get('choice'):
+                    all_answered = False
+                    break
+                if q.get('confidence') and q_resp.get('confidence') is None:
+                    all_answered = False
+                    break
+            if q['type'] == 'free_text' and not str(q_resp.get('text') or '').strip():
+                # The page posts {text: ''} for an empty box, and a dict holding '' is truthy.
+                all_answered = False
+                break
+
+        if all_answered:
+            completed.append(row['image_pair_id'])
+
+    return completed
+
+
+def _get_completed_trial_ids(participant_id, email=None, db=None):
+    """Trials answered: this participant's own rows, plus the address's other rows when told.
+
+    Two keys for two promises. Progress is a session's own work - keyed on the email alone, a
+    study that collects none had nothing to count and its participants never finished. The
+    pairs_per_user cap is a person's, so `email` adds an address's earlier rows and a returner in
+    a new browser is not handed the whole set again.
+    """
+    if not participant_id and not email:
         return []
 
     own_connection = db is None
     if own_connection:
         db = get_db()
     try:
-        participant_ids = db.execute('''
-            SELECT p.id
-            FROM participants p
-            JOIN demographics d ON p.id = d.participant_id
-            WHERE d.email = ?
-        ''', (email,)).fetchall()
-
-        if not participant_ids:
-            return []
-
-        pid_list = [p['id'] for p in participant_ids]
-        placeholders = ','.join('?' * len(pid_list))
-
-        rows = db.execute(f'''
-            SELECT DISTINCT image_pair_id, responses
+        rows = db.execute('''
+            SELECT DISTINCT image_pair_id, responses, stimulus_data
             FROM survey_responses
-            WHERE participant_id IN ({placeholders})
-                AND responses IS NOT NULL
-        ''', pid_list).fetchall()
-
-        completed = []
-        required_questions = [q for q in CONFIG['questions'] if q.get('required') or q['type'] == 'ab_preference']
-
-        for row in rows:
-            try:
-                resp = json.loads(row['responses'])
-            except (json.JSONDecodeError, TypeError):
-                continue
-
-            # Check all visible required questions have answers
-            all_answered = True
-            for q in required_questions:
-                q_resp = resp.get(q['name'])
-                if not q_resp:
-                    # If question depends on an optional input, it might not be required
-                    if q.get('depends_on'):
-                        continue
-                    all_answered = False
-                    break
-                if q['type'] == 'ab_preference':
-                    if not q_resp.get('choice'):
-                        all_answered = False
-                        break
-                    if q.get('confidence') and q_resp.get('confidence') is None:
-                        all_answered = False
-                        break
-                if q['type'] == 'free_text' and not str(q_resp.get('text') or '').strip():
-                    # The page posts {text: ''} for an empty box, and a dict holding '' is truthy.
-                    all_answered = False
-                    break
-
-            if all_answered:
-                completed.append(row['image_pair_id'])
-
-        return completed
+            WHERE responses IS NOT NULL
+                AND (participant_id = ?
+                     OR (? IS NOT NULL AND participant_id IN
+                         (SELECT participant_id FROM demographics WHERE email = ?)))
+        ''', (participant_id, email, email)).fetchall()
+        return _completed_trial_ids(rows)
     finally:
         if own_connection:
             db.close()
@@ -728,6 +763,8 @@ def index():
     if 'session_id' not in session:
         session['session_id'] = str(uuid.uuid4())
         session['version'] = SESSION_VERSION
+        # Without this the cookie dies with the browser, and PERMANENT_SESSION_LIFETIME configures nothing.
+        session.permanent = True
 
     if REQUIRE_REFERRAL and not session.get('referral_validated'):
         return redirect(url_for('referral'))
@@ -741,36 +778,31 @@ def index():
     ).fetchone()
 
     if participant:
-        demo = db.execute(
-            'SELECT email, data FROM demographics WHERE participant_id = ?',
-            (participant['id'],)
-        ).fetchone()
+        email = _get_session_email(db)
         db.close()
+        # "Has this person finished?" spans the address's rows: a returner who finished in an earlier browser must not be sent back through the study.
+        completed_pair_ids = _get_completed_trial_ids(participant['id'], email)
+        expected_pairs = _trial_count()
 
-        if demo and demo['email']:
-            completed_pair_ids = _get_completed_trial_ids_for_email(demo['email'])
-            expected_pairs = _trial_count()
+        if DEV_MODE:
+            logger.debug("Index route check: participant=%s, completed=%d, expected=%d, tutorial_complete=%s", participant["id"], len(completed_pair_ids), expected_pairs, session.get("tutorial_completed", False))
 
+        if len(completed_pair_ids) >= expected_pairs:
+            if DEV_MODE and force_new:
+                logger.debug("Showing survey (force_new)")
+                return render_template('index.html', config=CONFIG,
+                                       tile_layout=TILE_LAYOUT,
+                                       show_prompt=SHOW_PROMPT)
             if DEV_MODE:
-                logger.debug("Index route check: email=%s, completed=%d, expected=%d, tutorial_complete=%s", demo["email"], len(completed_pair_ids), expected_pairs, session.get("tutorial_completed", False))
+                logger.debug("Showing thank you page (survey complete)")
+            return render_template('thank_you.html', already_submitted=True,
+                                   dev_mode=DEV_MODE, config=CONFIG)
 
-            if len(completed_pair_ids) >= expected_pairs:
-                if DEV_MODE and force_new:
-                    if DEV_MODE:
-                        logger.debug("Showing survey (force_new)")
-                    return render_template('index.html', config=CONFIG,
-                                           tile_layout=TILE_LAYOUT,
-                                           show_prompt=SHOW_PROMPT)
-                if DEV_MODE:
-                    logger.debug("Showing thank you page (survey complete)")
-                return render_template('thank_you.html', already_submitted=True,
-                                       dev_mode=DEV_MODE, config=CONFIG)
-
-            tutorial_enabled = CONFIG.get('tutorial', {}).get('enabled', True)
-            if tutorial_enabled and not session.get('tutorial_completed', False):
-                if DEV_MODE:
-                    logger.debug("Redirecting to tutorial")
-                return redirect(url_for('tutorial'))
+        tutorial_enabled = CONFIG.get('tutorial', {}).get('enabled', True)
+        if tutorial_enabled and not session.get('tutorial_completed', False):
+            if DEV_MODE:
+                logger.debug("Redirecting to tutorial")
+            return redirect(url_for('tutorial'))
     else:
         db.close()
 
@@ -780,6 +812,8 @@ def index():
 
 
 @app.route('/referral', methods=['GET', 'POST'])
+# The code is a shared bearer token: per-session limits are free, so guessing must ride the IP cap the login page uses (F8).
+@limiter.limit("20 per hour", key_func=get_remote_address)
 def referral():
     """Referral code entry page"""
     if not REQUIRE_REFERRAL:
@@ -796,6 +830,7 @@ def referral():
             audit_log('REFERRAL_ACCEPTED', {'referral_code_hash': _pii_hash(code)})
             return redirect(url_for('index'))
         else:
+            audit_log('REFERRAL_REJECTED', {'reason': 'Invalid referral code'})
             return render_template('referral.html', config=CONFIG,
                                    error='Invalid referral code. Please check and try again.')
 
@@ -885,6 +920,8 @@ def tutorial():
     if 'session_id' not in session:
         session['session_id'] = str(uuid.uuid4())
         session['version'] = SESSION_VERSION
+        # Without this the cookie dies with the browser, and PERMANENT_SESSION_LIFETIME configures nothing.
+        session.permanent = True
 
     if not session.get('referral_validated', False):
         return redirect(url_for('referral'))
@@ -964,7 +1001,7 @@ def check_demographics():
             return jsonify({'submitted': False})
 
         # Count completed pairs
-        completed_pair_ids = _get_completed_trial_ids_for_email(demo['email'])
+        completed_pair_ids = _get_completed_trial_ids(participant['id'])
 
         return jsonify({
             'submitted': True,
@@ -988,6 +1025,8 @@ def submit_demographics():
     db = get_db()
 
     try:
+        # Read before any write: this session's own address is the only proof a confirm may delete for it (audit 6 F1).
+        session_email = _get_session_email(db)
         # Extract email using config-defined email field
         email = data.get(EMAIL_FIELD) if EMAIL_FIELD else None
         if isinstance(email, str):
@@ -1011,7 +1050,13 @@ def submit_demographics():
             is_retaking = answered > 0
 
             if is_retaking and data.get('confirm_retake'):
-                # Irreversible: only the retake modal's Confirm may destroy finished answers.
+                # The email is a claim in the body, not an identity: unowned, one POST from a free session wiped any participant (audit 6 F1).
+                if session_email is None or session_email != email:
+                    audit_log('RETAKE_DELETE_REFUSED',
+                              {'reason': 'session does not own this email', 'email': email})
+                    return jsonify({'error':
+                                    'This session has not submitted demographics for this address'}), 403
+
                 deleted_responses = db.execute('''
                     DELETE FROM survey_responses
                     WHERE participant_id IN (
@@ -1105,11 +1150,11 @@ def get_image_pair(pair_index):
             return jsonify(stim)
         return jsonify({'error': 'No image pairs available'}), 404
 
-    # One connection, one answered set: this route used to read the email and its answers twice on a session's first pair request.
+    # One connection, one read, both keys: this session's own rows, and its address's earlier ones for the cap.
     db = get_db()
     try:
-        session_email = _get_session_email(db)
-        completed_ids = set(_get_completed_trial_ids_for_email(session_email, db)) if session_email else set()
+        completed_ids = set(_get_completed_trial_ids(_get_session_participant_id(db),
+                                                    _get_session_email(db), db))
     finally:
         db.close()
 
@@ -1117,7 +1162,7 @@ def get_image_pair(pair_index):
     if 'user_image_pairs' not in session or session.get('session_dev_mode') != DEV_MODE:
         available_ids = [pid for pid in IMAGE_PAIRS.ids if pid not in completed_ids]
 
-        # The pairs_per_user cap counts every trial this email answered, so assign only what is left.
+        # The pairs_per_user cap counts every trial this participant answered, so assign only what is left.
         num_pairs = min(len(available_ids), max(0, _trial_count() - len(completed_ids)))
 
         user_pair_ids = _assign_pairs(available_ids, num_pairs)
@@ -1197,6 +1242,50 @@ def _add_flat_fields(stim, trial, randomized):
 # API - submit response
 # ---------------------------------------------------------------------------
 
+_AB_CHOICES = ('A', 'B', 'equal')
+
+
+def _off_scale(name, value, scale, label):
+    """Describe a rating outside 1..scale, or None. A missing rating is an unanswered question, not a bad one."""
+    if value is None:
+        return None
+    if (isinstance(value, bool) or not isinstance(value, (int, float))
+            or not float(value).is_integer() or not 1 <= value <= scale):
+        return f"{name} {label} must be a whole number from 1 to {scale}"
+    return None
+
+
+def _invalid_answer(question, answer):
+    """Describe an answer this study's page could not have produced, or None.
+
+    The dashboard averages what is stored, so a posted number off the scale becomes the study's
+    reported result - the form's own range is the only rule that keeps it out.
+    """
+    if not isinstance(answer, dict):
+        return f"{question['name']} is not an answer"
+
+    kind = question['type']
+    if kind == 'ab_preference':
+        choice = answer.get('choice')
+        if choice is not None and choice not in _AB_CHOICES:
+            return f"{question['name']} choice must be one of {'/'.join(_AB_CHOICES)}"
+        confidence = answer.get('confidence')
+        if not question.get('confidence'):
+            return None if confidence is None else f"{question['name']} records no confidence"
+        return _off_scale(question['name'], confidence, 5, 'confidence')
+
+    if kind == 'likert':
+        return _off_scale(question['name'], answer.get('value'), question.get('scale', 5), 'value')
+
+    if kind == 'multiple_choice':
+        value = answer.get('value')
+        options = {option['value'] for option in question.get('options', [])}
+        if value is not None and value not in options:
+            return f"{question['name']} value must be one of {', '.join(sorted(options))}"
+
+    return None
+
+
 @app.route('/api/submit_survey', methods=['POST'])
 # The study length plus headroom for a re-answered trial; a cap under the study 429s the trial that ends it.
 @limiter.limit(lambda: f"{_trial_count() + 20} per hour")
@@ -1241,6 +1330,14 @@ def submit_survey():
         if unknown:
             return jsonify({'error': f"responses has questions this study does not ask: {', '.join(unknown)}"}), 400
 
+        for question in CONFIG['questions']:
+            answer = responses.get(question['name'])
+            if answer is None:
+                continue
+            problem = _invalid_answer(question, answer)
+            if problem:
+                return jsonify({'error': problem}), 400
+
         stimulus_json = json.dumps(stimulus_data)
         responses_json = json.dumps(responses)
         was_randomized = 1 if randomized else 0
@@ -1269,21 +1366,13 @@ def submit_survey():
         user_pairs_count = session.get('user_pairs_count', _trial_count())
         db.commit()
 
-        demo = db.execute(
-            'SELECT email FROM demographics WHERE participant_id = ?',
-            (participant['id'],)
-        ).fetchone()
-
-        if demo and demo['email']:
-            completed_pair_ids = _get_completed_trial_ids_for_email(demo['email'])
-            # Count this session's own assignment: the email's earlier answers are not its progress, and counting them sent a returner to the thank-you page at 11 of the 20 pairs they were told.
-            served = set(session.get('user_image_pairs', []))
-            session_pairs_done = len(served.intersection(completed_pair_ids))
-            completed = session_pairs_done >= user_pairs_count
-            if DEV_MODE:
-                logger.debug("Submit check: email=%s, session_pairs_done=%d of %d, user_pairs_count=%d, completed=%s", demo["email"], session_pairs_done, len(served), user_pairs_count, completed)
-        else:
-            completed = False
+        # Counted on this session's own rows: an earlier account's answers under the same email are not its progress.
+        completed_pair_ids = _get_completed_trial_ids(participant['id'])
+        served = set(session.get('user_image_pairs', []))
+        session_pairs_done = len(served.intersection(completed_pair_ids))
+        completed = session_pairs_done >= user_pairs_count
+        if DEV_MODE:
+            logger.debug("Submit check: participant=%s, session_pairs_done=%d of %d, user_pairs_count=%d, completed=%s", participant["id"], session_pairs_done, len(served), user_pairs_count, completed)
 
         return jsonify({'success': True, 'completed': completed})
     except Exception as e:
@@ -1307,7 +1396,8 @@ def admin_login():
         password = request.form.get('password')
         ip = get_remote_address()
 
-        if hmac.compare_digest(password or '', ADMIN_PASSWORD):
+        # Bytes, not str: compare_digest raises TypeError on non-ASCII strings, which 500'd every login with an accented password (audit 6 F4).
+        if hmac.compare_digest((password or '').encode('utf-8'), ADMIN_PASSWORD.encode('utf-8')):
             session['admin_authenticated'] = True
             session.permanent = True
             audit_log('ADMIN_LOGIN_SUCCESS', {'ip': ip})
@@ -1335,19 +1425,6 @@ def admin():
     return render_template('admin.html', config=CONFIG)
 
 
-_ADMIN_RESULTS_SELECT = '''
-        SELECT
-            p.session_id, p.referral_code, p.created_at as participant_created,
-            p.browser, p.browser_version, p.os,
-            p.screen_width, p.screen_height, p.pixel_ratio, p.color_depth,
-            d.email, d.data as demographics_data,
-            s.image_pair_id, s.stimulus_data, s.responses,
-            s.was_randomized, s.time_spent, s.timing_flag, s.created_at as response_created
-        FROM participants p
-        LEFT JOIN demographics d ON p.id = d.participant_id
-        JOIN survey_responses s ON p.id = s.participant_id
-'''
-
 ADMIN_PAGE_SIZE = 200
 ADMIN_MAX_PAGE_SIZE = 1000
 
@@ -1365,8 +1442,8 @@ def _json_object(raw):
 
 
 def _csv_safe(value):
-    """Excel runs a cell starting with = + - @, and participant answers are the cell's author here."""
-    if isinstance(value, str) and value[:1] in ('=', '+', '-', '@'):
+    """Excel runs a cell starting with = + - @, tab or CR, and participant answers are the cell's author here."""
+    if isinstance(value, str) and value[:1] in ('=', '+', '-', '@', '\t', '\r'):
         return f"'{value}"
     return value
 
@@ -1494,6 +1571,92 @@ def admin_stats():
     })
 
 
+_PARTICIPANT_CACHE = {}
+
+
+def _participant_rollup(db):
+    """{participant id: (answers, trials completed)} for every participant with answers.
+
+    Completion is the app's one rule over stored answers, not a SQL count, so this reads the answer
+    rows the way the stats aggregate does and caches by the same counter the dashboard poll uses.
+    """
+    version = db.execute('SELECT n FROM stats_version WHERE id = 1').fetchone()['n']
+    cached = _PARTICIPANT_CACHE.get(version)
+    if cached is not None:
+        return cached
+
+    by_participant = {}
+    for row in db.execute('SELECT participant_id, image_pair_id, responses, stimulus_data '
+                          'FROM survey_responses'):
+        by_participant.setdefault(row['participant_id'], []).append(row)
+    rollup = {pid: (len(rows), len(_completed_trial_ids(rows)))
+              for pid, rows in by_participant.items()}
+    _PARTICIPANT_CACHE.clear()
+    _PARTICIPANT_CACHE[version] = rollup
+    return rollup
+
+
+@app.route('/api/admin/participants')
+@require_admin
+def admin_participants():
+    """The roster: one row per participant with their own progress, and where the study loses people.
+
+    The results page is paged by response, so grouping it in the browser listed only the
+    participants inside that window - the audit read 14 of 30 people there and one participant's
+    truncated 5 answers as a dropout at trial 5.
+    """
+    limit = request.args.get('limit', ADMIN_PAGE_SIZE, type=int) or ADMIN_PAGE_SIZE
+    limit = max(1, min(limit, ADMIN_MAX_PAGE_SIZE))
+    offset = max(request.args.get('offset', 0, type=int) or 0, 0)
+
+    db = get_db()
+    total = db.execute('SELECT COUNT(*) AS n FROM participants').fetchone()['n']
+    rows = db.execute('''
+        SELECT p.id, p.session_id, p.referral_code, p.browser, p.browser_version, p.os,
+               p.screen_width, p.screen_height, p.created_at, d.email, d.data AS demographics
+        FROM participants p
+        LEFT JOIN demographics d ON d.participant_id = p.id
+        ORDER BY p.id LIMIT ? OFFSET ?
+    ''', (limit, offset)).fetchall()
+    rollup = _participant_rollup(db)
+    db.close()
+
+    pairs_per_user = _trial_count()
+    counts = [completed for _answers, completed in rollup.values()]
+    dropout = {}
+    for count in counts + [0] * (total - len(rollup)):
+        if count < pairs_per_user:
+            dropout[str(count)] = dropout.get(str(count), 0) + 1
+
+    return jsonify({
+        'rows': [{
+            **_json_object(row['demographics']),
+            'id': row['id'],
+            'session_id': row['session_id'],
+            'email': row['email'],
+            'referral_code': row['referral_code'],
+            'browser': row['browser'],
+            'browser_version': row['browser_version'],
+            'os': row['os'],
+            'screen_width': row['screen_width'],
+            'screen_height': row['screen_height'],
+            'created_at': row['created_at'],
+            'responses': rollup.get(row['id'], (0, 0))[0],
+            'trials_completed': rollup.get(row['id'], (0, 0))[1],
+            'pairs_per_user': pairs_per_user,
+        } for row in rows],
+        'total': total,
+        'limit': limit,
+        'offset': offset,
+        'summary': {
+            'started': total,
+            'completed': sum(1 for count in counts if count >= pairs_per_user),
+            'pairs_per_user': pairs_per_user,
+            'dropout': dropout,
+        },
+    })
+
+
 @app.route('/api/admin/export')
 @require_admin
 def admin_export():
@@ -1538,6 +1701,9 @@ _EXPORT_FROM = '''
         LEFT JOIN demographics d ON p.id = d.participant_id
         JOIN survey_responses s ON p.id = s.participant_id
         '''
+
+# The dashboard page reads the same row the export streams: one SELECT list, one join, no second copy to drift.
+_ADMIN_RESULTS_SELECT = 'SELECT' + _EXPORT_SELECT + _EXPORT_FROM
 
 
 def _export_fieldnames():

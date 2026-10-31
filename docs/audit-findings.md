@@ -252,6 +252,69 @@ what it is served, and what a *refresh* does to a trial already on screen.
   for that reason, the same trap `tests/test_resume_budget.py` documents at the backend tier.
 - `byId` in `lib/dom.ts` is still exported for its own test only - unchanged from the fourth audit.
 
+## Sixth audit, 2026-10-30
+
+The sixth full-repo pass, run against the state the fifth left (`8c91b7d`, the tip of
+`wt/ponytail-audit-5-close`). It reported 19 findings; 15 were open and are cured here, one was
+already gone and is retracted, and three joined the standing deferrals. Every cure is a commit pair:
+a test that fails on the finding first, then the change that makes it pass. Measured on the final SHA
+of `wt/ponytail-audit-6-fixes`: pytest 312, vitest 212, the Chromium tier 27, 0 failures; every
+repro script in `/tmp/jx-audit` re-run against this tree. The theme: the fifth audit fixed what each
+route computes for a *session* and left what a session that **loses something** is left with - a
+config that renders nothing, an image that never arrives, a browser that gets closed mid-study, a
+participant with no email.
+
+| # | Finding | Disposition |
+|---|---|---|
+| 1 | A fresh, unauthenticated session could delete another participant's answers: `submit_demographics` with a retake count deleted every row for an address the session had never proven it owned | Fixed - the delete requires the session's own email (`RETAKE_DELETE_REFUSED`). Measured: attacker's POST 403, victim's rows `(3, 1)` before and after, one audit line. `tests/test_retake_ownership.py` |
+| 2 | `/api/*` answered a session that had never passed the referral gate, so the gate guarded the page and not the data | Fixed - one `_require_referral` on the API. Measured: `GET /` 302 to `/referral`, and `submit_demographics`, `get_image_pair` and `submit_survey` each 403. `tests/test_referral_gate.py` |
+| 3 | Progress and completion were keyed on the **email**, so a study whose intake has no email field could never finish, and two people at one address each saw the other's progress | Fixed - progress, completion and the owed-trial list key on the session's `participant_id`; email stays the key only for person-level questions (retake count, the `pairs_per_user` cap, delete-by-email). Measured: a no-email study finishes, the thank-you page renders, an answered trial 404s. `tests/test_progress_by_participant.py` |
+| 3c | A `multiple_choice` question with no options, or a demographics `select`/`radio`/`checkbox` with none, booted and rendered nothing to answer: the study could never be completed | Fixed with finding 3 - the config refuses both at boot, naming the question. Measured: boot raises `Question 'notes' is a multiple_choice with no options`. `tests/test_question_options_gate.py` |
+| 4 | Admin login compared the password with `==` on a `str` against bytes, so a correct non-ASCII password failed and the comparison was not constant-time | Fixed - `compare_digest` on bytes. Measured: login with a correct non-ASCII password 302s authenticated. `tests/test_admin_password_compare.py` |
+| 5 | A tile whose request stalls fires neither `load` nor `error`: the view that blocks the form on `true` never reached `false`, so the participant sat on a "Loading" spinner with the form greyed out for the rest of the session - and when a pair did fail, its answers stayed submittable | Fixed - the component that blocks the form owns the deadline (15 s) that unblocks it, and `stimulus.failed()` joins `blocksSubmit` with a message that says to refresh, so an answer to a pair nobody saw cannot enter the study data. `frontend/test/components/stimulus-failure-gate.test.ts` |
+| 6 | A `depends_on` follow-up counted as unanswered when the trial's own input column was blank, so a trial with no mask could never be submitted | Fixed - one rule, `_question_shown`, mirroring `isSectionVisible`, in the server-side completeness path: a follow-up is exempt only where its stored stimulus input is blank. Measured: a maskless trial submits, `mask_adherence` stored, `completed` honest. `tests/test_visibility_rule.py` |
+| 7 | `submit_survey` accepted answers the page cannot produce: `confidence: 501` was stored and averaged, and the dashboard reported `avg_confidence 501.0` | Fixed - choice, confidence, likert scale and multiple-choice value are validated against the config. Measured on the original repro: 501 rejected, `avg_confidence 5.0`. `tests/test_answer_shapes.py` |
+| 8 | Referral codes were guessable at the speed of the network: the gate had no rate limit and compared codes with whitespace and case intact | Fixed - `REFERRAL_CODES` normalised at boot, the referral POST capped per address. Measured: the 19th attempt from one address is the first 429. `tests/test_rate_limit.py` |
+| 9 | The dashboard could not answer "how many people started, and how many finished": the audit measured 14 of 30 completed and 5 dropped out of a study by reading the raw rows in SQL | Fixed - `/api/admin/participants` groups by participant, and the dashboard's default view is that roster. Measured: the endpoint reproduces the 14-of-30 and 5-dropout counts of the hand-written SQL. `tests/test_admin_participants.py`, `frontend/test/admin-participants.test.ts` |
+| 10 | The layout is measured from the viewport and from rendered question heights at pair load and never again: rotate a phone and the tiles keep the height computed for the orientation the participant left | Fixed - a `resize` listener re-runs `layout()`, removed on dispose. Measured red/green by the tile heights a viewport change produces. `frontend/test/components/question-flow.test.ts` |
+| 11 | The stacked identity sheet was cut one **square** per segment, so a 512x768 sheet of three panels was cut across the panels | Fixed - `stackedSliceBands` tiles `image.height` across the segments. Measured: 200x800 unchanged (4x200), 512x768 cuts at 384, 200x550 bands tile to exactly 550. `frontend/test/identity-masks.test.ts` |
+| 12 | The e2e fixture writer wrote a study config and announced the run dir as success while the app refused to boot on it, so a broken fixture surfaced as 27 opaque browser failures | Fixed at the repo's only config writer (the app has no admin config-write path): `make_run.py` loads what it wrote through `src.survey.config.load_config` and exits 1 naming the key. `tests/test_e2e_fixture_writer.py` |
+| 13 | The admin results query spelled out the export's column list a second time, so the table and the CSV could drift apart silently | Fixed - `_ADMIN_RESULTS_SELECT = 'SELECT' + _EXPORT_SELECT + _EXPORT_FROM`, the literal deleted, and an agreement test pins the two column sets. `tests/test_admin_query_agreement.py` |
+| 14 | The docs a newcomer follows were fiction: `tests/README.md`'s tree named 23 paths, **20 of which do not exist** (a `frontend/` directory of `.test.js` suites deleted two audits ago); its counts (474/263/195/27) and README's (223/192/24) were stale; the env contract omitted `SURVEY_CONFIG` and `IMAGE_PAIRS_FILE`, the two variables a study cannot boot without; and README said "When `DATA_DIR` is set, the app enables production mode", handing the security mode back to `DATA_DIR` after audit 1 moved it to `APP_ENV` - two rows above the row that says so correctly | Fixed - counts replaced by the commands that print them, the tree rewritten against `ls tests/`, the three env rows added, the mode sentence fixed. `tests/test_docs_contract.py` fails on any of the four regressions. `docs/frontend-architecture.md` already stated the model rule, so it was left alone |
+| 15 | `_csv_safe` prefixed `= + - @` and let a leading **tab** or **carriage return** through - the same Excel/Sheets trigger set, with a participant as the cell's author | Fixed. Measured: `=`/`+`/`-`/`@` were guarded, `\t`/`\r` were not; all six now reach the cell prefixed. `tests/test_export_csv_injection.py` |
+| 16 | A loop planted a `csrfToken` cookie on every response | **Retracted** - measured zero hits for `csrfToken` across `src/`, `templates/` and `tests/`; it is gone and nothing plants a CSRF cookie |
+| 17 | Dead code shipped: `lib/dom.ts:byId` and its `escapeId` helper (used only by that file's own test), `StimulusView`'s `onTrial` prop (called on every load, answered with `() => {}` at the only mount), and `generate_csrf` imported into `app.py` unused | Deleted, suite green (vitest 210, pytest 312 at that commit). The fourth audit's note "`byId` is still exported for its own test only" is closed |
+| 18 | `PERMANENT_SESSION_LIFETIME` is configured at import and read by nothing: Flask writes an expiry only for a session marked permanent, so the session cookie died with the browser and took the owed trials with it - the resume the index page promises was a within-one-tab promise | Fixed - `session.permanent = True` at both participant session mints. Measured: the cookie now carries `Expires`, and the test pins it to the configured 2 hours. `tests/test_session_lifetime.py` |
+| 19 | `showOverlay` painted only tiles already `complete`, so hovering a reference while the pair downloaded highlighted one tile and left the other bare, with nothing to re-run the paint | Fixed - the overlay arrives with the tile, and only while that hover is the live one: leaving first paints nothing. `frontend/test/components/conditioning-tiles.test.ts` |
+
+### Deferred from the sixth audit
+
+The four standing deferrals are unchanged and re-confirmed here, not re-litigated: the size of
+`app.py` (now 1,704 lines; +94 from this audit, same trigger - the next feature that needs its own
+blueprint), the session-cookie table (fifth audit, finding 18), admin session-id rotation (first
+audit), and `PRAGMA foreign_keys` (second audit).
+
+### Notes from the sixth audit
+
+- Finding 12 was **scoped down with the user's agreement**. The finding reads "an admin config write
+  reports success when the write failed"; the app has no admin config-write path at all, so there is
+  no such report to fix. The repo's only writer of study configs is the browser-tier fixture, which
+  had exactly the claimed behaviour: announce success, let the app refuse at boot.
+- Finding 9's number is the audit's own: the 14-of-30 completion and 5-dropout figures were measured
+  with hand-written SQL against a study with 30 participants, and the endpoint test asserts the API
+  reproduces them, so the dashboard cannot silently disagree with the query the audit used.
+- Two browser specs needed repair because the app is now stricter than they were.
+  `admin-dashboard.spec.js` carried its XSS payload in an `ab_preference` `choice`, which finding 7
+  makes a 400 - it posts it as a free-text answer now, and the fixture study gained the optional
+  free-text question that lets a participant author a cell. `tutorial.spec.js` looped over the
+  walkthrough with `i < 12`, which was a step count in disguise: the study now has 13 steps, the loop
+  ran out before the banner did, and the bound is a runaway guard (24) with the fixture's config
+  owning the real count.
+- `check_demographics` reporting `completed_pairs: 0` in one repro script is that script's partial
+  demographics POST, not a regression: re-measured with a complete intake on the shipped config,
+  progress advances 1, 2, 3, the third submit reports `completed: true`, the fourth pair request 404s,
+  and `/` serves the thank-you page.
+
 ## Known limit: the audit log is appended to inside the request
 
 Second audit, finding 10 (2026-11-05). Every audited action opens `AUDIT_LOG_FILE`, appends one JSON

@@ -22,13 +22,6 @@ export function qa<T extends Element>(root: ParentNode, selector: string): T[] {
     return Array.from(root.querySelectorAll<T>(selector));
 }
 
-// jsdom has no CSS.escape, and ids here are config slugs: escape the few characters that can appear.
-const escapeId = (id: string): string => id.replace(/[^\w-]/g, (c) => `\\${c}`);
-
-export function byId<T extends HTMLElement = HTMLElement>(root: ParentNode, id: string): T | null {
-    return root.querySelector<T>(`#${escapeId(id)}`);
-}
-
 // Fails at mount, not at first render, when template and component disagree about an id.
 export function need<T extends HTMLElement = HTMLElement>(
     root: ParentNode,

@@ -10,6 +10,8 @@ export type QuestionFlowProps = {
     submitButton: HTMLButtonElement;
     /** Something outside this component can keep Submit locked; the flow asks, it does not know why. */
     blocksSubmit: () => boolean;
+    /** Why Submit is locked while the form itself is answerable, so the button can say what to do. */
+    blockReason?: () => string;
     questions: () => QuestionConfig[];
     inputs: () => InputConfig[];
     viewport?: () => Viewport;
@@ -30,6 +32,7 @@ export type QuestionFlow = Disposable & {
 };
 
 const SECTION = '.questions-container .evaluation-section';
+const TUTORIAL_BLOCK = () => 'Complete the tutorial first';
 
 /** The question block: which sections this pair answers, which one counts as current, the Submit gate, and the auto-advance after an answered group. */
 export function mountQuestionFlow(host: HTMLElement, props: QuestionFlowProps): QuestionFlow {
@@ -88,7 +91,7 @@ export function mountQuestionFlow(host: HTMLElement, props: QuestionFlowProps): 
         const allAnswered = isFormComplete(radios(props.form), true);
         if (props.blocksSubmit()) {
             props.submitButton.disabled = true;
-            props.submitButton.title = 'Complete the tutorial first';
+            props.submitButton.title = (props.blockReason ?? TUTORIAL_BLOCK)();
         } else {
             props.submitButton.disabled = !allAnswered;
             props.submitButton.title = '';
@@ -149,6 +152,10 @@ export function mountQuestionFlow(host: HTMLElement, props: QuestionFlowProps): 
     previous?.addEventListener('click', navPrevious);
     next?.addEventListener('click', navNext);
 
+    // The layout is measured from the viewport and from rendered question heights, both of which move on resize.
+    const onResize = () => layout();
+    window.addEventListener('resize', onResize);
+
     const observer = props.observeSections?.(sections, (index) => {
         current = index;
         updateButtons();
@@ -169,6 +176,7 @@ export function mountQuestionFlow(host: HTMLElement, props: QuestionFlowProps): 
         dispose() {
             for (const timer of timers.splice(0)) clearTimeout(timer);
             props.form.removeEventListener('change', change);
+            window.removeEventListener('resize', onResize);
             previous?.removeEventListener('click', navPrevious);
             next?.removeEventListener('click', navNext);
             document.removeEventListener('jx:tutorial-complete', tutorialDone);

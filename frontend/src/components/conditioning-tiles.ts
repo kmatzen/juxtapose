@@ -3,8 +3,8 @@ import { qa } from '../lib/dom';
 import {
     IDENTITY_COLORS,
     buildOverlayRgba,
-    countStackedSegments,
     extractIdentityMasks,
+    stackedSliceBands,
 } from '../study-state';
 import type { BinaryMask, InputConfig, MaskSet, Trial } from '../study-state';
 import type { Lightbox } from './lightbox';
@@ -110,10 +110,19 @@ export function mountConditioningTiles(
     function showOverlay(index: number): void {
         const mask = masks[index];
         if (!mask) return;
-        for (const image of props.outputImages()) {
-            if (image.complete) paintOverlay(image, mask, index);
-        }
         activeIndex = index;
+        for (const image of props.outputImages()) {
+            if (image.complete) {
+                paintOverlay(image, mask, index);
+                continue;
+            }
+            // A tile still in flight at hover time paints when it arrives, if the hover is still the live one.
+            const paintOnArrival = () => {
+                if (activeIndex === index) paintOverlay(image, mask, index);
+            };
+            image.addEventListener('load', paintOnArrival, { once: true });
+            bound.push(() => image.removeEventListener('load', paintOnArrival));
+        }
     }
 
     function bindIdentity(image: HTMLImageElement, index: number, label: string): void {
@@ -255,17 +264,16 @@ function canvasMaskReader(image: HTMLImageElement): MaskSet | null {
 async function canvasStackedSlicer(url: string): Promise<string[]> {
     const image = await loadImage(url);
     if (!image) return [];
-    const width = image.width;
-    const segments = countStackedSegments(width, image.height);
+    const bands = stackedSliceBands(image.width, image.height);
     const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = width;
+    canvas.width = image.width;
     const ctx = canvas.getContext('2d');
     if (!ctx) return [];
     const out: string[] = [];
-    for (let i = 0; i < segments; i += 1) {
-        ctx.clearRect(0, 0, width, width);
-        ctx.drawImage(image, 0, i * width, width, width, 0, 0, width, width);
+    for (const band of bands) {
+        // Assigning the height is what clears the canvas between bands.
+        canvas.height = band.height;
+        ctx.drawImage(image, 0, band.y, image.width, band.height, 0, 0, image.width, band.height);
         out.push(canvas.toDataURL());
     }
     return out;

@@ -20,7 +20,8 @@ def _study_with_every_question_type(app_module):
         {'name': 'difficulty', 'type': 'likert', 'label': 'Difficulty', 'confidence': False,
          'required': False, 'depends_on': None, 'section_label': 'Difficulty', 'scale': 5},
         {'name': 'device', 'type': 'multiple_choice', 'label': 'Device', 'confidence': False,
-         'required': False, 'depends_on': None, 'section_label': 'Device'},
+         'required': False, 'depends_on': None, 'section_label': 'Device',
+         'options': [{'value': 'phone', 'label': 'Phone'}, {'value': 'desktop', 'label': 'Desktop'}]},
     ]
 
 

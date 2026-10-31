@@ -31,6 +31,15 @@ export type Stats = {
 
 export type ResultsPage = { rows?: Row[]; total?: number };
 
+export type ParticipantSummary = {
+    started?: number;
+    completed?: number;
+    pairs_per_user?: number;
+    dropout?: Record<string, number>;
+};
+
+export type ParticipantsPage = { rows?: Row[]; total?: number; summary?: ParticipantSummary };
+
 export type Column = {
     header: string;
     cell: (row: Row) => string;
@@ -67,7 +76,7 @@ export function demographicsColumns(config: SurveyConfig): Column[] {
         { header: 'OS', cell: row => text(row.os) },
         { header: 'Screen', narrow: true, cell: row => `${text(row.screen_width)}×${text(row.screen_height)}` },
         ...fields.map(field => ({ header: field.label, cell: (row: Row) => text(row[field.name]) })),
-        { header: 'Responses', cell: row => `${num(row.responseCount)}/${num(row.pairsPerUser)}` },
+        { header: 'Trials', cell: row => `${num(row.trials_completed)}/${num(row.pairs_per_user)}` },
     ];
 }
 
@@ -102,6 +111,15 @@ export function responseColumns(questions: QuestionConfig[]): Column[] {
     // The export's timing_flag, next to the seconds it explains: 1 means the row is not a judgement.
     columns.push({ header: 'Timing', narrow: true, cell: row => (Number(row.timing_flag) ? 'not a judgement' : '') });
     return columns;
+}
+
+export function participantSummary(summary: ParticipantSummary | null): string {
+    if (!summary || !summary.started) return 'No participants yet';
+    const stops = Object.entries(summary.dropout || {})
+        .filter(([trial]) => Number(trial) > 0)
+        .sort((a, b) => Number(b[0]) - Number(a[0]))
+        .map(([trial, people]) => `${people} stopped at trial ${trial}`);
+    return [`${summary.started} started`, `${summary.completed ?? 0} completed`, ...stops].join(' · ');
 }
 
 export function preferenceSummary(stats: Stats | null, name: string): string {
@@ -151,6 +169,9 @@ const state = {
     view: 'demographics' as 'demographics' | 'responses',
     rows: [] as Row[],
     total: 0,
+    participants: [] as Row[],
+    participantsTotal: 0,
+    summary: null as ParticipantSummary | null,
     config: null as SurveyConfig | null,
     stats: null as Stats | null,
 };
@@ -201,41 +222,31 @@ function renderTable(): void {
     if (!thead || !tbody) return;
 
     const columns = columnsForView();
+    const rows = viewRows();
+    const total = state.view === 'demographics' ? state.participantsTotal : state.total;
 
-    if (state.rows.length === 0) {
+    if (rows.length === 0) {
         thead.replaceChildren();
-        renderMessage(tbody, 'No responses yet', columns);
+        renderMessage(tbody, state.view === 'demographics' ? 'No participants yet' : 'No responses yet', columns);
     } else {
         renderHeader(thead, columns);
-        renderRows(tbody, viewRows(), columns);
+        renderRows(tbody, rows, columns);
     }
 
     const loadMoreButton = by<HTMLElement>('load-more');
     if (loadMoreButton) {
-        loadMoreButton.style.display = state.rows.length < state.total ? 'inline-block' : 'none';
+        loadMoreButton.style.display = rows.length < total ? 'inline-block' : 'none';
     }
     const rowCount = by<HTMLElement>('row-count');
-    if (rowCount) rowCount.textContent = `Showing ${state.rows.length} of ${state.total} responses`;
-}
-
-export function groupParticipants(rows: Row[], pairsPerUser: number): Row[] {
-    // The demographics view is one row per participant: responses are counted, not listed.
-    const participants = new Map<string, Row>();
-    for (const row of rows) {
-        const key = row.email || row.session_id || '';
-        const existing = participants.get(key);
-        if (existing) {
-            existing.responseCount = Number(existing.responseCount) + 1;
-        } else {
-            participants.set(key, { ...row, responseCount: 1, pairsPerUser });
-        }
+    if (rowCount) {
+        rowCount.textContent = state.view === 'demographics'
+            ? `${participantSummary(state.summary)} · showing ${rows.length} of ${total} participants`
+            : `Showing ${rows.length} of ${total} responses`;
     }
-    return [...participants.values()];
 }
 
 function viewRows(): Row[] {
-    if (state.view !== 'demographics') return state.rows;
-    return groupParticipants(state.rows, state.config?.survey?.pairs_per_user ?? 30);
+    return state.view === 'demographics' ? state.participants : state.rows;
 }
 
 async function loadStats(): Promise<void> {
@@ -265,8 +276,28 @@ async function loadRows(offset = 0): Promise<void> {
     renderTable();
 }
 
+async function loadParticipants(offset = 0): Promise<void> {
+    const tbody = by<HTMLElement>('results-body');
+    // The 30s poll reloads offset 0: it must keep every participant "Load more" added.
+    const limit = offset === 0 ? Math.max(PAGE_SIZE, state.participants.length) : PAGE_SIZE;
+    try {
+        const page = await getJson<ParticipantsPage>(`/api/admin/participants?limit=${limit}&offset=${offset}`);
+        state.participants = offset > 0 ? state.participants.concat(page.rows || []) : page.rows || [];
+        state.participantsTotal = page.total ?? state.participants.length;
+        state.summary = page.summary || null;
+    } catch (error) {
+        console.error('Error loading participants:', error);
+        state.participants = [];
+        state.participantsTotal = 0;
+        state.summary = null;
+        if (tbody) renderMessage(tbody, 'Error loading participants', columnsForView());
+        return;
+    }
+    renderTable();
+}
+
 async function refresh(): Promise<void> {
-    await Promise.all([loadStats(), loadRows(0)]);
+    await Promise.all([loadStats(), loadRows(0), loadParticipants(0)]);
 }
 
 function toggleView(): void {
@@ -326,7 +357,11 @@ export async function init(): Promise<void> {
 
 export function wire(page: Document): void {
     page.getElementById('toggle-view')?.addEventListener('click', toggleView);
-    page.getElementById('load-more')?.addEventListener('click', () => { void loadRows(state.rows.length); });
+    page.getElementById('load-more')?.addEventListener('click', () => {
+        void (state.view === 'demographics'
+            ? loadParticipants(state.participants.length)
+            : loadRows(state.rows.length));
+    });
     page.getElementById('export-csv')?.addEventListener('click', () => { window.location.href = '/api/admin/export'; });
     page.getElementById('logout')?.addEventListener('click', () => { window.location.href = '/admin/logout'; });
     page.getElementById('delete-records')?.addEventListener('click', () => { void deleteByEmail(); });

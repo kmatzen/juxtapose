@@ -28,7 +28,7 @@ def serve(client, index=0):
 def answer(client, pair):
     answers = {q['name']: {'choice': 'A', 'confidence': 4}
                for q in CONFIG['questions']
-               if (q.get('required') or q['type'] == 'ab_preference') and not q.get('depends_on')}
+               if q.get('required') or q['type'] == 'ab_preference'}
     response = client.post('/api/submit_survey', json={
         'image_pair_id': pair['id'],
         'responses': answers,
@@ -69,17 +69,17 @@ def test_one_pair_request_reads_the_answered_set_once(client, monkeypatch):
     from src.survey import app as app_module
 
     counts = {'set': 0, 'conn': 0}
-    real_set, real_db = app_module._get_completed_trial_ids_for_email, app_module.get_db
+    real_set, real_db = app_module._get_completed_trial_ids, app_module.get_db
 
-    def count_set(email, *args):
+    def count_set(participant_id, *args):
         counts['set'] += 1
-        return real_set(email, *args)
+        return real_set(participant_id, *args)
 
     def count_db():
         counts['conn'] += 1
         return real_db()
 
-    monkeypatch.setattr(app_module, '_get_completed_trial_ids_for_email', count_set)
+    monkeypatch.setattr(app_module, '_get_completed_trial_ids', count_set)
     monkeypatch.setattr(app_module, 'get_db', count_db)
 
     make_participant(client)

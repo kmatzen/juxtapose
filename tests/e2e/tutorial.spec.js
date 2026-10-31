@@ -32,7 +32,8 @@ test('the tutorial walkthrough walks its steps and then unlocks the form', async
 
     const steps = [];
     let mostHighlights = 0;
-    for (let i = 0; i < 12 && await banner.isVisible(); i += 1) {
+    // A runaway-loop guard, not a step count: the steps come from the fixture's config.
+    for (let i = 0; i < 24 && await banner.isVisible(); i += 1) {
       steps.push((await page.locator('#tutorial-title').textContent()).trim());
       mostHighlights = Math.max(mostHighlights, await page.locator('.tutorial-highlight').count());
       await page.locator('.btn-tutorial-primary').click();

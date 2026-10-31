@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   demographicsColumns,
   formatTimeSpent,
-  groupParticipants,
   preferenceSummary,
   renderHeader,
   renderRows,
@@ -73,7 +72,7 @@ describe('column specs', () => {
         { name: 'occupation', type: 'text', label: 'Occupation' },
       ],
     }).map(c => c.header);
-    expect(headers).toEqual(['Email', 'Referral', 'Browser', 'OS', 'Screen', 'Occupation', 'Responses']);
+    expect(headers).toEqual(['Email', 'Referral', 'Browser', 'OS', 'Screen', 'Occupation', 'Trials']);
   });
 });
 
@@ -97,18 +96,9 @@ describe('rendering', () => {
     expect(tbody.querySelector('td.cell-narrow')?.textContent).toBeTruthy();
   });
 
-  it('renders one row per participant with a counted response total', () => {
-    const rows: Row[] = [
-      { email: 'a@b.c', image_pair_id: 1 },
-      { email: 'a@b.c', image_pair_id: 2 },
-      { email: 'c@d.e', image_pair_id: 1 },
-    ];
-    const grouped = groupParticipants(rows, 4);
-    expect(grouped).toHaveLength(2);
-    expect(grouped[0].responseCount).toBe(2);
-    expect(demographicsColumns({}).map(c => c.header)).toContain('Responses');
-    const responses = demographicsColumns({}).find(c => c.header === 'Responses')!;
-    expect(responses.cell(grouped[0])).toBe('2/4');
+  it("counts a participant's trials as the roster endpoint reported them", () => {
+    const trials = demographicsColumns({}).find(c => c.header === 'Trials')!;
+    expect(trials.cell({ trials_completed: 5, pairs_per_user: 15 })).toBe('5/15');
   });
 });
 
@@ -135,21 +125,28 @@ describe('the 30s poll and paging', () => {
   // A click kicks off a plain promise chain, so the fake clock must be nudged several times to drain it.
   const settle = async () => { for (let i = 0; i < 8; i += 1) await vi.advanceTimersByTimeAsync(0); };
 
+  const ROSTER = Array.from({ length: 250 }, (_unused, i) => ({
+    email: `p${i}@example.com`, trials_completed: 20, pairs_per_user: 20,
+  }));
+
   beforeEach(() => {
     const rows = Array.from({ length: TOTAL }, (_, i) => ({
       email: `p${i}@example.com`, image_pair_id: i + 1,
     }));
     vi.stubGlobal('fetch', vi.fn(async (url: unknown) => {
       const target = new URL(String(url), 'http://test');
+      const pageOf = (all: Row[]) => {
+        const limit = Number(target.searchParams.get('limit'));
+        const offset = Number(target.searchParams.get('offset'));
+        return { rows: all.slice(offset, offset + limit), total: all.length, limit, offset };
+      };
       const payload = target.pathname.startsWith('/api/admin/results')
-        ? (() => {
-            const limit = Number(target.searchParams.get('limit'));
-            const offset = Number(target.searchParams.get('offset'));
-            return { rows: rows.slice(offset, offset + limit), total: TOTAL, limit, offset };
-          })()
-        : target.pathname.startsWith('/api/admin/stats')
-          ? { total_responses: TOTAL, preference_by_question: {} }
-          : { survey: { pairs_per_user: PAGE_SIZE }, questions: QUESTIONS };
+        ? pageOf(rows)
+        : target.pathname.startsWith('/api/admin/participants')
+          ? { ...pageOf(ROSTER), summary: { started: 250, completed: 250, pairs_per_user: 20, dropout: {} } }
+          : target.pathname.startsWith('/api/admin/stats')
+            ? { total_responses: TOTAL, preference_by_question: {} }
+            : { survey: { pairs_per_user: PAGE_SIZE }, questions: QUESTIONS };
       return { ok: true, status: 200, json: async () => payload } as Response;
     }));
   });
@@ -159,10 +156,13 @@ describe('the 30s poll and paging', () => {
     document.body.innerHTML = `<div data-admin-app>
       <table><thead id="table-header"></thead><tbody id="results-body"></tbody></table>
       <span id="row-count"></span><button id="load-more">Load more</button>
+      <button id="toggle-view">Toggle</button>
       <div id="method-pref-cards"></div></div>`;
     vi.resetModules();
     // The page marker in that markup is what boots the dashboard, exactly as the served page does.
     await import('../src/admin');
+    await settle();
+    document.getElementById('toggle-view')!.click();
     await settle();
     expect(shown()).toBe(`Showing ${PAGE_SIZE} of ${TOTAL} responses`);
 
