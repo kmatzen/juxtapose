@@ -1288,7 +1288,7 @@ def get_image_pair(pair_index):
     return jsonify(stim)
 
 
-def _add_flat_fields(stim, trial, randomized):
+def _add_flat_fields(stim, trial, randomized, include_counters=True):
     """Add flat top-level fields for backward compat with existing JS.
 
     The JS currently expects fields like data.prompt, data.image_a_url, etc.
@@ -1320,7 +1320,8 @@ def _add_flat_fields(stim, trial, randomized):
     # Ensure id and other expected fields
     stim['id'] = trial['id']
     stim['was_randomized'] = randomized
-    stim['total_pairs'] = stim.get('total_trials', 0)
+    if include_counters:
+        stim['total_pairs'] = stim.get('total_trials', 0)
 
 # ---------------------------------------------------------------------------
 # API - submit response
@@ -1409,9 +1410,7 @@ def submit_survey():
         # The browser reports answers only; the served order is the session's record.
         randomized = bool(session.get('pair_randomized', {}).get(str(trial_id)))
         stimulus_data = _build_stimulus_data(trial, randomized)
-        _add_flat_fields(stimulus_data, trial, randomized)
-        for counter_key in ('total_trials', 'total_pairs'):
-            stimulus_data.pop(counter_key, None)
+        _add_flat_fields(stimulus_data, trial, randomized, include_counters=False)
 
         responses = data.get('responses')
         if not isinstance(responses, dict):
