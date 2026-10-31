@@ -54,3 +54,23 @@ def test_the_frontend_doc_names_where_the_study_rules_live():
     assert re.search(r'components? (import|depend on)[^.]*\bmodel\b', ARCHITECTURE, re.I) \
         or 'Dependencies point down' in ARCHITECTURE, \
         'the doc no longer states the direction dependencies may point'
+
+
+def test_the_documented_run_command_runs_more_than_one_worker():
+    """Audit 7 F7: the app's production gate justifies redis by "every gunicorn worker keeps its
+    own counters", and the README's command started a single sync worker, so the reason and the
+    deployment disagreed and every participant queued behind one worker."""
+    command = re.search(r'^gunicorn .*$', README, re.M)
+    assert command, 'README documents no gunicorn command'
+    assert '--workers' in command.group(0), (
+        f'the documented command runs gunicorn\'s default one sync worker: {command.group(0)!r}')
+
+
+def test_the_python_dependencies_have_upper_bounds():
+    """Audit 7 F8: the JS side has package-lock.json and `npm ci`; pip resolved open ranges on
+    every CI run, so a Flask patch could change cookie behaviour mid-study with no recorded
+    version to go back to."""
+    pyproject = (ROOT / 'pyproject.toml').read_text(encoding='utf-8')
+    requirements = re.findall(r'"([A-Za-z0-9_.\[\]-]+)([<>=!~]+[^"]*)"', pyproject)
+    open_ranges = [name for name, spec in requirements if ',' not in spec]
+    assert not open_ranges, f'dependencies with no upper bound: {open_ranges}'
