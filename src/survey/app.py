@@ -4,6 +4,7 @@ import sqlite3
 import uuid
 import os
 import logging
+import math
 from datetime import datetime, timezone, timedelta
 from io import StringIO
 import json
@@ -1422,6 +1423,9 @@ def submit_survey():
         try:
             time_spent = float(data.get('time_spent'))
         except (TypeError, ValueError):
+            time_spent = None
+        # JSON spells Infinity and -Infinity, and a REAL column carries them into every report of it.
+        if time_spent is not None and not math.isfinite(time_spent):
             time_spent = None
         timing_flag = 1 if time_spent is not None and (
                          time_spent < TIMING_FLOOR_S or time_spent > TIMING_CEILING_S) else 0
