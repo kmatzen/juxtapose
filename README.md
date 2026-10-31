@@ -188,8 +188,12 @@ export APP_ENV=production
 export SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
 export ADMIN_PASSWORD="your-secure-password"
 export DATA_DIR="/path/to/persistent/data"
-gunicorn src.survey.app:app --bind 0.0.0.0:8000
+gunicorn src.survey.app:app --bind 0.0.0.0:8000 --workers 4 --threads 2
 ```
+
+Ask gunicorn for workers: its default is **one synchronous worker**, which serves every participant
+one request at a time, and the production gate below exists precisely because several workers each
+keep their own rate-limit counters.
 
 `static_dist/` is read at boot, so a deploy replaces the code and the build together, then
 restarts. The security mode comes from `APP_ENV` alone; `DATA_DIR` only says where the database and `audit.log` live. Production requires `SECRET_KEY` and a non-default `ADMIN_PASSWORD`, and enforces HTTPS cookies.
