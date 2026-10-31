@@ -735,6 +735,12 @@ def health():
 
 
 INTAKE_CELL_MAX = 2000
+
+
+@app.context_processor
+def inject_template_limits():
+    """The page caps what the app refuses, from one number."""
+    return {'INTAKE_CELL_MAX': INTAKE_CELL_MAX}
 DEVICE_TEXT_MAX = 100
 DEVICE_NUMBER_KEYS = ('screen_width', 'screen_height', 'pixel_ratio', 'color_depth',
                       'viewport_width', 'viewport_height')
@@ -1354,6 +1360,13 @@ def _invalid_answer(question, answer):
 
     if kind == 'likert':
         return _off_scale(question['name'], answer.get('value'), question.get('scale', 5), 'value')
+
+    if kind == 'free_text':
+        text = answer.get('text')
+        if isinstance(text, str) and len(text) > INTAKE_CELL_MAX:
+            return (f"{question['name']} text must be at most {INTAKE_CELL_MAX} characters: "
+                    "it is shipped to the dashboard on every poll")
+        return None
 
     if kind == 'multiple_choice':
         value = answer.get('value')

@@ -5,6 +5,8 @@ the only limit), the dashboard's 3-row page for it is 167 KB and the CSV 166 KB,
 it happily because the textarea carries no `maxlength`. The dashboard re-fetches its page every 30
 seconds, so one participant pasting a novel makes the analyst's poll ship megabytes.
 """
+import re
+
 import pytest
 import yaml
 
@@ -66,15 +68,23 @@ def test_an_answer_the_intake_would_have_accepted_is_accepted(client):
     assert response.status_code == 200, response.get_json()
 
 
+def _page(client):
+    # The intake and the questions each render only on the half of the page this session is on.
+    return client.application.test_client().get('/').get_data(as_text=True)
+
+
+def _textarea(page, name):
+    match = re.search(r'<textarea[^>]*name="%s"[^>]*>' % re.escape(name), page, re.S)
+    return match.group(0) if match else ''
+
+
 def test_the_answer_box_stops_the_novel_before_the_request_does(client):
-    page = client.get('/').get_data(as_text=True)
-    boxes = [line for line in page.splitlines() if 'name="comment_text"' in line]
-    assert boxes, 'the free-text question renders a textarea'
-    assert all('maxlength' in box for box in boxes), boxes
+    box = _textarea(_page(client), 'comment_text')
+    assert box, 'the free-text question renders a textarea'
+    assert f'maxlength="{LIMIT}"' in box, box
 
 
 def test_the_intake_box_is_capped_by_the_page_too(client):
-    page = client.get('/').get_data(as_text=True)
-    boxes = [line for line in page.splitlines() if 'name="notes"' in line and '<textarea' in line]
-    assert boxes, 'the textarea demographics field renders a textarea'
-    assert all('maxlength' in box for box in boxes), boxes
+    box = _textarea(_page(client), 'notes')
+    assert box, 'the textarea demographics field renders a textarea'
+    assert f'maxlength="{LIMIT}"' in box, box
