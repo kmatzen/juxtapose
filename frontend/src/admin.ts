@@ -75,6 +75,7 @@ export function demographicsColumns(config: SurveyConfig): Column[] {
     return [
         { header: 'Email', cell: row => text(row.email) },
         { header: 'Referral', cell: row => text(row.referral_code) },
+        { header: 'Consent', cell: row => text(row.consent) },
         { header: 'Browser', narrow: true, cell: row => `${text(row.browser)} ${text(row.browser_version)}` },
         { header: 'OS', cell: row => text(row.os) },
         { header: 'Screen', narrow: true, cell: row => `${text(row.screen_width)}×${text(row.screen_height)}` },
