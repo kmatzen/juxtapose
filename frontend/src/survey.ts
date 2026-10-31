@@ -102,7 +102,7 @@ function mountSurveyPage(): void {
     const conditioning = mountConditioningTiles(document.body, {
         lightbox,
         galleryInput: () => inputOfType('image_gallery'),
-        maskInput: () => inputOfType('image'),
+        maskInput: () => studyState.maskInput(studyConfig?.inputs ?? []),
         outputImages: outputTiles,
         tapThresholdPx: TAP_THRESHOLD_PX,
     });

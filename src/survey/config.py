@@ -55,6 +55,8 @@ def _unique_names(names, what):
 QUESTION_TYPES = ('ab_preference', 'likert', 'free_text', 'multiple_choice')
 DEMOGRAPHICS_TYPES = ('email', 'text', 'number', 'textarea', 'select', 'radio', 'checkbox')
 INPUT_TYPES = ('text', 'image', 'image_gallery')
+# frontend/src/study-state.ts's maskInput() fills the mask tile by this name.
+MASK_INPUT_NAME = 'mask'
 
 
 def _known_type(what, name, value, allowed, renderer):
@@ -87,6 +89,10 @@ def _validate(config):
         if inp['column'] not in columns:
             raise ValueError(f"Input '{inp['name']}' references unknown column '{inp['column']}'")
         _known_type('Input', inp.get('name'), inp.get('type'), INPUT_TYPES, 'the front end')
+        if inp.get('type') == 'image' and inp.get('name') != MASK_INPUT_NAME:
+            raise ValueError(f"Input '{inp.get('name')}' has type 'image': the mask tile is filled by "
+                             f"the input named '{MASK_INPUT_NAME}', so a second image input has no "
+                             "defined meaning")
 
     for out in config.get('outputs', []):
         for key in ('column_a', 'column_b'):

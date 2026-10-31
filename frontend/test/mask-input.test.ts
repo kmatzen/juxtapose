@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { beforeEach, expect, test } from 'vitest';
 
-import { mountConditioningTiles } from '../../src/components/conditioning-tiles';
-import { maskInput } from '../../src/study-state';
-import type { InputConfig, Trial } from '../../src/study-state';
+import { mountConditioningTiles } from '../src/components/conditioning-tiles';
+import { maskInput } from '../src/study-state';
+import type { InputConfig, Trial } from '../src/study-state';
 
 /** survey.ts picked the mask with `inputs.find(i => i.type === 'image')`, so a study with a second
  * image input listed ahead of `mask_url` painted that picture in the mask tile, silently. */
@@ -43,7 +43,8 @@ test('a study that names no input mask keeps the old type-based pick', () => {
 });
 
 test('a study with no image input has no mask', () => {
-    expect(maskInput([GALLERY, CONTEXT])).toBeNull();
+    expect(maskInput([GALLERY])).toBeNull();
+    expect(maskInput([])).toBeNull();
 });
 
 test('the mask tile shows the mask, not the image input listed before it', async () => {
