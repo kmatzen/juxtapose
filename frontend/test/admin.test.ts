@@ -102,6 +102,67 @@ describe('rendering', () => {
   });
 });
 
+/* Measured on d1923ec: on a 3,600-answer study /api/admin/results?limit=1200 answers with 1,000 rows
+ * (ADMIN_MAX_PAGE_SIZE), and the poll's `state.rows = page.rows` dropped a table paged to 1,200 rows to
+ * 1,000 on the first 30s tick — the shedding starts at that cap, so the 400-row test above passes. */
+describe('the poll past the server page cap', () => {
+  const SERVER_MAX_LIMIT = 1000;
+  const PAGE_SIZE = 200;
+  const TOTAL = 3600;
+
+  const shown = () => document.getElementById('row-count')!.textContent;
+  const settle = async () => { for (let i = 0; i < 8; i += 1) await vi.advanceTimersByTimeAsync(0); };
+
+  it('keeps every row the analyst paged to, and never asks for a page the server will not send', async () => {
+    const rows = Array.from({ length: TOTAL }, (_, i) => ({ email: `p${i}@example.com`, image_pair_id: i + 1 }));
+    const limits: number[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: unknown) => {
+      const target = new URL(String(url), 'http://test');
+      let payload: unknown;
+      if (target.pathname.startsWith('/api/admin/results')) {
+        const asked = Number(target.searchParams.get('limit'));
+        limits.push(asked);
+        const limit = Math.max(1, Math.min(asked, SERVER_MAX_LIMIT));
+        const offset = Number(target.searchParams.get('offset'));
+        payload = { rows: rows.slice(offset, offset + limit), total: TOTAL, limit, offset };
+      } else if (target.pathname.startsWith('/api/admin/participants')) {
+        payload = { rows: [], total: 0, limit: 200, offset: 0, summary: { started: 0, completed: 0 } };
+      } else if (target.pathname.startsWith('/api/admin/stats')) {
+        payload = { total_responses: TOTAL, preference_by_question: {} };
+      } else {
+        payload = { survey: { pairs_per_user: 20 }, questions: [] };
+      }
+      return { ok: true, status: 200, json: async () => payload } as Response;
+    }));
+    vi.useFakeTimers();
+    document.body.innerHTML = `<div data-admin-app>
+      <table><thead id="table-header"></thead><tbody id="results-body"></tbody></table>
+      <span id="row-count"></span><button id="load-more">Load more</button>
+      <button id="toggle-view">Toggle</button>
+      <div id="method-pref-cards"></div></div>`;
+    vi.resetModules();
+    await import('../src/admin');
+    await settle();
+    document.getElementById('toggle-view')!.click();
+    await settle();
+
+    for (let page = 1; page < 1200 / PAGE_SIZE; page += 1) {
+      document.getElementById('load-more')!.click();
+      await settle();
+    }
+    expect(shown()).toBe(`Showing 1200 of ${TOTAL} responses`);
+
+    await vi.advanceTimersByTimeAsync(60000);
+    await settle();
+    expect(shown()).toBe(`Showing 1200 of ${TOTAL} responses`);
+    expect(document.querySelectorAll('#results-body tr')).toHaveLength(1200);
+    expect(limits).toEqual(limits.map((limit) => Math.min(limit, SERVER_MAX_LIMIT)));
+
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+});
+
 describe('formatters', () => {
   it('keeps a non-numeric time_spent from blanking the table', () => {
     expect(formatTimeSpent(12.34)).toBe('12.3');
