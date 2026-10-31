@@ -86,6 +86,15 @@ describe('stackedSliceBands', () => {
         ]);
     });
 
+    test('a sheet whose panels are not square is cut by the identity count, not by shape', () => {
+        // A 512x768 sheet of three 256px panels: round(768/512) is 2, which merges panels 2 and 3.
+        expect(stackedSliceBands(512, 768, 3)).toEqual([
+            { y: 0, height: 256 },
+            { y: 256, height: 256 },
+            { y: 512, height: 256 },
+        ]);
+    });
+
     test('a 512x768 sheet cuts at its own height over segments', () => {
         expect(stackedSliceBands(512, 768)).toEqual([
             { y: 0, height: 384 },
