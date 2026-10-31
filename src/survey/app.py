@@ -679,6 +679,9 @@ def _completed_trial_ids(rows):
                 # The page posts {text: ''} for an empty box, and a dict holding '' is truthy.
                 all_answered = False
                 break
+            if q['type'] in ('likert', 'multiple_choice') and q_resp.get('value') is None:
+                all_answered = False
+                break
 
         if all_answered:
             completed.append(row['image_pair_id'])
