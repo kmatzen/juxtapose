@@ -8,6 +8,12 @@ import pytest
 import yaml
 
 from tests.conftest import _boot_app, complete_intake
+from src.survey.config import load_config
+
+
+def _ab_questions():
+    config = load_config()
+    return [q['name'] for q in config['questions'] if q['type'] == 'ab_preference']
 
 COLUMNS = ['prompt', 'method_a', 'method_b', 'image_a_url', 'image_b_url', 'mask_url',
            'identity_urls']
@@ -72,13 +78,20 @@ def test_consent_is_a_column_in_the_export(app, client):
     with client.session_transaction() as sess:
         sess['session_id'] = 'consent-export'
     assert client.post('/api/submit_demographics', json=complete_intake()).status_code == 200
+    pair = client.get('/api/get_image_pair/0').get_json()
+    assert client.post('/api/submit_survey', json={
+        'image_pair_id': pair['id'],
+        'responses': {name: {'choice': 'A', 'confidence': 4}
+                      for name in _ab_questions()},
+        'time_spent': 12}).status_code == 200
     with client.session_transaction() as sess:
         sess['admin_authenticated'] = True
 
-    header = client.get('/api/admin/export').get_data(as_text=True).split('\n')[0]
+    export = client.get('/api/admin/export').get_data(as_text=True).splitlines()
+    header, row = export[0].split(','), export[1]
 
-    assert 'consent' in header.split(','), 'the researcher cannot show that anyone consented'
-    assert 'yes' in client.get('/api/admin/export').get_data(as_text=True).split('\n')[1]
+    assert 'consent' in header, 'the researcher cannot show that anyone consented'
+    assert 'yes' in row.split(',')[header.index('consent')]
 
 
 def test_the_roster_shows_the_tick(app, client):

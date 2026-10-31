@@ -738,6 +738,8 @@ INTAKE_CELL_MAX = 2000
 
 def _intake_error(data):
     """The intake's own rules, from the config: an html `required` attribute binds the browser, not the app."""
+    if CONFIG['survey'].get('consent_text') and not str(data.get('consent') or '').strip():
+        return "Field 'consent' is required: this study asks for agreement before the intake"
     for field in CONFIG.get('demographics', []):
         name, kind = field['name'], field.get('type')
         cells = data.get(name)
@@ -1728,8 +1730,8 @@ def admin_export():
 # The columns every row carries because the SELECT and _flatten_result always produce them.
 _EXPORT_COLUMNS = (
     'session_id', 'referral_code', 'participant_created', 'browser', 'browser_version', 'os',
-    'screen_width', 'screen_height', 'pixel_ratio', 'color_depth', 'email', 'image_pair_id',
-    'was_randomized', 'time_spent', 'timing_flag', 'response_created',
+    'screen_width', 'screen_height', 'pixel_ratio', 'color_depth', 'email', 'consent',
+    'image_pair_id', 'was_randomized', 'time_spent', 'timing_flag', 'response_created',
     'method_a', 'method_b', 'prompt', 'image_a_url', 'image_b_url', 'identity_urls', 'mask_url',
 )
 
