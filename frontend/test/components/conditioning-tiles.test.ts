@@ -119,8 +119,18 @@ describe('ConditioningTiles', () => {
         h.tiles.show(trial({ identity_urls: 'https://img/stack.png' }));
         await settle();
 
-        expect(h.sliceStacked).toHaveBeenCalledWith('https://img/stack.png');
+        expect(h.sliceStacked).toHaveBeenCalledWith('https://img/stack.png', 2);
         expect(identityTiles(h.root).map((t) => t.getAttribute('src'))).toEqual(['slice-0', 'slice-1']);
+    });
+
+    test('the sheet is sliced by the identities the mask carries', async () => {
+        // The mask is the study's own count of identities; geometry only guesses from panel shape.
+        const three = harness({ readMask: vi.fn(() => masksWith(0, 1, 2)) });
+        three.tiles.show(trial({ identity_urls: 'https://img/stack.png' }));
+        await settle();
+
+        expect(three.sliceStacked).toHaveBeenCalledWith('https://img/stack.png', 3);
+        three.tiles.dispose();
     });
 
     test('a trial with no identity column hides the section', async () => {

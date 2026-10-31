@@ -1,4 +1,5 @@
 """Audit #1, #12, #15, #16: what the analyst gets out of the answers that were collected."""
+from tests.conftest import complete_intake
 import csv
 import io
 import json
@@ -28,7 +29,7 @@ def _study_with_every_question_type(app_module):
 def _one_answered_trial(client):
     with client.session_transaction() as sess:
         sess['session_id'] = 'answers-shapes'
-    client.post('/api/submit_demographics', json={'email': 'shapes@example.com', 'occupation': 'eng'})
+    client.post('/api/submit_demographics', json=complete_intake(email='shapes@example.com'))
     pair = client.get('/api/get_image_pair/0').get_json()
     response = client.post('/api/submit_survey', json={
         'image_pair_id': pair['id'], 'responses': ANSWERS, 'time_spent': 12.0})

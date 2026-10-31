@@ -1,6 +1,7 @@
 """
 Tests for Flask routes
 """
+from tests.conftest import complete_intake
 import pytest
 import json
 
@@ -29,7 +30,7 @@ def test_api_config(client):
 def test_submit_demographics_no_session(client):
     """Test demographics submission without session returns 400"""
     response = client.post('/api/submit_demographics',
-                          json={'email': 'test@example.com'},
+                          json=complete_intake({'email': 'test@example.com'}),
                           content_type='application/json')
     assert response.status_code == 400
     data = json.loads(response.data)
@@ -44,7 +45,7 @@ def test_submit_demographics_with_session(client, sample_demographics):
         sess['referral_validated'] = True
     
     response = client.post('/api/submit_demographics',
-                          json=sample_demographics,
+                          json=complete_intake(sample_demographics),
                           content_type='application/json')
     
     assert response.status_code == 200

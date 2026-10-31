@@ -75,7 +75,7 @@ export function buildTutorialSteps(config: StudyConfig): TutorialStep[] {
                     text: label,
                     emphasis: label,
                     highlight: '.questions-container',
-                    scrollToWithin: `#${q.name}-evaluation`,
+                    scrollToWithin: idSelector(`${q.name}-evaluation`),
                 });
             }
         } else {
@@ -113,6 +113,11 @@ export type AnswerValue = {
 export type Responses = Record<string, AnswerValue>;
 
 export type RadioState = { name: string; checked: boolean; hidden: boolean };
+
+/** A config name in an id selector, quoted: a name is an HTML id, and CSS.escape is not in jsdom. */
+export function idSelector(id: string): string {
+    return `[id="${id.replace(/["\\]/g, '\\$&')}"]`;
+}
 
 export function isSectionVisible(
     question: QuestionConfig,
@@ -191,6 +196,12 @@ export function detectBrowser(
     const capture = (pattern: RegExp): string => ua.match(pattern)?.[1] || '';
 
     // Edge's UA contains "Chrome" too, so order is the algorithm here.
+    // iOS renames its browsers (CriOS, FxiOS, EdgiOS): none of the desktop patterns match them, and they carry no "Version/" token for Safari's.
+    for (const [token, browser] of [['CriOS', 'Chrome'], ['FxiOS', 'Firefox'], ['EdgiOS', 'Edge']] as const) {
+        if (ua.includes(token)) {
+            return { browser, browserVersion: capture(new RegExp(`${token}/(\\d+\\.\\d+)`)) };
+        }
+    }
     if (ua.includes('Firefox')) return { browser: 'Firefox', browserVersion: capture(/Firefox\/(\d+\.\d+)/) };
     if (ua.includes('Edg') || ua.includes('Edge')) return { browser: 'Edge', browserVersion: capture(/Edg(?:e)?\/(\d+\.\d+)/) };
     if (ua.includes('Chrome')) return { browser: 'Chrome', browserVersion: capture(/Chrome\/(\d+\.\d+)/) };
@@ -293,8 +304,9 @@ export function countStackedSegments(width: number, height: number): number {
 }
 
 /** The bands to cut a stacked sheet into: the sheet's own height divided by its segment count, because panels are not always square. */
-export function stackedSliceBands(width: number, height: number): { y: number; height: number }[] {
-    const segments = Math.max(1, countStackedSegments(width, height));
-    const at = (index: number) => Math.round((height * index) / segments);
-    return Array.from({ length: segments }, (_, index) => ({ y: at(index), height: at(index + 1) - at(index) }));
+export function stackedSliceBands(width: number, height: number, segments?: number): { y: number; height: number }[] {
+    // A sheet of non-square panels cuts round(h/w) bands and merges two of them, so the mask's identity count wins.
+    const count = Math.max(1, segments && segments > 1 ? segments : countStackedSegments(width, height));
+    const at = (index: number) => Math.round((height * index) / count);
+    return Array.from({ length: count }, (_, index) => ({ y: at(index), height: at(index + 1) - at(index) }));
 }

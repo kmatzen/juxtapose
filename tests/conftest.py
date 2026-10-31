@@ -123,13 +123,13 @@ def sample_image_pair():
 
 @pytest.fixture
 def sample_demographics():
-    """Sample demographics data for testing"""
-    return {
+    """An intake the shipped study accepts: 8 fields are required."""
+    return complete_intake({
         'email': 'test@example.com',
-        'occupation': 'Software Engineer',
-        'image_gen_tools': 'Midjourney, DALL-E',
-        'works_on_ai': 'yes-research',
-        'ai_usage': 'often',
+        'occupation': 'software-engineer',
+        'image_gen_tools': 'midjourney, dalle',
+        'works_on_ai_development': 'no',
+        'ai_usage_frequency': 'often',
         'works_with_graphics': 'hobbyist',
         'ai_familiarity': 'intermediate',
         'device_info': {
@@ -143,7 +143,7 @@ def sample_demographics():
             'viewport_width': 1200,
             'viewport_height': 800
         }
-    }
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -178,3 +178,41 @@ def insert_response(db, participant_id, image_pair_id, responses,
         was_randomized,
         time_spent,
     ))
+
+
+# The shipped study's intake asks 8 required questions; a test that is not about the intake sends a complete one.
+COMPLETE_INTAKE = {
+    'email': 'tester@example.com',
+    'occupation': 'designer',
+    'technical_background': 'basic',
+    'has_used_image_gen': 'occasionally',
+    'image_gen_tools': 'none',
+    'works_on_ai_development': 'no',
+    'ai_usage_frequency': 'sometimes',
+    'works_with_graphics': 'hobbyist',
+    'ai_familiarity': 'basic',
+    'consent': 'yes',
+}
+
+
+def complete_intake(overrides=None, **kwargs):
+    intake = dict(COMPLETE_INTAKE)
+    intake.update(overrides or {})
+    intake.update(kwargs)
+    return intake
+
+
+def complete_intake_for(config, **overrides):
+    """An intake that answers what this study declares, using each field's first option."""
+    intake = {}
+    for field in config.get('demographics', []):
+        name, kind = field['name'], field.get('type')
+        options = [o.get('value') for o in field.get('options', [])]
+        if kind == 'email':
+            intake[name] = 'tester@example.com'
+        elif options:
+            intake[name] = options[0] if kind != 'checkbox' else ', '.join(options[:2])
+        else:
+            intake[name] = 'tester'
+    intake.update(overrides)
+    return intake

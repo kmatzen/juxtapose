@@ -4,14 +4,15 @@ The gate redirected the pages, which is not the study: the API is. Measured on H
 REFERRAL_CODES set, a session that was 302'd away posted demographics, took a trial and stored an
 answer, all 200. Guessing was capped only per session, and sessions are free.
 """
+from tests.conftest import complete_intake
 
 PAIR_ANSWER = {'image_quality': {'choice': 'A', 'confidence': 4},
                'prompt_adherence': {'choice': 'B', 'confidence': 3}}
 
-DEMOGRAPHICS = {'email': 'gate@lab.example', 'occupation': 'engineer',
-             'technical_background': 'yes', 'has_used_image_gen': 'yes',
+DEMOGRAPHICS = {'email': 'gate@lab.example', 'occupation': 'software-engineer',
+             'technical_background': 'advanced', 'has_used_image_gen': 'regularly',
              'works_on_ai_development': 'no', 'ai_usage_frequency': 'often',
-             'works_with_graphics': 'no', 'ai_familiarity': 'low'}
+             'works_with_graphics': 'no', 'ai_familiarity': 'basic'}
 
 
 def test_the_study_api_refuses_a_session_that_never_entered_a_code(referral_client):
@@ -21,7 +22,7 @@ def test_the_study_api_refuses_a_session_that_never_entered_a_code(referral_clie
     assert client.get('/api/config').status_code == 403
     assert client.get('/api/check_demographics').status_code == 403
     assert client.get('/api/get_image_pair/0').status_code == 403
-    assert client.post('/api/submit_demographics', json=DEMOGRAPHICS).status_code == 403
+    assert client.post('/api/submit_demographics', json=complete_intake(DEMOGRAPHICS)).status_code == 403
     assert client.post('/api/submit_survey',
                        json={'image_pair_id': 1, 'responses': {}, 'time_spent': 5}).status_code == 403
     assert client.post('/api/complete_tutorial').status_code == 403
@@ -41,7 +42,7 @@ def test_a_code_holder_still_runs_the_whole_study(referral_client):
     assert admitted.status_code == 302
 
     client.get('/')  # the index route mints the participant session, as it does in the browser
-    assert client.post('/api/submit_demographics', json=DEMOGRAPHICS).status_code == 200
+    assert client.post('/api/submit_demographics', json=complete_intake(DEMOGRAPHICS)).status_code == 200
     pair = client.get('/api/get_image_pair/0')
     assert pair.status_code == 200
     submitted = client.post('/api/submit_survey',
