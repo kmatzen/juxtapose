@@ -171,6 +171,18 @@ describe('device detection', () => {
     expect(detectBrowser('curl/8.0').browser).toBe('Unknown');
   });
 
+  it('names an iOS browser by the token it ships under', () => {
+    const ios = {
+      chrome: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/125.0.6422.80 Mobile/15E148 Safari/604.1',
+      firefox: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/125.0 Mobile/15E148 Safari/605.1.15',
+      edge: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) EdgiOS/125.0.2535.79 Mobile/15E148 Safari/604.1',
+    };
+    expect(detectBrowser(ios.chrome)).toEqual({ browser: 'Chrome', browserVersion: '125.0' });
+    expect(detectBrowser(ios.firefox)).toEqual({ browser: 'Firefox', browserVersion: '125.0' });
+    expect(detectBrowser(ios.edge)).toEqual({ browser: 'Edge', browserVersion: '125.0' });
+    expect(detectOs(ios.chrome, 3)).toBe('iOS');
+  });
+
   it('reports an iPad in desktop mode as iOS, not macOS', () => {
     const macUa = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15';
     expect(detectOs(macUa, 5)).toBe('iOS');
