@@ -47,6 +47,8 @@ export type Column = {
 };
 
 const PAGE_SIZE = 200;
+// src/survey/app.py clamps limit to ADMIN_MAX_PAGE_SIZE and echoes the smaller number back.
+const SERVER_MAX_PAGE = 1000;
 const PLACEHOLDER = '-';
 const CONFIG_FAILURE = 'Failed to load the study setup. Retrying on the next refresh.';
 
@@ -250,6 +252,13 @@ function viewRows(): Row[] {
     return state.view === 'demographics' ? state.participants : state.rows;
 }
 
+// A poll page shorter than the table is the server's clamp, not an empty study: keep the tail it could not send.
+function mergePollPage<T>(pageRows: T[], loaded: T[]): T[] {
+    return pageRows.length >= loaded.length
+        ? pageRows
+        : pageRows.concat(loaded.slice(pageRows.length));
+}
+
 async function loadStats(): Promise<void> {
     try {
         state.stats = await getJson<Stats>('/api/admin/stats');
@@ -262,10 +271,10 @@ async function loadStats(): Promise<void> {
 async function loadRows(offset = 0): Promise<void> {
     const tbody = by<HTMLElement>('results-body');
     // The 30s poll reloads offset 0: a fixed PAGE_SIZE there throws away every page "Load more" added.
-    const limit = offset === 0 ? Math.max(PAGE_SIZE, state.rows.length) : PAGE_SIZE;
+    const limit = offset === 0 ? Math.min(SERVER_MAX_PAGE, Math.max(PAGE_SIZE, state.rows.length)) : PAGE_SIZE;
     try {
         const page = await getJson<ResultsPage>(`/api/admin/results?limit=${limit}&offset=${offset}`);
-        state.rows = offset > 0 ? state.rows.concat(page.rows || []) : page.rows || [];
+        state.rows = offset > 0 ? state.rows.concat(page.rows || []) : mergePollPage(page.rows || [], state.rows);
         state.total = page.total ?? state.rows.length;
     } catch (error) {
         console.error('Error loading results:', error);
@@ -280,10 +289,12 @@ async function loadRows(offset = 0): Promise<void> {
 async function loadParticipants(offset = 0): Promise<void> {
     const tbody = by<HTMLElement>('results-body');
     // The 30s poll reloads offset 0: it must keep every participant "Load more" added.
-    const limit = offset === 0 ? Math.max(PAGE_SIZE, state.participants.length) : PAGE_SIZE;
+    const limit = offset === 0 ? Math.min(SERVER_MAX_PAGE, Math.max(PAGE_SIZE, state.participants.length)) : PAGE_SIZE;
     try {
         const page = await getJson<ParticipantsPage>(`/api/admin/participants?limit=${limit}&offset=${offset}`);
-        state.participants = offset > 0 ? state.participants.concat(page.rows || []) : page.rows || [];
+        state.participants = offset > 0
+            ? state.participants.concat(page.rows || [])
+            : mergePollPage(page.rows || [], state.participants);
         state.participantsTotal = page.total ?? state.participants.length;
         state.summary = page.summary || null;
     } catch (error) {
