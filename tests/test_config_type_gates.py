@@ -92,5 +92,12 @@ def test_every_type_the_page_renders_is_accepted(tmp_path):
     assert len(config['demographics']) == 7
 
 
+def test_an_image_input_that_is_not_the_mask_is_refused(tmp_path):
+    """The mask tile is filled by name, so a second `image` input has no defined meaning."""
+    with pytest.raises(ValueError, match='context'):
+        _load(tmp_path, lambda c: c['inputs'].append(
+            {'name': 'context', 'type': 'image', 'column': 'image_a_url'}))
+
+
 def test_the_shipped_study_still_boots():
     assert load_config(str(REPO_ROOT / 'survey_config.yaml'))['survey']['title']
