@@ -1149,7 +1149,9 @@ def submit_demographics():
             participant_id = participant['id']
 
         # Store demographics as JSON (email in dedicated column for indexing)
-        demo_data = {k: v for k, v in data.items() if k != 'device_info'}
+        # Only what the study declares is intake; `consent` rides with it (survey.consent_text).
+        declared = {field['name'] for field in CONFIG.get('demographics', [])} | {'consent'}
+        demo_data = {k: v for k, v in data.items() if k in declared}
         db.execute('DELETE FROM demographics WHERE participant_id = ?', (participant_id,))
         db.execute('''
             INSERT INTO demographics (participant_id, email, data)
