@@ -196,6 +196,12 @@ export function detectBrowser(
     const capture = (pattern: RegExp): string => ua.match(pattern)?.[1] || '';
 
     // Edge's UA contains "Chrome" too, so order is the algorithm here.
+    // iOS renames its browsers (CriOS, FxiOS, EdgiOS): none of the desktop patterns match them, and they carry no "Version/" token for Safari's.
+    for (const [token, browser] of [['CriOS', 'Chrome'], ['FxiOS', 'Firefox'], ['EdgiOS', 'Edge']] as const) {
+        if (ua.includes(token)) {
+            return { browser, browserVersion: capture(new RegExp(`${token}/(\\d+\\.\\d+)`)) };
+        }
+    }
     if (ua.includes('Firefox')) return { browser: 'Firefox', browserVersion: capture(/Firefox\/(\d+\.\d+)/) };
     if (ua.includes('Edg') || ua.includes('Edge')) return { browser: 'Edge', browserVersion: capture(/Edg(?:e)?\/(\d+\.\d+)/) };
     if (ua.includes('Chrome')) return { browser: 'Chrome', browserVersion: capture(/Chrome\/(\d+\.\d+)/) };
