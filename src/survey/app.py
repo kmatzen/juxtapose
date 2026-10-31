@@ -4,6 +4,7 @@ import sqlite3
 import uuid
 import os
 import logging
+import math
 from datetime import datetime, timezone, timedelta
 from io import StringIO
 import json
@@ -736,8 +737,40 @@ def health():
 INTAKE_CELL_MAX = 2000
 
 
+@app.context_processor
+def inject_template_limits():
+    """The page caps what the app refuses, from one number."""
+    return {'INTAKE_CELL_MAX': INTAKE_CELL_MAX}
+DEVICE_TEXT_MAX = 100
+DEVICE_NUMBER_KEYS = ('screen_width', 'screen_height', 'pixel_ratio', 'color_depth',
+                      'viewport_width', 'viewport_height')
+DEVICE_TEXT_KEYS = ('browser', 'browser_version', 'os')
+
+
+def _device_info_error(device):
+    """These nine values land in typed columns, so one sqlite cannot bind refuses the whole intake."""
+    if not isinstance(device, dict):
+        return "device_info must be an object of the browser's own settings"
+    for key in DEVICE_NUMBER_KEYS:
+        value = device.get(key)
+        if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))):
+            return f"device_info.{key} must be a number"
+    for key in DEVICE_TEXT_KEYS:
+        value = device.get(key)
+        if value is not None and not isinstance(value, str):
+            return f"device_info.{key} must be text"
+        if isinstance(value, str) and len(value) > DEVICE_TEXT_MAX:
+            return f"device_info.{key} must be at most {DEVICE_TEXT_MAX} characters"
+    return None
+
+
 def _intake_error(data):
     """The intake's own rules, from the config: an html `required` attribute binds the browser, not the app."""
+    if 'device_info' in data:
+        # Before the field loop: a nested value here reaches sqlite and the route answers 500.
+        device_error = _device_info_error(data['device_info'])
+        if device_error:
+            return device_error
     if CONFIG['survey'].get('consent_text') and not str(data.get('consent') or '').strip():
         return "Field 'consent' is required: this study asks for agreement before the intake"
     for field in CONFIG.get('demographics', []):
@@ -1255,7 +1288,7 @@ def get_image_pair(pair_index):
     return jsonify(stim)
 
 
-def _add_flat_fields(stim, trial, randomized):
+def _add_flat_fields(stim, trial, randomized, include_counters=True):
     """Add flat top-level fields for backward compat with existing JS.
 
     The JS currently expects fields like data.prompt, data.image_a_url, etc.
@@ -1287,7 +1320,8 @@ def _add_flat_fields(stim, trial, randomized):
     # Ensure id and other expected fields
     stim['id'] = trial['id']
     stim['was_randomized'] = randomized
-    stim['total_pairs'] = stim.get('total_trials', 0)
+    if include_counters:
+        stim['total_pairs'] = stim.get('total_trials', 0)
 
 # ---------------------------------------------------------------------------
 # API - submit response
@@ -1327,6 +1361,13 @@ def _invalid_answer(question, answer):
 
     if kind == 'likert':
         return _off_scale(question['name'], answer.get('value'), question.get('scale', 5), 'value')
+
+    if kind == 'free_text':
+        text = answer.get('text')
+        if isinstance(text, str) and len(text) > INTAKE_CELL_MAX:
+            return (f"{question['name']} text must be at most {INTAKE_CELL_MAX} characters: "
+                    "it is shipped to the dashboard on every poll")
+        return None
 
     if kind == 'multiple_choice':
         value = answer.get('value')
@@ -1369,9 +1410,7 @@ def submit_survey():
         # The browser reports answers only; the served order is the session's record.
         randomized = bool(session.get('pair_randomized', {}).get(str(trial_id)))
         stimulus_data = _build_stimulus_data(trial, randomized)
-        _add_flat_fields(stimulus_data, trial, randomized)
-        for counter_key in ('total_trials', 'total_pairs'):
-            stimulus_data.pop(counter_key, None)
+        _add_flat_fields(stimulus_data, trial, randomized, include_counters=False)
 
         responses = data.get('responses')
         if not isinstance(responses, dict):
@@ -1385,6 +1424,10 @@ def submit_survey():
             answer = responses.get(question['name'])
             if answer is None:
                 continue
+            if not _question_shown(question, stimulus_data['inputs']):
+                # An answer to a question that was never shown is a judgement no participant made.
+                return jsonify({'error': f"{question['name']} was not shown for this pair: "
+                                         'the trial carries no value for the input it depends on'}), 400
             problem = _invalid_answer(question, answer)
             if problem:
                 return jsonify({'error': problem}), 400
@@ -1396,6 +1439,9 @@ def submit_survey():
         try:
             time_spent = float(data.get('time_spent'))
         except (TypeError, ValueError):
+            time_spent = None
+        # JSON spells Infinity and -Infinity, and a REAL column carries them into every report of it.
+        if time_spent is not None and not math.isfinite(time_spent):
             time_spent = None
         timing_flag = 1 if time_spent is not None and (
                          time_spent < TIMING_FLOOR_S or time_spent > TIMING_CEILING_S) else 0
@@ -1508,6 +1554,7 @@ def _flatten_result(row):
 
     stim = _json_object(r.get('stimulus_data'))
     methods = stim.get('methods', {})
+    # Rows stored before 572c4e6 (2026-10-29) carry flat method keys and no `methods` dict; init_db never rewrote them.
     r['method_a'] = methods.get('a', stim.get('method_a', ''))
     r['method_b'] = methods.get('b', stim.get('method_b', ''))
 

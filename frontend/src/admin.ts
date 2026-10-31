@@ -47,7 +47,10 @@ export type Column = {
 };
 
 const PAGE_SIZE = 200;
+// src/survey/app.py clamps limit to ADMIN_MAX_PAGE_SIZE and echoes the smaller number back.
+const SERVER_MAX_PAGE = 1000;
 const PLACEHOLDER = '-';
+const CONFIG_FAILURE = 'Failed to load the study setup. Retrying on the next refresh.';
 
 const text = (value: unknown): string =>
     value === null || value === undefined || value === '' ? PLACEHOLDER : String(value);
@@ -72,6 +75,7 @@ export function demographicsColumns(config: SurveyConfig): Column[] {
     return [
         { header: 'Email', cell: row => text(row.email) },
         { header: 'Referral', cell: row => text(row.referral_code) },
+        { header: 'Consent', cell: row => text(row.consent) },
         { header: 'Browser', narrow: true, cell: row => `${text(row.browser)} ${text(row.browser_version)}` },
         { header: 'OS', cell: row => text(row.os) },
         { header: 'Screen', narrow: true, cell: row => `${text(row.screen_width)}×${text(row.screen_height)}` },
@@ -249,6 +253,13 @@ function viewRows(): Row[] {
     return state.view === 'demographics' ? state.participants : state.rows;
 }
 
+// A poll page shorter than the table is the server's clamp, not an empty study: keep the tail it could not send.
+function mergePollPage<T>(pageRows: T[], loaded: T[]): T[] {
+    return pageRows.length >= loaded.length
+        ? pageRows
+        : pageRows.concat(loaded.slice(pageRows.length));
+}
+
 async function loadStats(): Promise<void> {
     try {
         state.stats = await getJson<Stats>('/api/admin/stats');
@@ -261,10 +272,10 @@ async function loadStats(): Promise<void> {
 async function loadRows(offset = 0): Promise<void> {
     const tbody = by<HTMLElement>('results-body');
     // The 30s poll reloads offset 0: a fixed PAGE_SIZE there throws away every page "Load more" added.
-    const limit = offset === 0 ? Math.max(PAGE_SIZE, state.rows.length) : PAGE_SIZE;
+    const limit = offset === 0 ? Math.min(SERVER_MAX_PAGE, Math.max(PAGE_SIZE, state.rows.length)) : PAGE_SIZE;
     try {
         const page = await getJson<ResultsPage>(`/api/admin/results?limit=${limit}&offset=${offset}`);
-        state.rows = offset > 0 ? state.rows.concat(page.rows || []) : page.rows || [];
+        state.rows = offset > 0 ? state.rows.concat(page.rows || []) : mergePollPage(page.rows || [], state.rows);
         state.total = page.total ?? state.rows.length;
     } catch (error) {
         console.error('Error loading results:', error);
@@ -279,10 +290,12 @@ async function loadRows(offset = 0): Promise<void> {
 async function loadParticipants(offset = 0): Promise<void> {
     const tbody = by<HTMLElement>('results-body');
     // The 30s poll reloads offset 0: it must keep every participant "Load more" added.
-    const limit = offset === 0 ? Math.max(PAGE_SIZE, state.participants.length) : PAGE_SIZE;
+    const limit = offset === 0 ? Math.min(SERVER_MAX_PAGE, Math.max(PAGE_SIZE, state.participants.length)) : PAGE_SIZE;
     try {
         const page = await getJson<ParticipantsPage>(`/api/admin/participants?limit=${limit}&offset=${offset}`);
-        state.participants = offset > 0 ? state.participants.concat(page.rows || []) : page.rows || [];
+        state.participants = offset > 0
+            ? state.participants.concat(page.rows || [])
+            : mergePollPage(page.rows || [], state.participants);
         state.participantsTotal = page.total ?? state.participants.length;
         state.summary = page.summary || null;
     } catch (error) {
@@ -296,7 +309,21 @@ async function loadParticipants(offset = 0): Promise<void> {
     renderTable();
 }
 
+async function loadConfig(): Promise<boolean> {
+    try {
+        state.config = await getJson<SurveyConfig>('/api/config');
+        return true;
+    } catch (error) {
+        console.error('Error loading study setup:', error);
+        const tbody = by<HTMLElement>('results-body');
+        if (tbody) renderMessage(tbody, CONFIG_FAILURE, columnsForView());
+        return false;
+    }
+}
+
 async function refresh(): Promise<void> {
+    // Every view is built from the config's columns, so a read that has not landed is retried by the poll.
+    if (!state.config && !(await loadConfig())) return;
     await Promise.all([loadStats(), loadRows(0), loadParticipants(0)]);
 }
 
@@ -350,9 +377,9 @@ async function deleteByEmail(): Promise<void> {
 }
 
 export async function init(): Promise<void> {
-    state.config = await getJson<SurveyConfig>('/api/config');
+    // Installed first: a first read that fails must not end the page's life.
+    setInterval(() => { void refresh(); }, 30000);
     await refresh();
-    setInterval(refresh, 30000);
 }
 
 export function wire(page: Document): void {
