@@ -95,6 +95,14 @@ def _validate(config):
             if out[key] not in columns:
                 raise ValueError(f"Output '{out['name']}' references unknown column '{out[key]}'")
 
+    for key in ('pairs_per_user', 'dev_pairs'):
+        value = config['survey'].get(key)
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 1):
+            # A quoted number is valid YAML, and min(pairs, "20") 500s every pair request.
+            raise ValueError(f"survey.{key} is {value!r}: it must be a whole number of at least 1, "
+                             "because it is compared with the number of pairs in the data file")
+
+    # _apply_defaults reads q['type'], so a question without one stops here rather than as a KeyError.
     for question in config.get('questions', []):
         # _apply_defaults reads q['type'], so a question without one stops here rather than as a KeyError.
         if not question.get('type'):
