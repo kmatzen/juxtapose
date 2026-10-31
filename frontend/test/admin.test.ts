@@ -85,7 +85,7 @@ describe('column specs', () => {
         { name: 'occupation', type: 'text', label: 'Occupation' },
       ],
     }).map(c => c.header);
-    expect(headers).toEqual(['Email', 'Referral', 'Browser', 'OS', 'Screen', 'Occupation', 'Trials']);
+    expect(headers).toEqual(['Email', 'Referral', 'Consent', 'Browser', 'OS', 'Screen', 'Occupation', 'Trials']);
   });
 });
 
