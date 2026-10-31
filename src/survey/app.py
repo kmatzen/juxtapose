@@ -1554,8 +1554,9 @@ def _flatten_result(row):
 
     stim = _json_object(r.get('stimulus_data'))
     methods = stim.get('methods', {})
-    r['method_a'] = methods.get('a', '')
-    r['method_b'] = methods.get('b', '')
+    # Rows stored before 572c4e6 (2026-10-29) carry flat method keys and no `methods` dict; init_db never rewrote them.
+    r['method_a'] = methods.get('a', stim.get('method_a', ''))
+    r['method_b'] = methods.get('b', stim.get('method_b', ''))
 
     inputs = stim.get('inputs')
     for inp_name, inp_val in (inputs.items() if isinstance(inputs, dict) else []):
