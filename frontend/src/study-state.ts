@@ -18,6 +18,16 @@ export type InputConfig = {
     label?: string;
 };
 
+/** The mask input's name: src/survey/config.py refuses any other `image` input, so the tile is unambiguous. */
+export const MASK_INPUT_NAME = 'mask';
+
+/** The mask tile's input: by name, with the pre-name type rule as the fallback for an old study. */
+export function maskInput(inputs: InputConfig[]): InputConfig | null {
+    return inputs.find(input => input.name === MASK_INPUT_NAME)
+        ?? inputs.find(input => input.type === 'image')
+        ?? null;
+}
+
 export type DemographicsField = {
     name: string;
     type: string;
