@@ -51,6 +51,18 @@ def _unique_names(names, what):
         seen.add(name)
 
 
+# The names templates/index.html and survey.ts's inputOfType() dispatch on; an unknown one renders no widget.
+QUESTION_TYPES = ('ab_preference', 'likert', 'free_text', 'multiple_choice')
+DEMOGRAPHICS_TYPES = ('email', 'text', 'number', 'textarea', 'select', 'radio', 'checkbox')
+INPUT_TYPES = ('text', 'image', 'image_gallery')
+
+
+def _known_type(what, name, value, allowed, renderer):
+    if value not in allowed:
+        raise ValueError(f"{what} '{name}' has type '{value}': {renderer} renders "
+                         f"{'|'.join(allowed)}, and an unknown one shows nothing to answer")
+
+
 def _validate(config):
     """Validate required top-level keys."""
     required = ['survey', 'data', 'methods', 'inputs', 'outputs', 'questions']
@@ -74,6 +86,7 @@ def _validate(config):
             raise ValueError(f"Input '{inp.get('name')}' is missing 'column'")
         if inp['column'] not in columns:
             raise ValueError(f"Input '{inp['name']}' references unknown column '{inp['column']}'")
+        _known_type('Input', inp.get('name'), inp.get('type'), INPUT_TYPES, 'the front end')
 
     for out in config.get('outputs', []):
         for key in ('column_a', 'column_b'):
@@ -86,6 +99,8 @@ def _validate(config):
         # _apply_defaults reads q['type'], so a question without one stops here rather than as a KeyError.
         if not question.get('type'):
             raise ValueError(f"Question '{question.get('name')}' is missing 'type'")
+        _known_type('Question', question.get('name'), question['type'], QUESTION_TYPES,
+                    'the question template')
         scale = question.get('scale')
         if scale is not None and (isinstance(scale, bool) or not isinstance(scale, int) or scale < 2):
             # The template counts to it: a quoted scale is valid YAML and 500s every page render.
@@ -99,6 +114,8 @@ def _validate(config):
                 "it renders nothing to answer")
 
     for field in config.get('demographics', []):
+        _known_type('Demographics field', field.get('name'), field.get('type'),
+                    DEMOGRAPHICS_TYPES, 'the intake form')
         if field.get('type') in ('select', 'radio', 'checkbox') and not field.get('options'):
             raise ValueError(
                 f"Demographics field '{field.get('name')}' is a {field['type']} with no options: "
