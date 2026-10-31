@@ -1554,8 +1554,8 @@ def _flatten_result(row):
 
     stim = _json_object(r.get('stimulus_data'))
     methods = stim.get('methods', {})
-    r['method_a'] = methods.get('a', stim.get('method_a', ''))
-    r['method_b'] = methods.get('b', stim.get('method_b', ''))
+    r['method_a'] = methods.get('a', '')
+    r['method_b'] = methods.get('b', '')
 
     inputs = stim.get('inputs')
     for inp_name, inp_val in (inputs.items() if isinstance(inputs, dict) else []):
