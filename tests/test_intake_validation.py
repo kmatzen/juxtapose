@@ -108,3 +108,16 @@ def test_a_body_that_is_not_an_object_is_refused(client):
 def test_an_optional_field_may_be_left_out(client):
     data = {k: v for k, v in COMPLETE.items() if k != 'notes'}
     assert client.post('/api/submit_demographics', json=data).status_code == 200
+
+
+def test_a_key_the_study_never_declared_is_not_part_of_the_intake(client):
+    """The roster spreads the stored demographics blob, so an undeclared key becomes a roster field."""
+    payload = {**COMPLETE, 'junk': {'deep': 'down'}, 'blob': 'x' * 40000}
+    assert client.post('/api/submit_demographics', json=payload).status_code == 200
+    with client.session_transaction() as sess:
+        sess['admin_authenticated'] = True
+
+    row = client.get('/api/admin/participants').get_json()['rows'][0]
+
+    assert 'junk' not in row and 'blob' not in row, 'intake keys the study never declared were stored'
+    assert row['notes'] == COMPLETE['notes']
