@@ -18,7 +18,7 @@ export type ConditioningProps = {
     outputImages: () => HTMLImageElement[];
     tapThresholdPx?: number;
     readMask?: (image: HTMLImageElement) => MaskSet | null;
-    sliceStacked?: (url: string) => Promise<string[]>;
+    sliceStacked?: (url: string, segments?: number) => Promise<string[]>;
 };
 
 export type ConditioningTiles = Disposable & {
@@ -170,7 +170,9 @@ export function mountConditioningTiles(
         if (!container) return;
         container.innerHTML = '';
         const mine = generation;
-        const slices = urls.length > 1 ? urls : await sliceStacked(urls[0]);
+        const slices = urls.length > 1
+            ? urls
+            : await sliceStacked(urls[0], Object.keys(masks).length || undefined);
         if (mine !== generation) return;
         slices.forEach((src, index) => {
             const image = document.createElement('img');
@@ -194,6 +196,9 @@ export function mountConditioningTiles(
         for (const tile of qa<HTMLElement>(root, '.mask-tile')) {
             tile.style.display = maskUrl ? '' : 'none';
         }
+
+        // The sheet's slice count comes from the mask, so a mask already on hand is read first.
+        masks = maskUrl && maskTile?.complete ? readMask(maskTile) ?? {} : {};
 
         if (galleryUrl) void renderGallery(galleryUrl.split(',').map((u) => u.trim()).filter(Boolean),
             props.galleryInput()?.label ?? 'Reference');
@@ -261,10 +266,10 @@ function canvasMaskReader(image: HTMLImageElement): MaskSet | null {
     }
 }
 
-async function canvasStackedSlicer(url: string): Promise<string[]> {
+async function canvasStackedSlicer(url: string, segments?: number): Promise<string[]> {
     const image = await loadImage(url);
     if (!image) return [];
-    const bands = stackedSliceBands(image.width, image.height);
+    const bands = stackedSliceBands(image.width, image.height, segments);
     const canvas = document.createElement('canvas');
     canvas.width = image.width;
     const ctx = canvas.getContext('2d');

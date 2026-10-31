@@ -298,8 +298,9 @@ export function countStackedSegments(width: number, height: number): number {
 }
 
 /** The bands to cut a stacked sheet into: the sheet's own height divided by its segment count, because panels are not always square. */
-export function stackedSliceBands(width: number, height: number): { y: number; height: number }[] {
-    const segments = Math.max(1, countStackedSegments(width, height));
-    const at = (index: number) => Math.round((height * index) / segments);
-    return Array.from({ length: segments }, (_, index) => ({ y: at(index), height: at(index + 1) - at(index) }));
+export function stackedSliceBands(width: number, height: number, segments?: number): { y: number; height: number }[] {
+    // A sheet of non-square panels cuts round(h/w) bands and merges two of them, so the mask's identity count wins.
+    const count = Math.max(1, segments && segments > 1 ? segments : countStackedSegments(width, height));
+    const at = (index: number) => Math.round((height * index) / count);
+    return Array.from({ length: count }, (_, index) => ({ y: at(index), height: at(index + 1) - at(index) }));
 }
