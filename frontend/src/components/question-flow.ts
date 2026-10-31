@@ -2,7 +2,7 @@ import type { Disposable } from '../lib/dom';
 import { qa } from '../lib/dom';
 import { layoutSurvey } from '../lib/layout';
 import type { Viewport } from '../lib/layout';
-import { isFormComplete, isSectionVisible } from '../study-state';
+import { idSelector, isFormComplete, isSectionVisible } from '../study-state';
 import type { InputConfig, QuestionConfig, Trial } from '../study-state';
 
 export type QuestionFlowProps = {
@@ -107,7 +107,7 @@ export function mountQuestionFlow(host: HTMLElement, props: QuestionFlowProps): 
     function showTrial(trial: Trial): void {
         const shown: string[] = [];
         for (const question of props.questions()) {
-            const el = host.querySelector<HTMLElement>(`#${question.name}-evaluation`);
+            const el = host.querySelector<HTMLElement>(idSelector(`${question.name}-evaluation`));
             if (!el) continue;
             const isVisible = isSectionVisible(question, trial, props.inputs());
             el.style.display = isVisible ? 'block' : 'none';

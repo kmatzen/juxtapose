@@ -75,7 +75,7 @@ export function buildTutorialSteps(config: StudyConfig): TutorialStep[] {
                     text: label,
                     emphasis: label,
                     highlight: '.questions-container',
-                    scrollToWithin: `#${q.name}-evaluation`,
+                    scrollToWithin: idSelector(`${q.name}-evaluation`),
                 });
             }
         } else {
@@ -113,6 +113,11 @@ export type AnswerValue = {
 export type Responses = Record<string, AnswerValue>;
 
 export type RadioState = { name: string; checked: boolean; hidden: boolean };
+
+/** A config name in an id selector, quoted: a name is an HTML id, and CSS.escape is not in jsdom. */
+export function idSelector(id: string): string {
+    return `[id="${id.replace(/["\\]/g, '\\$&')}"]`;
+}
 
 export function isSectionVisible(
     question: QuestionConfig,

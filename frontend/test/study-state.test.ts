@@ -4,6 +4,7 @@ import {
   buildResponses,
   detectBrowser,
   detectOs,
+  idSelector,
   isFormComplete,
   isSectionVisible,
   normalizeDemographics,
@@ -44,6 +45,13 @@ const QUESTIONS: QuestionConfig[] = [
 // The components ask the question-flow for this; the module exports the predicate, not the list.
 const visibleNames = (trial: Trial | null) =>
   QUESTIONS.filter(q => isSectionVisible(q, trial, INPUTS)).map(q => q.name);
+
+describe('id selectors built from config names', () => {
+    it('selects a name that is not a legal selector', () => {
+        expect(idSelector('quality (1-5)-evaluation')).toBe('[id="quality (1-5)-evaluation"]');
+        expect(idSelector('a"b')).toBe('[id="a\\"b"]');
+    });
+});
 
 describe('question gating', () => {
   it('gates a dependent question on its input column having a value', () => {
