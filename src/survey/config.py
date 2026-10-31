@@ -39,6 +39,18 @@ def load_config(path=None):
     return config
 
 
+def _unique_names(names, what):
+    """Names are answer keys, CSV columns and DOM ids at once, so a repeated one silently overwrites."""
+    seen = set()
+    for name in names:
+        if name is None:
+            continue
+        if name in seen:
+            raise ValueError(f"Duplicate {what} '{name}': a second one is silently overwritten "
+                             "in the stored answers, the export columns and the page's ids")
+        seen.add(name)
+
+
 def _validate(config):
     """Validate required top-level keys."""
     required = ['survey', 'data', 'methods', 'inputs', 'outputs', 'questions']
@@ -96,6 +108,12 @@ def _validate(config):
     for col in method_cols:
         if col and col not in columns:
             raise ValueError(f"Methods reference unknown column '{col}'")
+
+    _unique_names(config['data'].get('columns', []), 'data column')
+    _unique_names([i.get('name') for i in config.get('inputs', [])], 'input name')
+    _unique_names([o.get('name') for o in config.get('outputs', [])], 'output name')
+    _unique_names([q.get('name') for q in config.get('questions', [])], 'question name')
+    _unique_names([f.get('name') for f in config.get('demographics', [])], 'demographics field name')
 
 
 def _apply_defaults(config):

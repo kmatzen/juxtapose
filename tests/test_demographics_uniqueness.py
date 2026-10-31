@@ -1,4 +1,5 @@
 """Audit #2: one retake posted demographics twice, and every answer was counted twice."""
+from tests.conftest import complete_intake
 import csv
 import io
 import sqlite3
@@ -12,7 +13,7 @@ def _retake_with_three_answers(client):
         sess['session_id'] = 'retaking-session'
     for _ in range(2):
         response = client.post('/api/submit_demographics',
-                               json={'email': 'twice@example.com', 'occupation': 'eng'})
+                               json=complete_intake({'email': 'twice@example.com', 'occupation': 'software-engineer'}))
         assert response.status_code == 200, response.get_json()
     for index in range(3):
         pair = client.get(f'/api/get_image_pair/{index}').get_json()
@@ -48,8 +49,8 @@ def test_the_csv_shows_the_rows_the_label_claims(app, client):
 def test_new_demographics_replace_the_participant_row(app, client):
     with client.session_transaction() as sess:
         sess['session_id'] = 'editing-session'
-    client.post('/api/submit_demographics', json={'email': 'old@example.com', 'occupation': 'nurse'})
-    client.post('/api/submit_demographics', json={'email': 'new@example.com', 'occupation': 'eng'})
+    client.post('/api/submit_demographics', json=complete_intake({'email': 'old@example.com', 'occupation': 'other-non-tech'}))
+    client.post('/api/submit_demographics', json=complete_intake({'email': 'new@example.com', 'occupation': 'software-engineer'}))
 
     from src.survey import app as app_module
     db = sqlite3.connect(app_module.DATABASE)

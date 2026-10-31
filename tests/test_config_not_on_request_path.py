@@ -8,6 +8,7 @@ of an earlier codebase rather than off these lines.
 What is worth keeping is the guarantee, so the next person can reintroduce the read in a diff that
 looks innocent: a pair request opens no config file.
 """
+from tests.conftest import complete_intake
 import builtins
 
 PAIR_REQUESTS = ('/api/get_image_pair/0', '/api/get_image_pair/1')
@@ -22,6 +23,10 @@ def test_serving_pairs_opens_no_config_file(client, monkeypatch):
         opened.append(str(file))
         return real_open(file, *args, **kwargs)
 
+    with client.session_transaction() as sess:
+        sess['session_id'] = 'config-path-session'
+        sess['referral_validated'] = True
+    client.post('/api/submit_demographics', json=complete_intake())
     monkeypatch.setattr(builtins, 'open', recording_open)
     for url in PAIR_REQUESTS:
         assert client.get(url).status_code in (200, 302), f'{url} did not serve'

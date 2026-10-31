@@ -3,6 +3,7 @@ import json
 import random
 import uuid
 
+from tests.conftest import complete_intake
 from src.survey import app as app_module
 
 
@@ -51,7 +52,7 @@ def _joined_client(app, email):
     with client.session_transaction() as sess:
         sess['session_id'] = session_id
     response = client.post('/api/submit_demographics',
-                           json={'email': email, 'occupation': 'engineer'},
+                           json=complete_intake({'email': email, 'occupation': 'software-engineer'}),
                            content_type='application/json')
     assert response.status_code == 200, response.get_data(as_text=True)[:200]
     return client, session_id
@@ -65,6 +66,8 @@ def test_a_repeat_request_for_a_trial_keeps_the_position_it_was_served_in(client
     for _ in range(20):
         with client.session_transaction() as sess:
             sess['session_id'] = f'flip-{uuid.uuid4()}'
+        client.post('/api/submit_demographics',
+                    json=complete_intake(email=f'flip@{uuid.uuid4()}.example'))
         first = _served(client)['was_randomized']
         changed += sum(1 for _ in range(5) if _served(client)['was_randomized'] != first)
     assert changed == 0, (

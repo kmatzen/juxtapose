@@ -28,7 +28,7 @@ describe('buildTutorialSteps', () => {
             text: 'Which is better?',
             emphasis: 'Which is better?',
             highlight: '.questions-container',
-            scrollToWithin: '#image-evaluation',
+            scrollToWithin: '[id="image-evaluation"]',
         });
     });
 

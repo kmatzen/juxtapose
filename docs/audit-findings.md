@@ -315,6 +315,51 @@ audit), and `PRAGMA foreign_keys` (second audit).
   progress advances 1, 2, 3, the third submit reports `completed: true`, the fourth pair request 404s,
   and `/` serves the thank-you page.
 
+## Seventh audit, 2026-10-31
+
+The seventh full-repo pass, run against `d4018a7` (the merged sixth audit). It reported 12 findings:
+11 are cured here, red-then-green, and one (the dashboard aggregate) is recorded as a measured scale
+note and not built. Measured on the final SHA of `wt/ponytail-audit-7-fixes`: pytest 338, vitest 217,
+tsc clean, the Chromium tier 27, 0 failures; every probe in `/tmp/jx-audit` re-run against this tree.
+The theme: the sixth audit made the app honest about what a session *has*, and left it trusting what
+a session *sends* - the config's names, an answer object's insides, the intake form, and a question
+name used as a CSS selector.
+
+| # | Finding | Disposition |
+|---|---|---|
+| 1 | The config loader checked column references and types but never that a `name` is used once. Question, demographics, input, output names and `data.columns` are all keys at once - answer keys in the stored JSON, CSV columns, DOM ids. Measured: a study with two questions named `image_quality` booted, the participant answered both (A/conf 5, B/conf 1), the row kept `{"image_quality": {"choice": "B", "confidence": 1}}`. A whole question's answers gone with no error in any log | Fixed - `_unique_names` in `_validate` refuses a repeated name in each of the five sets. Red `b9394c1`, green `0c427ec`. Measured: the probe's config now raises `Duplicate question name 'image_quality'` at boot. `tests/test_config_unique_names.py` |
+| 2 | The one rule that says "this trial is finished" looked inside the answer for `ab_preference` and `free_text` and not for the two types that carry `value`, so a required likert answered `{"value": null}` finished the trial. Measured: `completed: true`, progress 1, the next pair 404 - the participant finished the study having rated nothing, and the row exports as a completed trial with empty cells | Fixed - the loop requires a non-null `value` for `likert` and `multiple_choice`, mirroring the free-text line above it. Red `b46155c`, green `71a8fc7`. Measured on the repro: the same POST now returns `completed: false`, progress 0, and the trial is still owed. `tests/test_answer_value_completeness.py` |
+| 3 | The intake form's 8 required fields and its consent box were the browser's rule: `POST /api/submit_demographics` with only an email returned success, `check_demographics` said submitted, and `/api/get_image_pair/0` served a trial. The trial endpoint also never looked for a participant at all, so a session that took no intake was served pairs and lost them at submit, where a participant row is required | Fixed - `_intake_error` reads the study's own demographics block, and `get_image_pair` asks for the participant row on the connection it already had open, so the study has one front door. Red `d03f0a3`, green `b404b66`. Measured: an email-only intake 400s naming the field, `submitted` false, and the pair request 403s. `tests/test_intake_validation.py` |
+| 4 | Consent reached nothing the researcher reads: with `survey.consent_text` set and the box ticked, the CSV header had 46 columns and none named consent, and an intake with no consent key was accepted. `consent` is not a demographics field, so no config rule reached it | Fixed - the intake requires a non-blank consent when the study asks for agreement (the tick, not the text), and `consent` joins `_EXPORT_COLUMNS`, riding the demographics blob the flattener already merges. Red `c4b99ff`, green `f845e08`. Measured: 400 naming `consent` without the tick, 47 export columns with `consent` among them, the row cell `yes`. `tests/test_consent_record.py`. Correction to the audit's own claim: the roster **did** show consent - it spreads the demographics blob - and the new test pins that |
+| 5 | The question block finds each section with `querySelector('#' + name + '-evaluation')`, and a name like `quality (1-5)` or `quality:1` is a legal HTML id and an illegal CSS selector: the lookup threw on the first trial, no section was shown, `visibleSections` stayed empty and Submit never enabled - a study that boots, renders, and cannot be answered | Fixed - `idSelector()` builds a quoted `[id="..."]` selector, used at the four sites that build one (question flow, the tutorial's `scrollToWithin`, dev autofill's two). Red `4d07c8b`, green `e4b0902`. Measured in jsdom: the raw form throws `DOMException`, the quoted form finds the node. `CSS.escape` is not in jsdom, which is why the fix quotes. `frontend/test/components/question-name-selector.test.ts` |
+| 6 | Intake values were stored exactly as posted: an undeclared select value, a nested JSON object, a 40,000-character cell - all 200, all stored; the roster and CSV print an object as `[object Object]` | Fixed with finding 3, one validator: a choice type answers from its declared options (the page's joined `'a, b'` checkbox string and its `'none'` included), a cell is text or a list of text, and nothing runs past 2,000 characters. Measured: all three 400. The same probe then showed the hole from the other side - keys **no study declares** were still stored, and the roster spreads that blob, so an invented key came back as a roster field: red `5adc7b8`, green `eab449e`, intake is now declared fields plus the consent the app asks for. `tests/test_intake_validation.py` |
+| 7 | README's production block ended with `gunicorn src.survey.app:app`, gunicorn's default **one synchronous worker**: every participant queues one request at a time, and the production gate a few paragraphs later justifies redis by "every gunicorn worker keeps its own counters" - a premise the documented command made false | Fixed - the command asks for 4 workers and 2 threads, with the reason stated where the command is, and a docs-contract test asserts the documented command names worker flags. Red `ef5c05d`, green `f16951b` |
+| 8 | The Python side had no upper bounds while the JS side has `package-lock.json` and `npm ci`, and CI runs `pip install -e ".[dev]"`: nothing recorded which Flask a green run used, and a patch that moves cookie or session behaviour could land between two runs of the same commit mid-study with no version to go back to | Fixed with finding 7 - major-version bounds on six runtime and two dev deps (bounds, not pins; no lockfile tooling, no new dependency) |
+| 9 | The stacked identity sheet's panel count came from geometry, `round(height / width)`: a 512x768 sheet of three 256px panels is 2, so it was cut into two 384px bands - panel 3 had no tile, the tiles shown straddled two panels, and the hover overlay stayed right because the mask scan reads the palette, so the participant saw a mismatch the researcher could not see | Fixed - `stackedSliceBands` takes the segment count from the mask's identities, geometry as the fallback when no mask arrived; the tiles read a mask already on hand. Red `fa75b95`, green `506f090`. Measured: 512x768 with 3 identities cuts 3 bands of 256; 200x800 still cuts 4x200 and the ragged and short-sheet cases hold. `frontend/test/identity-masks.test.ts`, `frontend/test/components/conditioning-tiles.test.ts` |
+| 10 | The dashboard's stats and roster aggregates re-parse every stored answer after every answer (cache keyed on a trigger counter). Measured on the final SHA: 450 answers 2.3 ms after a write (0.5 ms cached, roster 1.3 ms), 9,000 answers 32.1 ms after a write (2.2 ms cached, roster 20.6 ms) | **Not built - recorded with its curve.** Linear, so ~50k answers with two dashboards open costs ~0.4 s of request time per poll; at the load this repo targets (one study, tens of participants) it is free. The trigger to act is a study over ~50k answer rows with more than one dashboard open, and the fix is a per-participant count in SQL, not a new cache layer. Same standing as the fifth audit's cookie-table note |
+| 11 | `.dockerignore` shipped in a repo with no Dockerfile and no Procfile, where deployment is documented as the operator's | Deleted - 14 lines, suite green. `e451e52` |
+| 12 | iOS renames its browsers (`CriOS`, `FxiOS`, `EdgiOS`), so Chrome and Firefox on an iPhone matched no desktop pattern, fell through to Safari, and read their version from a `Version/` token those UAs do not carry: every iPhone participant on a non-Safari browser was recorded `{browser: 'Safari', browserVersion: ''}`, and Edge on iOS as Edge with no version. Browser is a study covariate | Fixed - the iOS tokens are matched before the desktop names, version read from the same token. Red `8725460`, green `efa2fd2`. Measured: Chrome iOS now `{Chrome, '125.0'}`; the desktop cases and the iPadOS touch-point rule hold. `frontend/test/study-state.test.ts` |
+
+### Deferred from the seventh audit
+
+The four standing deferrals are unchanged and re-confirmed, not re-litigated: the size of `app.py`
+(now 1,865 lines, +49 from this audit, same trigger - the next feature that needs its own blueprint),
+the session-cookie table (fifth audit 18), admin session-id rotation (first audit), and
+`PRAGMA foreign_keys` (second audit). CSP and the Dockerfile/deployment stay deferred as recorded;
+finding 10 joins the measured-scale notes. Finding 4's deeper shape - consent as a declared
+demographics field, so validation and export come free - was declined for this goal: it changes the
+config schema and makes existing studies' configs invalid until edited.
+
+### What this audit cost the suite
+
+The app became stricter, and the suite is where that shows. 23 payloads posted a bare `{'email': ...}`
+because the app used to tolerate one; they now post a complete intake through
+`tests/conftest.py:complete_intake`, and the tests that build their own study keep their own payloads.
+Two tests that asserted a trial is served to a session with no intake assert 403 now. One no-email
+progress test (the sixth audit's F3) runs on a study whose email field is optional, which is the case
+it was always about, since the shipped study requires the address. The export byte fixture gained the
+`consent` column with a real tick in it.
+
 ## Known limit: the audit log is appended to inside the request
 
 Second audit, finding 10 (2026-11-05). Every audited action opens `AUDIT_LOG_FILE`, appends one JSON

@@ -73,18 +73,18 @@ def test_complete_tutorial_with_session(client):
 
 
 def test_get_image_pair_no_session(client):
-    """Test get_image_pair without session"""
+    """A visitor who has not taken the intake is not in the study."""
     response = client.get('/api/get_image_pair/0')
-    assert response.status_code == 200
+    assert response.status_code == 403
 
 
-def test_get_image_pair_no_email(client):
-    """Test get_image_pair with session but no email"""
+def test_get_image_pair_without_the_intake(client):
+    """A session that never finished the intake is served no trials."""
     with client.session_transaction() as sess:
         sess['session_id'] = 'test-session-no-email'
 
     response = client.get('/api/get_image_pair/0')
-    assert response.status_code == 200
+    assert response.status_code == 403
 
 
 def test_get_image_pair_valid(client):

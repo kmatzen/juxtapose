@@ -4,6 +4,7 @@ import {
   buildResponses,
   detectBrowser,
   detectOs,
+  idSelector,
   isFormComplete,
   isSectionVisible,
   normalizeDemographics,
@@ -44,6 +45,13 @@ const QUESTIONS: QuestionConfig[] = [
 // The components ask the question-flow for this; the module exports the predicate, not the list.
 const visibleNames = (trial: Trial | null) =>
   QUESTIONS.filter(q => isSectionVisible(q, trial, INPUTS)).map(q => q.name);
+
+describe('id selectors built from config names', () => {
+    it('selects a name that is not a legal selector', () => {
+        expect(idSelector('quality (1-5)-evaluation')).toBe('[id="quality (1-5)-evaluation"]');
+        expect(idSelector('a"b')).toBe('[id="a\\"b"]');
+    });
+});
 
 describe('question gating', () => {
   it('gates a dependent question on its input column having a value', () => {
@@ -161,6 +169,18 @@ describe('device detection', () => {
     expect(detectBrowser(UA.firefox)).toEqual({ browser: 'Firefox', browserVersion: '121.0' });
     expect(detectBrowser(UA.safari)).toEqual({ browser: 'Safari', browserVersion: '17.1' });
     expect(detectBrowser('curl/8.0').browser).toBe('Unknown');
+  });
+
+  it('names an iOS browser by the token it ships under', () => {
+    const ios = {
+      chrome: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/125.0.6422.80 Mobile/15E148 Safari/604.1',
+      firefox: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/125.0 Mobile/15E148 Safari/605.1.15',
+      edge: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) EdgiOS/125.0.2535.79 Mobile/15E148 Safari/604.1',
+    };
+    expect(detectBrowser(ios.chrome)).toEqual({ browser: 'Chrome', browserVersion: '125.0' });
+    expect(detectBrowser(ios.firefox)).toEqual({ browser: 'Firefox', browserVersion: '125.0' });
+    expect(detectBrowser(ios.edge)).toEqual({ browser: 'Edge', browserVersion: '125.0' });
+    expect(detectOs(ios.chrome, 3)).toBe('iOS');
   });
 
   it('reports an iPad in desktop mode as iOS, not macOS', () => {

@@ -1,4 +1,5 @@
 import type { SurveyConfig } from './session-api';
+import { idSelector } from '../study-state';
 
 export type AutofillEnv = {
     random: () => number;
@@ -21,7 +22,7 @@ const DEV_TEXT = 'test';
 
 export function autofillDemographics(host: ParentNode, config: SurveyConfig): void {
     for (const field of config.demographics ?? []) {
-        const el = host.querySelector<HTMLElement>(`#${field.name}`) as HTMLInputElement | null;
+        const el = host.querySelector<HTMLElement>(idSelector(field.name)) as HTMLInputElement | null;
         if (!el) continue;
 
         if (field.type === 'email') el.value = DEV_EMAIL;
@@ -46,7 +47,7 @@ export function autofillDemographics(host: ParentNode, config: SurveyConfig): vo
 /** Dev mode only: answers the visible question sections. Hidden sections stay empty, as in a real session. */
 export function autofillSurvey(host: ParentNode, config: SurveyConfig, env: AutofillEnv): void {
     for (const question of config.questions ?? []) {
-        const section = host.querySelector<HTMLElement>(`#${question.name}-evaluation`);
+        const section = host.querySelector<HTMLElement>(idSelector(`${question.name}-evaluation`));
         if (!section || section.style.display === 'none') continue;
 
         if (question.type === 'ab_preference') {

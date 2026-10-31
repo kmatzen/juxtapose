@@ -679,6 +679,9 @@ def _completed_trial_ids(rows):
                 # The page posts {text: ''} for an empty box, and a dict holding '' is truthy.
                 all_answered = False
                 break
+            if q['type'] in ('likert', 'multiple_choice') and q_resp.get('value') is None:
+                all_answered = False
+                break
 
         if all_answered:
             completed.append(row['image_pair_id'])
@@ -728,6 +731,42 @@ def health():
         'pairs_loaded': IMAGE_PAIRS.count,
         'dev_mode': DEV_MODE,
     }), 200
+
+
+INTAKE_CELL_MAX = 2000
+
+
+def _intake_error(data):
+    """The intake's own rules, from the config: an html `required` attribute binds the browser, not the app."""
+    if CONFIG['survey'].get('consent_text') and not str(data.get('consent') or '').strip():
+        return "Field 'consent' is required: this study asks for agreement before the intake"
+    for field in CONFIG.get('demographics', []):
+        name, kind = field['name'], field.get('type')
+        cells = data.get(name)
+        cells = cells if isinstance(cells, list) else [cells]
+        if kind == 'checkbox':
+            # The page joins a ticked group into one 'a, b' string (study-state.normalizeDemographics).
+            cells = [part.strip() for cell in cells if isinstance(cell, str) for part in cell.split(',')]
+        texts = []
+        for cell in cells:
+            if cell is None:
+                continue
+            if not isinstance(cell, (str, int, float, bool)):
+                return f"Field '{name}' must be text or a list of text"
+            if str(cell).strip():
+                texts.append(str(cell))
+        if field.get('required') and not texts:
+            return f"Field '{name}' is required"
+        if kind in ('select', 'radio', 'checkbox'):
+            # 'none' is the page's own word for a checkbox group with nothing ticked.
+            allowed = {str(o.get('value')) for o in field.get('options', [])}
+            if kind == 'checkbox':
+                allowed.add('none')
+            if any(text not in allowed for text in texts):
+                return f"Field '{name}' must be one of {', '.join(sorted(allowed))}"
+        if any(len(text) > INTAKE_CELL_MAX for text in texts):
+            return f"Field '{name}' must be at most {INTAKE_CELL_MAX} characters"
+    return None
 
 
 def _valid_email(email):
@@ -1022,6 +1061,11 @@ def submit_demographics():
         return jsonify({'error': 'No session ID'}), 400
 
     data = request.json
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Expected a JSON object'}), 400
+    intake_error = _intake_error(data)
+    if intake_error:
+        return jsonify({'error': intake_error}), 400
     db = get_db()
 
     try:
@@ -1105,7 +1149,9 @@ def submit_demographics():
             participant_id = participant['id']
 
         # Store demographics as JSON (email in dedicated column for indexing)
-        demo_data = {k: v for k, v in data.items() if k != 'device_info'}
+        # Only what the study declares is intake; `consent` rides with it (survey.consent_text).
+        declared = {field['name'] for field in CONFIG.get('demographics', [])} | {'consent'}
+        demo_data = {k: v for k, v in data.items() if k in declared}
         db.execute('DELETE FROM demographics WHERE participant_id = ?', (participant_id,))
         db.execute('''
             INSERT INTO demographics (participant_id, email, data)
@@ -1153,10 +1199,15 @@ def get_image_pair(pair_index):
     # One connection, one read, both keys: this session's own rows, and its address's earlier ones for the cap.
     db = get_db()
     try:
-        completed_ids = set(_get_completed_trial_ids(_get_session_participant_id(db),
+        participant_id = _get_session_participant_id(db)
+        completed_ids = set(_get_completed_trial_ids(participant_id,
                                                     _get_session_email(db), db))
     finally:
         db.close()
+
+    if participant_id is None:
+        # The intake is the study's front door: an html `required` attribute stopped the browser, not this endpoint.
+        return jsonify({'error': 'Demographics not submitted'}), 403
 
     # Initialize user's pair list
     if 'user_image_pairs' not in session or session.get('session_dev_mode') != DEV_MODE:
@@ -1681,8 +1732,8 @@ def admin_export():
 # The columns every row carries because the SELECT and _flatten_result always produce them.
 _EXPORT_COLUMNS = (
     'session_id', 'referral_code', 'participant_created', 'browser', 'browser_version', 'os',
-    'screen_width', 'screen_height', 'pixel_ratio', 'color_depth', 'email', 'image_pair_id',
-    'was_randomized', 'time_spent', 'timing_flag', 'response_created',
+    'screen_width', 'screen_height', 'pixel_ratio', 'color_depth', 'email', 'consent',
+    'image_pair_id', 'was_randomized', 'time_spent', 'timing_flag', 'response_created',
     'method_a', 'method_b', 'prompt', 'image_a_url', 'image_b_url', 'identity_urls', 'mask_url',
 )
 

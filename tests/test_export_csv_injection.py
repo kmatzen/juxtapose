@@ -4,6 +4,7 @@
 in the same trigger set: Excel and Google Sheets evaluate a cell whose text starts with them, and the
 cell's author is a survey participant.
 """
+from tests.conftest import complete_intake
 import csv
 import io
 
@@ -21,7 +22,7 @@ def test_a_cell_starting_with_a_spreadsheet_trigger_is_not_a_formula(app, client
     with client.session_transaction() as sess:
         sess['session_id'] = f'injection-{ord(trigger)}'
 
-    client.post('/api/submit_demographics', json={'email': 'inj@example.com', 'occupation': 'eng'})
+    client.post('/api/submit_demographics', json=complete_intake(email='inj@example.com'))
     pair = client.get('/api/get_image_pair/0').get_json()
     submitted = client.post('/api/submit_survey', json={
         'image_pair_id': pair['id'],

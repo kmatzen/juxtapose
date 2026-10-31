@@ -1,6 +1,7 @@
 """
 Tests for error handling and edge cases
 """
+from tests.conftest import complete_intake
 import json
 import os
 from tests.conftest import insert_demographics, insert_response
@@ -26,22 +27,23 @@ def test_submit_demographics_invalid_json(client):
     assert response.status_code == 400
 
 
-def test_submit_demographics_missing_email(client):
-    """Test demographics submission without email"""
+def test_submit_demographics_missing_email_is_refused(client):
+    """The study declares email required, so an intake without it is refused by name."""
     with client.session_transaction() as sess:
         sess['session_id'] = 'test-no-email'
         sess['referral_validated'] = True
 
     response = client.post('/api/submit_demographics',
-                          json={
-                              'occupation': 'Engineer',
+                          json=complete_intake({
+                              'email': None,
                               'device_info': {
                                   'browser': 'Chrome',
                                   'os': 'macOS'
                               }
-                          },
+                          }),
                           content_type='application/json')
-    assert response.status_code == 200
+    assert response.status_code == 400
+    assert 'email' in response.get_json()['error']
 
 
 def test_submit_demographics_missing_device_info(client):
@@ -51,10 +53,9 @@ def test_submit_demographics_missing_device_info(client):
         sess['referral_validated'] = True
 
     response = client.post('/api/submit_demographics',
-                          json={
+                          json=complete_intake({
                               'email': 'test@example.com',
-                              'occupation': 'Engineer'
-                          },
+                          }),
                           content_type='application/json')
     assert response.status_code == 200
 

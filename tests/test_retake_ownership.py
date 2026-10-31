@@ -4,6 +4,7 @@ A session is free (GET / mints one) and the CSRF token sits on the page it fetch
 that trusts the email in the request body is an unauthenticated wipe of any address in the study.
 The suite that covers retake posts twice, which is why the single-post path shipped open.
 """
+from tests.conftest import complete_intake
 import json
 import uuid
 
@@ -45,7 +46,7 @@ def response_count(email):
 def post(client, session_id, **payload):
     with client.session_transaction() as sess:
         sess['session_id'] = session_id
-    return client.post('/api/submit_demographics', json=payload,
+    return client.post('/api/submit_demographics', json=complete_intake(payload),
                        content_type='application/json')
 
 

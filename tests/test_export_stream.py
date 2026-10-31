@@ -35,7 +35,9 @@ def _full_stimulus():
 
 
 def _full_demographics():
-    return {field['name']: f'{field["name"]}-value' for field in app_module.CONFIG['demographics']}
+    demo = {field['name']: f'{field["name"]}-value' for field in app_module.CONFIG['demographics']}
+    demo['consent'] = 'agreed'
+    return demo
 
 
 def _answers(names=None):

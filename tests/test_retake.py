@@ -1,4 +1,5 @@
 """Audit #2: a retake must not destroy finished work before it is confirmed."""
+from tests.conftest import complete_intake
 import hashlib
 import json
 import uuid
@@ -61,7 +62,7 @@ def submit(client, session, email=EMAIL, **extra):
     with client.session_transaction() as sess:
         sess['session_id'] = session
     return client.post('/api/submit_demographics',
-                       json={'email': email, **extra},
+                       json=complete_intake({'email': email, **extra}),
                        content_type='application/json')
 
 
