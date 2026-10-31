@@ -55,6 +55,11 @@ questions:
 {questions}
 """
 
+EMAIL_OPTIONAL = """  - name: email
+    type: email
+    label: "Email"
+"""
+
 SELECT_FIELD = """  - name: occupation
     type: select
     label: "Occupation"
@@ -128,13 +133,10 @@ def test_a_no_email_study_does_not_reserve_an_answered_trial(tmp_path, monkeypat
         f'the app re-served a finished participant a trial they answered: {again.get_json()}')
 
 
-def test_an_intake_posted_without_the_email_still_finishes(client, app, monkeypatch):
-    """The shipped study collects an email; a session that posts none still owns its own answers."""
-    monkeypatch.setenv('REFERRAL_CODES', '')
-    last = run_study(client, {'occupation': 'engineer', 'technical_background': 'yes',
-                              'has_used_image_gen': 'yes', 'works_on_ai_development': 'no',
-                              'ai_usage_frequency': 'often', 'works_with_graphics': 'no',
-                              'ai_familiarity': 'low'})
+def test_an_intake_posted_without_the_email_still_finishes(tmp_path, monkeypatch):
+    """A study whose email field is optional: a session that posts none still owns its answers."""
+    client = study_client(tmp_path, monkeypatch, SELECT_FIELD + EMAIL_OPTIONAL)
+    last = run_study(client, {'occupation': 'engineer'})
 
     assert last is not None
     assert last.get('completed') is True, (

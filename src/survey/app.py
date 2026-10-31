@@ -733,6 +733,40 @@ def health():
     }), 200
 
 
+INTAKE_CELL_MAX = 2000
+
+
+def _intake_error(data):
+    """The intake's own rules, from the config: an html `required` attribute binds the browser, not the app."""
+    for field in CONFIG.get('demographics', []):
+        name, kind = field['name'], field.get('type')
+        cells = data.get(name)
+        cells = cells if isinstance(cells, list) else [cells]
+        if kind == 'checkbox':
+            # The page joins a ticked group into one 'a, b' string (study-state.normalizeDemographics).
+            cells = [part.strip() for cell in cells if isinstance(cell, str) for part in cell.split(',')]
+        texts = []
+        for cell in cells:
+            if cell is None:
+                continue
+            if not isinstance(cell, (str, int, float, bool)):
+                return f"Field '{name}' must be text or a list of text"
+            if str(cell).strip():
+                texts.append(str(cell))
+        if field.get('required') and not texts:
+            return f"Field '{name}' is required"
+        if kind in ('select', 'radio', 'checkbox'):
+            # 'none' is the page's own word for a checkbox group with nothing ticked.
+            allowed = {str(o.get('value')) for o in field.get('options', [])}
+            if kind == 'checkbox':
+                allowed.add('none')
+            if any(text not in allowed for text in texts):
+                return f"Field '{name}' must be one of {', '.join(sorted(allowed))}"
+        if any(len(text) > INTAKE_CELL_MAX for text in texts):
+            return f"Field '{name}' must be at most {INTAKE_CELL_MAX} characters"
+    return None
+
+
 def _valid_email(email):
     """True if email is a usable address string.
 
@@ -1025,6 +1059,11 @@ def submit_demographics():
         return jsonify({'error': 'No session ID'}), 400
 
     data = request.json
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Expected a JSON object'}), 400
+    intake_error = _intake_error(data)
+    if intake_error:
+        return jsonify({'error': intake_error}), 400
     db = get_db()
 
     try:
@@ -1156,10 +1195,15 @@ def get_image_pair(pair_index):
     # One connection, one read, both keys: this session's own rows, and its address's earlier ones for the cap.
     db = get_db()
     try:
-        completed_ids = set(_get_completed_trial_ids(_get_session_participant_id(db),
+        participant_id = _get_session_participant_id(db)
+        completed_ids = set(_get_completed_trial_ids(participant_id,
                                                     _get_session_email(db), db))
     finally:
         db.close()
+
+    if participant_id is None:
+        # The intake is the study's front door: an html `required` attribute stopped the browser, not this endpoint.
+        return jsonify({'error': 'Demographics not submitted'}), 403
 
     # Initialize user's pair list
     if 'user_image_pairs' not in session or session.get('session_dev_mode') != DEV_MODE:

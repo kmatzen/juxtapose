@@ -2,6 +2,7 @@
 Tests for audit finding #1 (participant data rendered in the admin dashboard)
 and #16 (default admin password accepted in production).
 """
+from tests.conftest import complete_intake
 import json
 import subprocess
 import sys
@@ -17,7 +18,7 @@ def test_demographics_rejects_html_injection_email(client):
         sess['session_id'] = 'xss-email-session'
 
     response = client.post('/api/submit_demographics',
-                           json={'email': XSS_EMAIL, 'occupation': 'researcher'},
+                           json=complete_intake({'email': XSS_EMAIL, 'occupation': 'researcher'}),
                            content_type='application/json')
 
     assert response.status_code == 400
@@ -30,7 +31,7 @@ def test_demographics_rejects_non_string_email(client):
         sess['session_id'] = 'non-string-email-session'
 
     response = client.post('/api/submit_demographics',
-                           json={'email': 12345, 'occupation': 'researcher'},
+                           json=complete_intake({'email': 12345, 'occupation': 'researcher'}),
                            content_type='application/json')
 
     assert response.status_code == 400
@@ -44,7 +45,7 @@ def test_demographics_rejected_email_is_not_stored(client):
         sess['session_id'] = 'not-stored-session'
 
     client.post('/api/submit_demographics',
-                json={'email': XSS_EMAIL, 'occupation': 'researcher'},
+                json=complete_intake({'email': XSS_EMAIL, 'occupation': 'researcher'}),
                 content_type='application/json')
 
     db = get_db()
@@ -62,7 +63,7 @@ def test_valid_email_still_accepted(client):
         sess['session_id'] = 'valid-email-session'
 
     response = client.post('/api/submit_demographics',
-                           json={'email': 'researcher@example.com'},
+                           json=complete_intake({'email': 'researcher@example.com'}),
                            content_type='application/json')
 
     assert response.status_code == 200
@@ -77,7 +78,7 @@ def test_email_is_trimmed_of_whitespace(client):
         sess['session_id'] = 'trim-email-session'
 
     response = client.post('/api/submit_demographics',
-                           json={'email': '  trim@example.com  '},
+                           json=complete_intake({'email': '  trim@example.com  '}),
                            content_type='application/json')
     assert response.status_code == 200
 
