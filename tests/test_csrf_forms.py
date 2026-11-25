@@ -93,3 +93,12 @@ def test_a_referral_post_without_the_token_is_refused(referral_client):
     assert response.status_code == 400
     with client.session_transaction() as sess:
         assert not sess.get('referral_validated'), 'a refused post admitted the participant'
+
+
+def test_csrf_tokens_expire_with_the_session(csrf_app):
+    """Issue #26: a token with no time limit stays replayable after logout and after the cookie dies."""
+    limit = csrf_app.config['WTF_CSRF_TIME_LIMIT']
+    session_seconds = csrf_app.config['PERMANENT_SESSION_LIFETIME'].total_seconds()
+
+    assert limit is not None, 'a CSRF token that never expires outlives the session that carries it'
+    assert limit <= session_seconds, 'a CSRF token must not outlive the session it protects'

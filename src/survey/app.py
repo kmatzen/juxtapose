@@ -56,7 +56,8 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)  # Session timeout
 app.config['WTF_CSRF_ENABLED'] = True
 # One trial's answers are a few hundred bytes; this is the ceiling on what a POST may store.
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024
-app.config['WTF_CSRF_TIME_LIMIT'] = None  # Don't expire CSRF tokens
+# A token with no limit stays replayable after logout; equalling the session lifetime means the CSRF gate never closes a form the session gate has not already closed.
+app.config['WTF_CSRF_TIME_LIMIT'] = int(app.config['PERMANENT_SESSION_LIFETIME'].total_seconds())
 csrf = CSRFProtect(app)
 
 # Security: Rate Limiting
